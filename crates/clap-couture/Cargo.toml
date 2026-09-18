@@ -2,7 +2,9 @@
 name = "clap-couture"
 version = "0.1.0"
 edition = "2024"
-description = "Beautiful, categorized --help for clap CLIs"
+description = "Beautiful, categorized --help for clap CLIs — group subcommands into titled, styled sections."
+keywords = ["clap", "cli", "help", "terminal", "derive"]
+categories = ["command-line-interface", "development-tools"]
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true

@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1180" height="686" viewBox="0 0 1180 686" font-family="ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace" font-size="14">
+<defs><filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="10" stdDeviation="16" flood-color="#000" flood-opacity="0.35"/></filter></defs>
+<rect width="1180" height="686" fill="none"/>
+<text x="300.0" y="72" text-anchor="middle" font-size="13" font-weight="700" letter-spacing="1.5" fill="#7f849c">BEFORE<tspan fill="#7f849c" font-weight="500" letter-spacing="0"> · plain clap</tspan></text>
+<text x="880.0" y="72" text-anchor="middle" font-size="13" font-weight="700" letter-spacing="1.5" fill="#f5c2e7">AFTER<tspan fill="#7f849c" font-weight="500" letter-spacing="0"> · clap-couture</tspan></text>
+<rect x="30" y="88" width="540" height="568" rx="12" fill="#1e1e2e" stroke="#313244" stroke-width="1" filter="url(#shadow)"/>
+<path d="M30,100 q0,-12 12,-12 h516 q12,0 12,12 v24 h-540 z" fill="#181825"/>
+<circle cx="50" cy="106" r="6" fill="#f38ba8"/>
+<circle cx="70" cy="106" r="6" fill="#f9e2af"/>
+<circle cx="90" cy="106" r="6" fill="#a6e3a1"/>
+<text x="300.0" y="111" fill="#7f849c" text-anchor="middle" font-size="12.5" font-weight="600">orbit — help</text>
+<text x="52.0" y="150.0" fill="#a6e3a1" font-weight="700">$</text>
+<text x="68.8" y="150.0" fill="#cdd6f4">orbit </text>
+<text x="119.2" y="150.0" fill="#94e2d5">--help</text>
+<text x="52.0" y="192.0" fill="#cdd6f4">Deploy and manage your apps from the terminal.</text>
+<text x="52.0" y="234.0" fill="#f9e2af" font-weight="700">Usage:</text>
+<text x="110.8" y="234.0" fill="#cdd6f4">orbit &lt;COMMAND&gt;</text>
+<text x="52.0" y="276.0" fill="#f9e2af" font-weight="700">Commands:</text>
+<text x="68.8" y="297.0" fill="#89b4fa" font-weight="700">search</text>
+<text x="152.8" y="297.0" fill="#a6adc8">Search your deployment history</text>
+<text x="68.8" y="318.0" fill="#89b4fa" font-weight="700">status</text>
+<text x="152.8" y="318.0" fill="#a6adc8">Show recent activity</text>
+<text x="68.8" y="339.0" fill="#89b4fa" font-weight="700">logs</text>
+<text x="152.8" y="339.0" fill="#a6adc8">Tail live logs</text>
+<text x="68.8" y="360.0" fill="#89b4fa" font-weight="700">deploy</text>
+<text x="152.8" y="360.0" fill="#a6adc8">Ship the current project</text>
+<text x="68.8" y="381.0" fill="#89b4fa" font-weight="700">rollback</text>
+<text x="152.8" y="381.0" fill="#a6adc8">Roll back to a previous release</text>
+<text x="68.8" y="402.0" fill="#89b4fa" font-weight="700">secrets</text>
+<text x="152.8" y="402.0" fill="#a6adc8">Manage environment secrets</text>
+<text x="68.8" y="423.0" fill="#89b4fa" font-weight="700">login</text>
+<text x="152.8" y="423.0" fill="#a6adc8">Sign in to your account</text>
+<text x="68.8" y="444.0" fill="#89b4fa" font-weight="700">sync</text>
+<text x="152.8" y="444.0" fill="#a6adc8">Sync settings across machines</text>
+<text x="68.8" y="465.0" fill="#89b4fa" font-weight="700">help</text>
+<text x="152.8" y="465.0" fill="#a6adc8">Print this message or a subcommand's help</text>
+<text x="52.0" y="507.0" fill="#f9e2af" font-weight="700">Options:</text>
+<text x="68.8" y="528.0" fill="#89b4fa" font-weight="700">-h, --help</text>
+<text x="194.8" y="528.0" fill="#a6adc8">Print help</text>
+<text x="68.8" y="549.0" fill="#89b4fa" font-weight="700">-V, --version</text>
+<text x="194.8" y="549.0" fill="#a6adc8">Print version</text>
+<rect x="610" y="88" width="540" height="568" rx="12" fill="#1e1e2e" stroke="#313244" stroke-width="1" filter="url(#shadow)"/>
+<path d="M610,100 q0,-12 12,-12 h516 q12,0 12,12 v24 h-540 z" fill="#181825"/>
+<circle cx="630" cy="106" r="6" fill="#f38ba8"/>
+<circle cx="650" cy="106" r="6" fill="#f9e2af"/>
+<circle cx="670" cy="106" r="6" fill="#a6e3a1"/>
+<text x="880.0" y="111" fill="#7f849c" text-anchor="middle" font-size="12.5" font-weight="600">orbit — help</text>
+<text x="632.0" y="150.0" fill="#a6e3a1" font-weight="700">$</text>
+<text x="648.8" y="150.0" fill="#cdd6f4">orbit </text>
+<text x="699.2" y="150.0" fill="#94e2d5">--help</text>
+<text x="632.0" y="192.0" fill="#cdd6f4">Deploy and manage your apps from the terminal.</text>
+<text x="632.0" y="234.0" fill="#f9e2af" font-weight="700">Usage:</text>
+<text x="648.8" y="255.0" fill="#cdd6f4">orbit &lt;COMMAND&gt;</text>
+<text x="632.0" y="297.0" fill="#f5c2e7" font-weight="700">Everyday:</text>
+<text x="774.8" y="297.0" fill="#9399b2" font-style="italic">The commands you'll reach for daily</text>
+<text x="648.8" y="318.0" fill="#89b4fa" font-weight="700">search</text>
+<text x="732.8" y="318.0" fill="#a6adc8">Search your deployment history</text>
+<text x="648.8" y="339.0" fill="#89b4fa" font-weight="700">status</text>
+<text x="732.8" y="339.0" fill="#a6adc8">Show recent activity</text>
+<text x="648.8" y="360.0" fill="#89b4fa" font-weight="700">logs</text>
+<text x="732.8" y="360.0" fill="#a6adc8">Tail live logs</text>
+<text x="632.0" y="402.0" fill="#f5c2e7" font-weight="700">Deploy:</text>
+<text x="774.8" y="402.0" fill="#9399b2" font-style="italic">Ship code to production</text>
+<text x="648.8" y="423.0" fill="#89b4fa" font-weight="700">deploy</text>
+<text x="732.8" y="423.0" fill="#a6adc8">Ship the current project</text>
+<text x="648.8" y="444.0" fill="#89b4fa" font-weight="700">rollback</text>
+<text x="732.8" y="444.0" fill="#a6adc8">Roll back to a previous release</text>
+<text x="648.8" y="465.0" fill="#89b4fa" font-weight="700">secrets</text>
+<text x="732.8" y="465.0" fill="#a6adc8">Manage environment secrets</text>
+<text x="632.0" y="507.0" fill="#f5c2e7" font-weight="700">Account &amp; sync:</text>
+<text x="648.8" y="528.0" fill="#89b4fa" font-weight="700">login</text>
+<text x="732.8" y="528.0" fill="#a6adc8">Sign in to your account</text>
+<text x="648.8" y="549.0" fill="#89b4fa" font-weight="700">sync</text>
+<text x="732.8" y="549.0" fill="#a6adc8">Sync settings across machines</text>
+<text x="632.0" y="591.0" fill="#f9e2af" font-weight="700">Options:</text>
+<text x="648.8" y="612.0" fill="#89b4fa" font-weight="700">-h, --help</text>
+<text x="774.8" y="612.0" fill="#a6adc8">Print help</text>
+<text x="648.8" y="633.0" fill="#89b4fa" font-weight="700">-V, --version</text>
+<text x="774.8" y="633.0" fill="#a6adc8">Print version</text>
+<circle cx="590.0" cy="372.0" r="17" fill="#f5c2e7"/>
+<path d="M584.0,372.0 h10 m-4,-5 l5,5 l-5,5" stroke="#1e1e2e" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

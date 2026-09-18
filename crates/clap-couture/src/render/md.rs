@@ -1,7 +1,6 @@
 use std::fmt::Write;
 
-use clap::builder::Styles;
-use clap::builder::styling::Style;
+use clap::builder::{Styles, styling::Style};
 use pulldown_cmark::{Event, Parser, Tag, TagEnd};
 
 use super::TextRenderer;
@@ -20,7 +19,11 @@ impl TextRenderer for MdTextRenderer<'_> {
     fn render(&self, writer: &mut String, text: &str) {
         let mut strong = 0usize;
         let mut emphasis = 0usize;
-        let push = |writer: &mut String, strong: usize, emphasis: usize, base: Option<&Style>, text: &str| {
+        let push = |writer: &mut String,
+                    strong: usize,
+                    emphasis: usize,
+                    base: Option<&Style>,
+                    text: &str| {
             let mut style = base.copied().unwrap_or_default();
             if strong > 0 {
                 style = style.bold();

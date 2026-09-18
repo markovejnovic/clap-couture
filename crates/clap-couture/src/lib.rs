@@ -97,8 +97,8 @@ pub struct Category {
     /// `#[category("...")]` references this field.
     pub label: &'static str,
 
-    /// The user-facing heading. If this is not provided, then [`self`] will use [`Self::label`] and
-    /// display that to the user.
+    /// The user-facing heading. If this is not provided, then [`self`] will use [`Self::label`]
+    /// and display that to the user.
     pub title: Option<&'static str>,
 
     /// A description you can provide to your categories. This gets rendered columnar.

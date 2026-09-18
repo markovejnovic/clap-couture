@@ -2,18 +2,17 @@
 //!
 //! `#[derive(Couture)]` behaves by shape, like clap's own derives:
 //!
-//! - On a **subcommand enum**, it reads two helper attributes and emits an
-//!   `impl clap_couture::Couture` carrying a `CATEGORIES` const:
-//!   - `#[couture(categories = { "key" = { title = "...", description = "..." }, ... }, inherit = [...])]`
-//!     on the enum: category display order with optional metadata (`title` and
-//!     `description` are each optional), plus an optional `inherit` clause
-//!     (`true`, `false`, or `["key", ...]`).
-//!   - `#[category("key")]` on a variant: assign it to a category. Must name a
-//!     category declared or inherited by the enum.
-//! - On a **parser struct**, it finds the `#[command(subcommand)]` field and
-//!   emits inherent `couture_command` / `couture_parse` / `couture_try_parse`
-//!   (and `*_from`) methods that build the grouped command from that field's
-//!   categories.
+//! - On a **subcommand enum**, it reads two helper attributes and emits an `impl
+//!   clap_couture::Couture` carrying a `CATEGORIES` const:
+//!   - `#[couture(categories = { "key" = { title = "...", description = "..." }, ... }, inherit =
+//!     [...])]` on the enum: category display order with optional metadata (`title` and
+//!     `description` are each optional), plus an optional `inherit` clause (`true`, `false`, or
+//!     `["key", ...]`).
+//!   - `#[category("key")]` on a variant: assign it to a category. Must name a category declared or
+//!     inherited by the enum.
+//! - On a **parser struct**, it finds the `#[command(subcommand)]` field and emits inherent
+//!   `couture_command` / `couture_parse` / `couture_try_parse` (and `*_from`) methods that build
+//!   the grouped command from that field's categories.
 
 use heck::{ToKebabCase, ToLowerCamelCase, ToShoutySnakeCase, ToSnakeCase, ToUpperCamelCase};
 use proc_macro::TokenStream;
@@ -78,7 +77,8 @@ fn expand_enum(input: &DeriveInput, data: &DataEnum) -> syn::Result<TokenStream2
             return Err(syn::Error::new_spanned(
                 &category,
                 format!(
-                    "category `{label}` is not declared or inherited in this enum's `#[couture(...)]`"
+                    "category `{label}` is not declared or inherited in this enum's \
+                     `#[couture(...)]`"
                 ),
             ));
         }
@@ -278,7 +278,8 @@ fn parse_category(attrs: &[Attribute]) -> syn::Result<Option<LitStr>> {
 /// present, otherwise the enum's `rename_all` casing (default kebab-case) applied
 /// to the raw-stripped variant ident — mirroring clap's own naming.
 fn resolve_name(variant: &Variant, casing: CasingStyle) -> String {
-    explicit_name(&variant.attrs).unwrap_or_else(|| casing.apply(&variant.ident.unraw().to_string()))
+    explicit_name(&variant.attrs)
+        .unwrap_or_else(|| casing.apply(&variant.ident.unraw().to_string()))
 }
 
 /// The container-level `#[command(rename_all = "...")]`, defaulting to clap's

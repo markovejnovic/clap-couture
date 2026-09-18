@@ -1,0 +1,25 @@
+version: 2
+updates:
+  # Rust dependencies (Cargo.toml / Cargo.lock across the workspace).
+  - package-ecosystem: cargo
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    groups:
+      # Batch routine dependency bumps into a single PR to cut noise.
+      cargo-minor:
+        update-types:
+          - minor
+          - patch
+
+  # Versions of the actions used in the workflows above.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        update-types:
+          - minor
+          - patch

@@ -170,18 +170,18 @@ pub trait CommandExt {
     /// assert!(cmd.render_help().to_string().contains("everyday"));
     /// ```
     #[must_use]
-    fn with_couture<T: Couture>(self) -> Self;
+    fn with_couture<T>(self) -> Self where T: Couture;
 }
 
 impl CommandExt for Command {
-    fn with_couture<T: Couture>(mut self) -> Self {
+    fn with_couture<T>(mut self) -> Self where T: Couture {
         let styles = self.get_styles().clone();
 
         // Snapshot visible subcommands before we start mutating `self`.
         let commands: Vec<(String, Option<String>)> = self
             .get_subcommands()
             .filter(|c| !c.is_hide_set())
-            .map(|c| (c.get_name().to_string(), c.get_about().map(ToString::to_string)))
+            .map(|c| (c.get_name().to_owned(), c.get_about().map(ToString::to_string)))
             .collect();
 
         let mut before = String::new();

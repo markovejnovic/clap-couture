@@ -1,7 +1,7 @@
-use std::fmt::Write;
+use std::fmt::Write as _;
 
 use clap::builder::Styles;
-use unicode_width::UnicodeWidthStr;
+use unicode_width::UnicodeWidthStr as _;
 
 use crate::CommandCategoryMap;
 

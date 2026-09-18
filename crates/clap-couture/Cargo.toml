@@ -5,6 +5,7 @@ edition = "2024"
 description = "Beautiful, categorized --help for clap CLIs — group subcommands into titled, styled sections."
 keywords = ["clap", "cli", "help", "terminal", "derive"]
 categories = ["command-line-interface", "development-tools"]
+readme = "../../README.md"
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true

@@ -14,13 +14,13 @@
 //!   `couture_command` / `couture_parse` / `couture_try_parse` (and `*_from`) methods that build
 //!   the grouped command from that field's categories.
 
-use heck::{ToKebabCase, ToLowerCamelCase, ToShoutySnakeCase, ToSnakeCase, ToUpperCamelCase};
+use heck::{ToKebabCase as _, ToLowerCamelCase as _, ToShoutySnakeCase as _, ToSnakeCase as _, ToUpperCamelCase as _};
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::{
     Attribute, Data, DataEnum, DataStruct, DeriveInput, LitStr, Token, Type, Variant,
-    ext::IdentExt, parse_macro_input,
+    ext::IdentExt as _, parse_macro_input,
 };
 
 mod attrs;
@@ -220,10 +220,7 @@ fn unwrap_option(ty: &Type) -> &Type {
 }
 
 fn option_str(value: Option<&str>) -> TokenStream2 {
-    match value {
-        Some(value) => quote!(::core::option::Option::Some(#value)),
-        None => quote!(::core::option::Option::None),
-    }
+    if let Some(value) = value { quote!(::core::option::Option::Some(#value)) } else { quote!(::core::option::Option::None) }
 }
 
 struct CategoryDef {
@@ -287,10 +284,13 @@ fn resolve_name(variant: &Variant, casing: CasingStyle) -> String {
 fn container_casing(attrs: &[Attribute]) -> CasingStyle {
     let mut casing = CasingStyle::Kebab;
     scan_clap_meta(attrs, |meta| {
-        if meta.path.is_ident("rename_all")
-            && let Some(style) = CasingStyle::from_lit(&meta.value()?.parse::<LitStr>()?.value())
-        {
-            casing = style;
+        // Nested rather than a `let`-chain: let-chains are unstable before Rust
+        // 1.88, and this crate's MSRV is 1.85 (clippy honors `rust-version`, so it
+        // won't push this back into a `collapsible_if`).
+        if meta.path.is_ident("rename_all") {
+            if let Some(style) = CasingStyle::from_lit(&meta.value()?.parse::<LitStr>()?.value()) {
+                casing = style;
+            }
         }
         Ok(())
     });
@@ -389,7 +389,7 @@ impl CasingStyle {
             Self::Snake => ident.to_snake_case(),
             Self::Lower => ident.to_snake_case().replace('_', ""),
             Self::Upper => ident.to_shouty_snake_case().replace('_', ""),
-            Self::Verbatim => ident.to_string(),
+            Self::Verbatim => ident.to_owned(),
         }
     }
 }

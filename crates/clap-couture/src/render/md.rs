@@ -1,4 +1,4 @@
-use std::fmt::Write;
+use std::fmt::Write as _;
 
 use clap::builder::{Styles, styling::Style};
 use pulldown_cmark::{Event, Parser, Tag, TagEnd};
@@ -10,7 +10,7 @@ pub(crate) struct MdTextRenderer<'style> {
 }
 
 impl<'style> MdTextRenderer<'style> {
-    pub(crate) fn new(styles: &'style Styles) -> Self {
+    pub(crate) const fn new(styles: &'style Styles) -> Self {
         Self { styles }
     }
 }

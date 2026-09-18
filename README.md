@@ -15,7 +15,16 @@
   <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-DB2777?style=flat-square"></a>
 </p>
 
-<img src="assets/demo.svg" alt="clap-couture turns clap's flat --help into categorized, beautifully organized sections" width="880">
+<table>
+  <tr>
+    <td align="center"><sub><b>PLAIN CLAP</b></sub></td>
+    <td align="center"><sub><b>WITH CLAP-COUTURE</b></sub></td>
+  </tr>
+  <tr>
+    <td valign="top"><img src="assets/before.svg" alt="clap's default --help: one long, flat list of commands" width="430"></td>
+    <td valign="top"><img src="assets/after.svg" alt="the same CLI with clap-couture: commands grouped into titled categories with descriptions" width="430"></td>
+  </tr>
+</table>
 
 </div>
 

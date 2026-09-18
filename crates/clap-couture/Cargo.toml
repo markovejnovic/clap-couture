@@ -1,0 +1,23 @@
+[package]
+name = "clap-couture"
+version = "0.1.0"
+edition = "2024"
+description = "Beautiful, categorized --help for clap CLIs"
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+clap-couture-derive = { path = "../clap-couture-derive", version = "0.1.0" }
+clap = { workspace = true }
+pulldown-cmark = { workspace = true, optional = true }
+unicode-width = { workspace = true }
+
+[features]
+markdown = ["dep:pulldown-cmark"]
+
+[dev-dependencies]
+clap = { workspace = true, features = ["derive"] }
+
+[lints]
+workspace = true

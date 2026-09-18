@@ -13,9 +13,9 @@ freeze_opts=(
   --language ansi
   --window
   --background "#1e1e2e"
-  --padding 30 --margin 26
+  --padding 30 --margin 64
   --border.radius 10
-  --shadow.blur 22 --shadow.x 0 --shadow.y 14
+  --shadow.blur 24 --shadow.x 0 --shadow.y 16
   --font.size 14 --line-height 1.4
 )
 

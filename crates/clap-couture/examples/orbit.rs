@@ -7,8 +7,16 @@
 //! Or just `cargo run -p clap-couture --example orbit` — with no subcommand it
 //! prints the couture help. This is also what `assets/demo.tape` records.
 
-use clap::builder::styling::{Color, RgbColor, Style, Styles};
-use clap::{CommandFactory as _, Parser, Subcommand};
+#![allow(
+    clippy::expect_used,
+    clippy::print_stdout,
+    reason = "a runnable demo prints its result and uses `expect` for brevity"
+)]
+
+use clap::{
+    CommandFactory as _, Parser, Subcommand,
+    builder::styling::{Color, RgbColor, Style, Styles},
+};
 use clap_couture::Couture;
 
 // clap-couture inherits whatever `Styles` your command already uses, so a few
@@ -44,28 +52,28 @@ struct Cli {
     "account"  = { title = "Account & sync" },
 })]
 enum Cmd {
-    /// Search your deployment history
-    #[category("everyday")]
-    Search,
-    /// Show recent activity
-    #[category("everyday")]
-    Status,
-    /// Tail live logs
-    #[category("everyday")]
-    Logs,
-    /// Ship the current project
+    /// Ship the current project.
     #[category("deploy")]
     Deploy,
-    /// Roll back to a previous release
-    #[category("deploy")]
-    Rollback,
-    /// Manage environment secrets
-    #[category("deploy")]
-    Secrets,
-    /// Sign in to your account
+    /// Sign in to your account.
     #[category("account")]
     Login,
-    /// Sync settings across machines
+    /// Tail live logs.
+    #[category("everyday")]
+    Logs,
+    /// Roll back to a previous release.
+    #[category("deploy")]
+    Rollback,
+    /// Search your deployment history.
+    #[category("everyday")]
+    Search,
+    /// Manage environment secrets.
+    #[category("deploy")]
+    Secrets,
+    /// Show recent activity.
+    #[category("everyday")]
+    Status,
+    /// Sync settings across machines.
     #[category("account")]
     Sync,
 }

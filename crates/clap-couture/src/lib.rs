@@ -62,10 +62,10 @@
 //! The subcommands stay visible to clap, so shell completions and
 //! `tool <cmd> --help` are unaffected — only the help *listing* changes.
 
+mod render;
+
 use clap::{Command, builder::StyledStr};
 pub use clap_couture_derive::Couture;
-
-mod render;
 use render::render_groups;
 
 /// A clap subcommand name.
@@ -74,16 +74,16 @@ use render::render_groups;
 pub struct CommandName(&'static str);
 
 impl CommandName {
-    /// Wrap a static subcommand name.
-    #[must_use]
-    pub const fn new(name: &'static str) -> Self {
-        Self(name)
-    }
-
     /// The underlying subcommand name.
     #[must_use]
     pub const fn as_str(&self) -> &'static str {
         self.0
+    }
+
+    /// Wrap a static subcommand name.
+    #[must_use]
+    pub const fn new(name: &'static str) -> Self {
+        Self(name)
     }
 }
 
@@ -92,6 +92,9 @@ impl CommandName {
 /// You can create arbitrary categories, associate them to commands via
 /// [`Couture::CATEGORIES`], and then reference them.
 pub struct Category {
+    /// A description you can provide to your categories. This gets rendered columnar.
+    pub description: Option<&'static str>,
+
     /// Stable identifier that can be referenced.
     ///
     /// `#[category("...")]` references this field.
@@ -100,9 +103,6 @@ pub struct Category {
     /// The user-facing heading. If this is not provided, then [`self`] will use [`Self::label`]
     /// and display that to the user.
     pub title: Option<&'static str>,
-
-    /// A description you can provide to your categories. This gets rendered columnar.
-    pub description: Option<&'static str>,
 }
 
 /// A static map from subcommand name to the category it belongs to.
@@ -110,10 +110,10 @@ pub struct Category {
 pub struct CommandCategoryMap(&'static [(CommandName, Category)]);
 
 impl CommandCategoryMap {
-    /// Wrap a static slice of `(command, category)` pairs.
+    /// The category assigned to `name`, if any.
     #[must_use]
-    pub const fn new(entries: &'static [(CommandName, Category)]) -> Self {
-        Self(entries)
+    pub fn find(&self, name: &str) -> Option<&Category> {
+        self.0.iter().find(|entry| entry.0.as_str() == name).map(|entry| &entry.1)
     }
 
     /// Iterate the `(command, category)` pairs in declared order.
@@ -121,10 +121,19 @@ impl CommandCategoryMap {
         self.0.iter()
     }
 
-    /// The category assigned to `name`, if any.
+    /// Wrap a static slice of `(command, category)` pairs.
     #[must_use]
-    pub fn find(&self, name: &str) -> Option<&Category> {
-        self.0.iter().find(|(cmd, _)| cmd.as_str() == name).map(|(_, cat)| cat)
+    pub const fn new(entries: &'static [(CommandName, Category)]) -> Self {
+        Self(entries)
+    }
+}
+
+impl<'map> IntoIterator for &'map CommandCategoryMap {
+    type IntoIter = core::slice::Iter<'map, (CommandName, Category)>;
+    type Item = &'map (CommandName, Category);
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
     }
 }
 
@@ -170,11 +179,16 @@ pub trait CommandExt {
     /// assert!(cmd.render_help().to_string().contains("everyday"));
     /// ```
     #[must_use]
-    fn with_couture<T>(self) -> Self where T: Couture;
+    fn with_couture<T>(self) -> Self
+    where
+        T: Couture;
 }
 
 impl CommandExt for Command {
-    fn with_couture<T>(mut self) -> Self where T: Couture {
+    fn with_couture<T>(mut self) -> Self
+    where
+        T: Couture,
+    {
         let styles = self.get_styles().clone();
 
         // Snapshot visible subcommands before we start mutating `self`.

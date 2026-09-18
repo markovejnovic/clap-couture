@@ -38,6 +38,7 @@ question_mark_used = "allow"         # vs question_mark (kept)
 unseparated_literal_suffix = "allow" # vs separated_literal_suffix (kept): 1_u8
 semicolon_outside_block = "allow"    # vs semicolon_inside_block (kept)
 mod_module_files = "allow"           # vs self_named_module_files (kept): foo.rs
+unused_result_ok = "allow"           # vs let_underscore_must_use (kept): discard via `.ok()`
 
 # Curated opt-outs from the `restriction`/`nursery` groups: lints that are noisy
 # or counterproductive for this crate (see the pedantic/nursery groups we keep).
@@ -45,6 +46,8 @@ missing_docs_in_private_items = "allow"     # a doc comment on every private ite
 missing_inline_in_public_items = "allow"    # `#[inline]` on every public fn
 single_call_fn = "allow"                    # bans helpers called once; hurts readability
 exhaustive_structs = "allow"                # `#[non_exhaustive]` is an API choice, not a lint
+pub_use = "allow"                           # the derive-macro re-export is this crate's API
+pattern_type_mismatch = "allow"             # unsatisfiable without `all`'s needless_borrowed_reference/match_ref_pats
 min_ident_chars = "allow"                   # short idents (`i`, `ty`, ...) are idiomatic
 shadow_reuse = "allow"                      # shadowing is a common, readable Rust idiom
 shadow_unrelated = "allow"                  #   (both halves of the shadowing pair)

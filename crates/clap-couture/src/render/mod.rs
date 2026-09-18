@@ -1,19 +1,18 @@
-use std::fmt::Write as _;
-
-use clap::builder::Styles;
-use unicode_width::UnicodeWidthStr as _;
-
-use crate::CommandCategoryMap;
-
 #[cfg(feature = "markdown")]
 mod md;
 #[cfg(not(feature = "markdown"))]
 mod plain;
 
+use std::fmt::Write as _;
+
+use clap::builder::Styles;
 #[cfg(feature = "markdown")]
 use md::MdTextRenderer as Renderer;
 #[cfg(not(feature = "markdown"))]
 use plain::PlainTextRenderer as Renderer;
+use unicode_width::UnicodeWidthStr as _;
+
+use crate::CommandCategoryMap;
 
 pub(crate) trait TextRenderer {
     fn render(&self, writer: &mut String, text: &str);
@@ -26,23 +25,24 @@ pub(crate) fn render_groups(
     styles: &Styles,
 ) {
     let renderer = Renderer::new(styles);
-    let longest = commands.iter().map(|(name, _)| name.width()).max().unwrap_or(0);
+    let longest = commands.iter().map(|entry| entry.0.width()).max().unwrap_or(0);
 
     let shown = |label: &str| -> bool {
-        commands.iter().any(|(name, _)| categories.find(name).is_some_and(|c| c.label == label))
+        commands.iter().any(|entry| categories.find(&entry.0).is_some_and(|c| c.label == label))
     };
 
     let render_rows =
         |out: &mut String, members: &mut dyn Iterator<Item = &(String, Option<String>)>| {
             let literal = styles.get_literal();
-            for (index, (name, about)) in members.enumerate() {
+            for (index, entry) in members.enumerate() {
                 if index > 0 {
                     out.push('\n');
                 }
                 out.push_str("  ");
+                let name = entry.0.as_str();
                 let pad = longest.saturating_sub(name.width());
-                let _ = write!(out, "{literal}{name}{literal:#}{:pad$}", "");
-                if let Some(about) = about {
+                write!(out, "{literal}{name}{literal:#}{:pad$}", "").ok();
+                if let Some(about) = entry.1.as_deref() {
                     out.push_str("  ");
                     renderer.render(out, about);
                 }
@@ -51,27 +51,28 @@ pub(crate) fn render_groups(
 
     let heading_width = categories
         .iter()
-        .filter(|(_, cat)| shown(cat.label))
-        .map(|(_, cat)| cat.title.unwrap_or(cat.label).width() + 1)
+        .filter(|entry| shown(entry.1.label))
+        .map(|entry| entry.1.title.unwrap_or(entry.1.label).width().saturating_add(1))
         .max()
         .unwrap_or(0);
 
-    let command_description_col = 2 + longest + 2;
-    let mut description_col = heading_width + 2;
+    let command_description_col = longest.saturating_add(4);
+    let mut description_col = heading_width.saturating_add(2);
     if description_col.abs_diff(command_description_col) < 2 {
-        description_col = command_description_col + 2;
+        description_col = command_description_col.saturating_add(2);
     }
 
-    let mut first = true;
-
-    if commands.iter().any(|(name, _)| categories.find(name).is_none()) {
-        render_rows(out, &mut commands.iter().filter(|(name, _)| categories.find(name).is_none()));
-        first = false;
+    // Render uncategorized commands first, if any; a category block is prefixed
+    // with a blank-line separator only once something precedes it.
+    let has_uncategorized = commands.iter().any(|entry| categories.find(&entry.0).is_none());
+    if has_uncategorized {
+        render_rows(out, &mut commands.iter().filter(|entry| categories.find(&entry.0).is_none()));
     }
+    let mut first = !has_uncategorized;
 
-    for (i, (_, cat)) in categories.iter().enumerate() {
-        let label = cat.label;
-        let first_occurrence = !categories.iter().take(i).any(|(_, c)| c.label == label);
+    for (i, entry) in categories.iter().enumerate() {
+        let label = entry.1.label;
+        let first_occurrence = !categories.iter().take(i).any(|prev| prev.1.label == label);
         if !first_occurrence || !shown(label) {
             continue;
         }
@@ -80,12 +81,12 @@ pub(crate) fn render_groups(
         }
         first = false;
 
-        let heading = cat.title.unwrap_or(label);
+        let heading = entry.1.title.unwrap_or(label);
         let header = styles.get_header();
-        let _ = write!(out, "{header}{heading}:{header:#}");
-        if let Some(description) = cat.description {
-            let pad = description_col.saturating_sub(heading.width() + 1);
-            let _ = write!(out, "{:pad$}", "");
+        write!(out, "{header}{heading}:{header:#}").ok();
+        if let Some(description) = entry.1.description {
+            let pad = description_col.saturating_sub(heading.width().saturating_add(1));
+            write!(out, "{:pad$}", "").ok();
             renderer.render(out, description);
         }
         out.push('\n');
@@ -93,7 +94,7 @@ pub(crate) fn render_groups(
             out,
             &mut commands
                 .iter()
-                .filter(|(name, _)| categories.find(name).is_some_and(|c| c.label == label)),
+                .filter(|cmd| categories.find(&cmd.0).is_some_and(|c| c.label == label)),
         );
     }
 }

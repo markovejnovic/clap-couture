@@ -14,7 +14,12 @@
 //!   `couture_command` / `couture_parse` / `couture_try_parse` (and `*_from`) methods that build
 //!   the grouped command from that field's categories.
 
-use heck::{ToKebabCase as _, ToLowerCamelCase as _, ToShoutySnakeCase as _, ToSnakeCase as _, ToUpperCamelCase as _};
+mod attrs;
+
+use heck::{
+    ToKebabCase as _, ToLowerCamelCase as _, ToShoutySnakeCase as _, ToSnakeCase as _,
+    ToUpperCamelCase as _,
+};
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
@@ -23,14 +28,107 @@ use syn::{
     ext::IdentExt as _, parse_macro_input,
 };
 
-mod attrs;
-
 use crate::attrs::{CategoriesSpec, Inherit};
+
+struct CategoryDef {
+    description: Option<String>,
+    label: String,
+    title: Option<String>,
+}
+
+/// clap's subcommand-name casing styles, matching `clap_derive`'s `CasingStyle`.
+#[derive(Clone, Copy)]
+enum CasingStyle {
+    Camel,
+    Kebab,
+    Lower,
+    Pascal,
+    ScreamingSnake,
+    Snake,
+    Upper,
+    Verbatim,
+}
+
+/// How an enum relates to categories declared elsewhere (e.g. its parent
+/// command). Purely a compile-time construct — it never reaches the `CATEGORIES` const.
+enum InheritSpec {
+    /// `inherit = true`: reference any category (skip the compile-time check).
+    All,
+    /// `inherit = ["a", ...]`: also accept these parent categories.
+    List(Vec<String>),
+    /// No `inherit` clause.
+    None,
+}
+
+impl CasingStyle {
+    fn apply(self, ident: &str) -> String {
+        match self {
+            Self::Camel => ident.to_lower_camel_case(),
+            Self::Kebab => ident.to_kebab_case(),
+            Self::Lower => ident.to_snake_case().replace('_', ""),
+            Self::Pascal => ident.to_upper_camel_case(),
+            Self::ScreamingSnake => ident.to_shouty_snake_case(),
+            Self::Snake => ident.to_snake_case(),
+            Self::Upper => ident.to_shouty_snake_case().replace('_', ""),
+            Self::Verbatim => ident.to_owned(),
+        }
+    }
+
+    /// Parse a `rename_all` value the way clap does (case/separator-insensitive).
+    fn from_lit(value: &str) -> Option<Self> {
+        let normalized = value.to_upper_camel_case().to_lowercase();
+        Some(match normalized.as_str() {
+            "camel" | "camelcase" => Self::Camel,
+            "kebab" | "kebabcase" => Self::Kebab,
+            "pascal" | "pascalcase" => Self::Pascal,
+            "screamingsnake" | "screamingsnakecase" => Self::ScreamingSnake,
+            "snake" | "snakecase" => Self::Snake,
+            "lower" | "lowercase" => Self::Lower,
+            "upper" | "uppercase" => Self::Upper,
+            "verbatim" | "verbatimcase" => Self::Verbatim,
+            _ => return None,
+        })
+    }
+}
 
 #[proc_macro_derive(Couture, attributes(category, couture))]
 pub fn derive_couture(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     expand(&input).unwrap_or_else(syn::Error::into_compile_error).into()
+}
+
+/// The container-level `#[command(rename_all = "...")]`, defaulting to clap's
+/// kebab-case for subcommands.
+fn container_casing(attrs: &[Attribute]) -> CasingStyle {
+    let mut casing = CasingStyle::Kebab;
+    scan_clap_meta(attrs, |meta| {
+        // Nested rather than a `let`-chain: let-chains are unstable before Rust
+        // 1.88, and this crate's MSRV is 1.85 (clippy honors `rust-version`, so it
+        // won't push this back into a `collapsible_if`).
+        if meta.path.is_ident("rename_all") {
+            if let Some(style) = CasingStyle::from_lit(&meta.value()?.parse::<LitStr>()?.value()) {
+                casing = style;
+            }
+        }
+        Ok(())
+    });
+    casing
+}
+
+/// Consume the value of a meta key we don't care about (`= value` or `(...)`),
+/// so `parse_nested_meta` can advance. A no-op for bare flags and keys whose
+/// value a visitor already parsed.
+fn consume_meta_value(meta: &syn::meta::ParseNestedMeta<'_>) -> syn::Result<()> {
+    if meta.input.peek(Token![=]) {
+        meta.value()?.parse::<syn::Expr>()?;
+    } else if meta.input.peek(syn::token::Paren) {
+        let inner;
+        syn::parenthesized!(inner in meta.input);
+        inner.parse::<TokenStream2>()?;
+    } else {
+        // A bare flag (e.g. `#[command(subcommand)]`) carries no value to consume.
+    }
+    Ok(())
 }
 
 fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
@@ -93,25 +191,27 @@ fn expand_enum(input: &DeriveInput, data: &DataEnum) -> syn::Result<TokenStream2
         let label = &cat.label;
         let title = option_str(cat.title.as_deref());
         let description = option_str(cat.description.as_deref());
-        for (name, assigned_label) in &assignments {
+        for pair in &assignments {
+            let (name, assigned_label) = (&pair.0, &pair.1);
             if assigned_label == label {
                 pairs.push(quote!((
                     ::clap_couture::CommandName::new(#name),
-                    ::clap_couture::Category { label: #label, title: #title, description: #description }
+                    ::clap_couture::Category { description: #description, label: #label, title: #title }
                 )));
             }
         }
     }
     // Assignments to categories not declared here (inherited / permissive) carry
     // just the label; the command that owns the category supplies title/description.
-    for (name, assigned_label) in &assignments {
+    for pair in &assignments {
+        let (name, assigned_label) = (&pair.0, &pair.1);
         if !categories.iter().any(|c| &c.label == assigned_label) {
             pairs.push(quote!((
                 ::clap_couture::CommandName::new(#name),
                 ::clap_couture::Category {
+                    description: ::core::option::Option::None,
                     label: #assigned_label,
                     title: ::core::option::Option::None,
-                    description: ::core::option::Option::None,
                 }
             )));
         }
@@ -200,44 +300,40 @@ fn expand_struct(input: &DeriveInput, data: &DataStruct) -> syn::Result<TokenStr
     })
 }
 
+/// The explicit `#[command(name = "...")]`, if any.
+fn explicit_name(attrs: &[Attribute]) -> Option<String> {
+    let mut found = None;
+    scan_clap_meta(attrs, |meta| {
+        if meta.path.is_ident("name") {
+            found.get_or_insert(meta.value()?.parse::<LitStr>()?.value());
+        }
+        Ok(())
+    });
+    found
+}
+
 /// Type of the first `#[command(subcommand)]` / `#[clap(subcommand)]` field.
 fn find_subcommand_type(data: &DataStruct) -> Option<&Type> {
     data.fields.iter().find(|field| is_subcommand(&field.attrs)).map(|field| &field.ty)
 }
 
-/// Peel a single `Option<T>` wrapper (clap allows optional subcommands).
-fn unwrap_option(ty: &Type) -> &Type {
-    let Type::Path(tp) = ty else { return ty };
-    let Some(seg) = tp.path.segments.last() else { return ty };
-    if seg.ident != "Option" {
-        return ty;
-    }
-    let syn::PathArguments::AngleBracketed(args) = &seg.arguments else { return ty };
-    match args.args.first() {
-        Some(syn::GenericArgument::Type(inner)) => inner,
-        _ => ty,
-    }
+/// Whether a field carries `#[command(subcommand)]` / `#[clap(subcommand)]`.
+fn is_subcommand(attrs: &[Attribute]) -> bool {
+    let mut found = false;
+    scan_clap_meta(attrs, |meta| {
+        if meta.path.is_ident("subcommand") {
+            found = true;
+        }
+        Ok(())
+    });
+    found
 }
 
 fn option_str(value: Option<&str>) -> TokenStream2 {
-    if let Some(value) = value { quote!(::core::option::Option::Some(#value)) } else { quote!(::core::option::Option::None) }
-}
-
-struct CategoryDef {
-    label: String,
-    title: Option<String>,
-    description: Option<String>,
-}
-
-/// How an enum relates to categories declared elsewhere (e.g. its parent
-/// command). Purely a compile-time construct — it never reaches the `CATEGORIES` const.
-enum InheritSpec {
-    /// No `inherit` clause.
-    None,
-    /// `inherit = true`: reference any category (skip the compile-time check).
-    All,
-    /// `inherit = ["a", ...]`: also accept these parent categories.
-    List(Vec<String>),
+    value.map_or_else(
+        || quote!(::core::option::Option::None),
+        |value| quote!(::core::option::Option::Some(#value)),
+    )
 }
 
 fn parse_categories(attrs: &[Attribute]) -> syn::Result<(Vec<CategoryDef>, InheritSpec)> {
@@ -249,9 +345,9 @@ fn parse_categories(attrs: &[Attribute]) -> syn::Result<(Vec<CategoryDef>, Inher
             serde_tokenstream::from_tokenstream_spanned(list.delimiter.span(), &list.tokens)?;
         for (label, category) in spec.categories {
             out.push(CategoryDef {
+                description: category.description,
                 label,
                 title: category.title,
-                description: category.description,
             });
         }
         inherit = match spec.inherit {
@@ -279,48 +375,6 @@ fn resolve_name(variant: &Variant, casing: CasingStyle) -> String {
         .unwrap_or_else(|| casing.apply(&variant.ident.unraw().to_string()))
 }
 
-/// The container-level `#[command(rename_all = "...")]`, defaulting to clap's
-/// kebab-case for subcommands.
-fn container_casing(attrs: &[Attribute]) -> CasingStyle {
-    let mut casing = CasingStyle::Kebab;
-    scan_clap_meta(attrs, |meta| {
-        // Nested rather than a `let`-chain: let-chains are unstable before Rust
-        // 1.88, and this crate's MSRV is 1.85 (clippy honors `rust-version`, so it
-        // won't push this back into a `collapsible_if`).
-        if meta.path.is_ident("rename_all") {
-            if let Some(style) = CasingStyle::from_lit(&meta.value()?.parse::<LitStr>()?.value()) {
-                casing = style;
-            }
-        }
-        Ok(())
-    });
-    casing
-}
-
-/// The explicit `#[command(name = "...")]`, if any.
-fn explicit_name(attrs: &[Attribute]) -> Option<String> {
-    let mut found = None;
-    scan_clap_meta(attrs, |meta| {
-        if meta.path.is_ident("name") {
-            found.get_or_insert(meta.value()?.parse::<LitStr>()?.value());
-        }
-        Ok(())
-    });
-    found
-}
-
-/// Whether a field carries `#[command(subcommand)]` / `#[clap(subcommand)]`.
-fn is_subcommand(attrs: &[Attribute]) -> bool {
-    let mut found = false;
-    scan_clap_meta(attrs, |meta| {
-        if meta.path.is_ident("subcommand") {
-            found = true;
-        }
-        Ok(())
-    });
-    found
-}
-
 /// Walk the keys of every `#[command(...)]` / `#[clap(...)]` attribute, calling
 /// `on_key` for each. Any value `on_key` leaves unconsumed is skipped, so a
 /// visitor only needs to handle the keys it cares about.
@@ -329,67 +383,24 @@ fn scan_clap_meta(
     mut on_key: impl FnMut(&syn::meta::ParseNestedMeta<'_>) -> syn::Result<()>,
 ) {
     for attr in attrs.iter().filter(|a| a.path().is_ident("command") || a.path().is_ident("clap")) {
-        let _ = attr.parse_nested_meta(|meta| {
+        attr.parse_nested_meta(|meta| {
             on_key(&meta)?;
             consume_meta_value(&meta)
-        });
-    }
-}
-
-/// Consume the value of a meta key we don't care about (`= value` or `(...)`),
-/// so `parse_nested_meta` can advance. A no-op for bare flags and keys whose
-/// value a visitor already parsed.
-fn consume_meta_value(meta: &syn::meta::ParseNestedMeta<'_>) -> syn::Result<()> {
-    if meta.input.peek(Token![=]) {
-        meta.value()?.parse::<syn::Expr>()?;
-    } else if meta.input.peek(syn::token::Paren) {
-        let inner;
-        syn::parenthesized!(inner in meta.input);
-        inner.parse::<TokenStream2>()?;
-    }
-    Ok(())
-}
-
-/// clap's subcommand-name casing styles, matching `clap_derive`'s `CasingStyle`.
-#[derive(Clone, Copy)]
-enum CasingStyle {
-    Camel,
-    Kebab,
-    Pascal,
-    ScreamingSnake,
-    Snake,
-    Lower,
-    Upper,
-    Verbatim,
-}
-
-impl CasingStyle {
-    /// Parse a `rename_all` value the way clap does (case/separator-insensitive).
-    fn from_lit(value: &str) -> Option<Self> {
-        let normalized = value.to_upper_camel_case().to_lowercase();
-        Some(match normalized.as_str() {
-            "camel" | "camelcase" => Self::Camel,
-            "kebab" | "kebabcase" => Self::Kebab,
-            "pascal" | "pascalcase" => Self::Pascal,
-            "screamingsnake" | "screamingsnakecase" => Self::ScreamingSnake,
-            "snake" | "snakecase" => Self::Snake,
-            "lower" | "lowercase" => Self::Lower,
-            "upper" | "uppercase" => Self::Upper,
-            "verbatim" | "verbatimcase" => Self::Verbatim,
-            _ => return None,
         })
+        .ok();
     }
+}
 
-    fn apply(self, ident: &str) -> String {
-        match self {
-            Self::Camel => ident.to_lower_camel_case(),
-            Self::Kebab => ident.to_kebab_case(),
-            Self::Pascal => ident.to_upper_camel_case(),
-            Self::ScreamingSnake => ident.to_shouty_snake_case(),
-            Self::Snake => ident.to_snake_case(),
-            Self::Lower => ident.to_snake_case().replace('_', ""),
-            Self::Upper => ident.to_shouty_snake_case().replace('_', ""),
-            Self::Verbatim => ident.to_owned(),
-        }
+/// Peel a single `Option<T>` wrapper (clap allows optional subcommands).
+fn unwrap_option(ty: &Type) -> &Type {
+    let Type::Path(tp) = ty else { return ty };
+    let Some(seg) = tp.path.segments.last() else { return ty };
+    if seg.ident != "Option" {
+        return ty;
+    }
+    let syn::PathArguments::AngleBracketed(args) = &seg.arguments else { return ty };
+    match args.args.first() {
+        Some(syn::GenericArgument::Type(inner)) => inner,
+        _ => ty,
     }
 }

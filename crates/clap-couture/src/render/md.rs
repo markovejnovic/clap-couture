@@ -34,14 +34,19 @@ impl TextRenderer for MdTextRenderer<'_> {
             if style == Style::new() {
                 writer.push_str(text);
             } else {
-                let _ = write!(writer, "{style}{text}{style:#}");
+                write!(writer, "{style}{text}{style:#}").ok();
             }
         };
+        #[expect(
+            clippy::wildcard_enum_match_arm,
+            reason = "`Event` is #[non_exhaustive]; we style only inline emphasis/code and pass \
+                      everything else through as text"
+        )]
         for event in Parser::new(text) {
             match event {
-                Event::Start(Tag::Strong) => strong += 1,
+                Event::Start(Tag::Strong) => strong = strong.saturating_add(1),
                 Event::End(TagEnd::Strong) => strong = strong.saturating_sub(1),
-                Event::Start(Tag::Emphasis) => emphasis += 1,
+                Event::Start(Tag::Emphasis) => emphasis = emphasis.saturating_add(1),
                 Event::End(TagEnd::Emphasis) => emphasis = emphasis.saturating_sub(1),
                 Event::Text(text) => push(writer, strong, emphasis, None, &text),
                 Event::Code(code) => {

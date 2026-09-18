@@ -11,8 +11,8 @@ pub(crate) struct CategoriesSpec {
 
 #[derive(Deserialize)]
 pub(crate) struct Category {
-    pub(crate) title: Option<String>,
     pub(crate) description: Option<String>,
+    pub(crate) title: Option<String>,
 }
 
 #[derive(Deserialize)]

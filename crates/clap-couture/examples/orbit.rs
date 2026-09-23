@@ -14,7 +14,7 @@ use clap::{
     CommandFactory as _, Parser, Subcommand,
     builder::styling::{Color, RgbColor, Style, Styles},
 };
-use clap_couture::Couture;
+use clap_couture::{Couture, CoutureParser as _};
 
 // Couture reuses the command's `Styles`: headings take `header`, command names take `literal`.
 const PINK: Color = Color::Rgb(RgbColor(0xf5, 0xc2, 0xe7));

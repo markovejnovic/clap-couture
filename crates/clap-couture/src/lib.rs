@@ -4,7 +4,7 @@
 //!
 //! ```
 //! use clap::{Parser, Subcommand};
-//! use clap_couture::Couture;
+//! use clap_couture::{Couture, CoutureParser};
 //!
 //! #[derive(Parser, Couture)]
 //! struct Cli {
@@ -62,10 +62,12 @@
 //! The subcommands stay visible to clap, so shell completions and
 //! `tool <cmd> --help` are unaffected -- only the help *listing* changes.
 
+mod parser;
 mod render;
 
 use clap::{Command, builder::StyledStr};
 pub use clap_couture_derive::Couture;
+pub use parser::CoutureParser;
 use render::CommandRenderExt as _;
 
 /// A clap subcommand name, eg. `foo` in `app foo`.
@@ -112,6 +114,9 @@ impl Category {
 pub struct CommandCategoryMap(&'static [(CommandName, Category)]);
 
 impl CommandCategoryMap {
+    /// A map with no entries.
+    pub const EMPTY: Self = Self(&[]);
+
     /// The distinct categories, in first-appearance order.
     pub(crate) fn distinct(self) -> impl Iterator<Item = &'static Category> {
         let entries = self.0;
@@ -154,7 +159,7 @@ impl<'map> IntoIterator for &'map CommandCategoryMap {
 /// A type's command categories, usually from `#[derive(Couture)]` on a subcommand enum.
 pub trait Couture {
     /// Each command paired with the category it belongs to.
-    const CATEGORIES: CommandCategoryMap;
+    const CATEGORIES: CommandCategoryMap = CommandCategoryMap::EMPTY;
 }
 
 /// Extension trait adding categorized help to a [`clap::Command`].

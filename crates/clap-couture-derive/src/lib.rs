@@ -42,9 +42,8 @@ enum InheritSpec {
 /// command, and `inherit = true` accepts any. A category not declared on the enum renders with
 /// its key as the heading.
 ///
-/// On a parser struct, finds the `#[command(subcommand)]` field and adds `couture_command`,
-/// `couture_parse`, `couture_try_parse` and their `*_from` variants, which install the grouped
-/// help.
+/// On a struct, takes the categories of its `#[command(subcommand)]` field, if any. Parse
+/// through `clap_couture::CoutureParser` to get the grouped help.
 #[proc_macro_derive(Couture, attributes(category, couture))]
 pub fn derive_couture(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -54,7 +53,7 @@ pub fn derive_couture(input: TokenStream) -> TokenStream {
 fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
     match &input.data {
         Data::Enum(data) => expand_enum(input, data),
-        Data::Struct(data) => expand_struct(input, data),
+        Data::Struct(data) => Ok(expand_struct(input, data)),
         Data::Union(_) => Err(syn::Error::new_spanned(
             &input.ident,
             "`Couture` can only be derived on a subcommand enum or a parser struct",
@@ -129,78 +128,22 @@ fn expand_enum(input: &DeriveInput, data: &DataEnum) -> syn::Result<TokenStream2
     })
 }
 
-/// Parser struct: emit inherent `couture_*` methods driven by the type's
-/// `#[command(subcommand)]` field.
-fn expand_struct(input: &DeriveInput, data: &DataStruct) -> syn::Result<TokenStream2> {
+/// Struct: delegate `CATEGORIES` to the `#[command(subcommand)]` field's type, if any.
+fn expand_struct(input: &DeriveInput, data: &DataStruct) -> TokenStream2 {
     let ty = &input.ident;
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
-
-    let sub_ty = data.clap_subcommand_type().ok_or_else(|| {
-        syn::Error::new_spanned(
-            &input.ident,
-            "`#[derive(Couture)]` on a struct requires a `#[command(subcommand)]` field",
-        )
-    })?;
-
-    Ok(quote! {
-        impl #impl_generics #ty #ty_generics #where_clause {
-            /// The clap [`Command`](::clap::Command) with couture's grouped help installed.
-            #[must_use]
-            pub fn couture_command() -> ::clap::Command {
-                ::clap_couture::CommandExt::with_couture::<#sub_ty>(
-                    <Self as ::clap::CommandFactory>::command(),
-                )
-            }
-
-            /// Parse from `std::env::args_os()`, exiting on error (like `clap::Parser::parse`).
-            #[must_use]
-            pub fn couture_parse() -> Self {
-                let mut cmd = Self::couture_command();
-                let mut matches = cmd.get_matches_mut();
-                match <Self as ::clap::FromArgMatches>::from_arg_matches_mut(&mut matches) {
-                    ::core::result::Result::Ok(v) => v,
-                    ::core::result::Result::Err(e) => e.format(&mut cmd).exit(),
-                }
-            }
-
-            /// Fallible [`couture_parse`](Self::couture_parse).
-            pub fn couture_try_parse() -> ::core::result::Result<Self, ::clap::Error> {
-                let mut matches = Self::couture_command().try_get_matches()?;
-                <Self as ::clap::FromArgMatches>::from_arg_matches_mut(&mut matches)
-                    .map_err(|e| e.format(&mut Self::couture_command()))
-            }
-
-            /// Parse from an explicit argument iterator, exiting on error.
-            #[must_use]
-            pub fn couture_parse_from<I, T>(itr: I) -> Self
-            where
-                I: ::core::iter::IntoIterator<Item = T>,
-                T: ::core::convert::Into<::std::ffi::OsString> + ::core::clone::Clone,
-            {
-                let mut cmd = Self::couture_command();
-                let mut matches = match cmd.try_get_matches_from_mut(itr) {
-                    ::core::result::Result::Ok(m) => m,
-                    ::core::result::Result::Err(e) => e.exit(),
-                };
-                match <Self as ::clap::FromArgMatches>::from_arg_matches_mut(&mut matches) {
-                    ::core::result::Result::Ok(v) => v,
-                    ::core::result::Result::Err(e) => e.format(&mut cmd).exit(),
-                }
-            }
-
-            /// Fallible [`couture_parse_from`](Self::couture_parse_from).
-            pub fn couture_try_parse_from<I, T>(itr: I) -> ::core::result::Result<Self, ::clap::Error>
-            where
-                I: ::core::iter::IntoIterator<Item = T>,
-                T: ::core::convert::Into<::std::ffi::OsString> + ::core::clone::Clone,
-            {
-                let mut cmd = Self::couture_command();
-                let mut matches = cmd.try_get_matches_from_mut(itr)?;
-                <Self as ::clap::FromArgMatches>::from_arg_matches_mut(&mut matches)
-                    .map_err(|e| e.format(&mut cmd))
-            }
+    let categories = data.clap_subcommand_type().map(|sub_ty| {
+        quote! {
+            const CATEGORIES: ::clap_couture::CommandCategoryMap =
+                <#sub_ty as ::clap_couture::Couture>::CATEGORIES;
         }
-    })
+    });
+
+    quote! {
+        impl #impl_generics ::clap_couture::Couture for #ty #ty_generics #where_clause {
+            #categories
+        }
+    }
 }
 
 /// The categories `#[category("...")]` may name, or `None` to accept any.

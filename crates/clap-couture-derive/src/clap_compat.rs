@@ -28,7 +28,8 @@ use heck::{
 };
 use proc_macro2::TokenStream as TokenStream2;
 use syn::{
-    Attribute, DataStruct, LitStr, Token, Type, Variant, ext::IdentExt as _, meta::ParseNestedMeta,
+    Attribute, DataStruct, Field, LitStr, Token, Type, Variant, ext::IdentExt as _,
+    meta::ParseNestedMeta,
 };
 
 /// A `rename_all` casing, mirroring `clap_derive`'s `CasingStyle`. The examples rename `DryRun`.
@@ -123,24 +124,39 @@ impl SubcommandNaming {
     }
 }
 
-/// Queries over an item's own `#[command(...)]` / `#[clap(...)]` attributes.
+/// Queries over an item's own `#[command(...)]` / `#[arg(...)]` / `#[clap(...)]` attributes.
 pub(crate) trait ClapAttrsExt {
+    /// The `zone` in `#[arg(id = "zone")]`, or in the deprecated `#[arg(name = "zone")]`, if any.
+    fn clap_id(&self) -> Option<String>;
+
     /// The `ls` in `#[command(name = "ls")]`, if any.
     fn clap_name(&self) -> Option<String>;
 
-    /// Walk the keys of every `#[command(...)]` / `#[clap(...)]` attribute, calling `on_key` on
-    /// each: `name` then `about` for `#[command(name = "ls", about)]`. Any value `on_key` leaves
-    /// unconsumed is skipped, so a visitor only needs to handle the keys it cares about.
+    /// Walk the keys of every `#[command(...)]` / `#[arg(...)]` / `#[clap(...)]` attribute,
+    /// calling `on_key` on each: `name` then `about` for `#[command(name = "ls", about)]`. Any
+    /// value `on_key` leaves unconsumed is skipped, so a visitor only needs to handle the keys it
+    /// cares about.
     ///
     /// A parse error silently ends the walk of that attribute, so `name = SOME_CONST` reads as
     /// no name.
     fn for_each_clap_key(&self, on_key: impl FnMut(&ParseNestedMeta<'_>) -> syn::Result<()>);
 
-    /// Check for `#[command(subcommand)]` or `#[clap(subcommand)]`.
-    fn is_clap_subcommand(&self) -> bool;
+    /// Check for `key` with or without a value, as `subcommand` in `#[command(subcommand)]`.
+    fn has_clap_key(&self, key: &str) -> bool;
 }
 
 impl ClapAttrsExt for [Attribute] {
+    fn clap_id(&self) -> Option<String> {
+        let mut found = None;
+        self.for_each_clap_key(|meta| {
+            if meta.path.is_ident("id") || meta.path.is_ident("name") {
+                found = Some(meta.value()?.parse::<LitStr>()?.value());
+            }
+            Ok(())
+        });
+        found
+    }
+
     fn clap_name(&self) -> Option<String> {
         let mut found = None;
         self.for_each_clap_key(|meta| {
@@ -153,8 +169,9 @@ impl ClapAttrsExt for [Attribute] {
     }
 
     fn for_each_clap_key(&self, mut on_key: impl FnMut(&ParseNestedMeta<'_>) -> syn::Result<()>) {
-        let is_clap =
-            |attr: &&Attribute| attr.path().is_ident("command") || attr.path().is_ident("clap");
+        let is_clap = |attr: &&Attribute| {
+            ["arg", "clap", "command"].iter().any(|name| attr.path().is_ident(name))
+        };
         for attr in self.iter().filter(is_clap) {
             // Malformed attributes are clap_derive's to report.
             attr.parse_nested_meta(|meta| {
@@ -165,15 +182,26 @@ impl ClapAttrsExt for [Attribute] {
         }
     }
 
-    fn is_clap_subcommand(&self) -> bool {
+    fn has_clap_key(&self, key: &str) -> bool {
         let mut found = false;
         self.for_each_clap_key(|meta| {
-            if meta.path.is_ident("subcommand") {
-                found = true;
-            }
+            found |= meta.path.is_ident(key);
             Ok(())
         });
         found
+    }
+}
+
+/// The arg a struct field becomes.
+pub(crate) trait FieldExt {
+    /// The id clap gives the field's arg: [`ClapAttrsExt::clap_id`], else the field ident with
+    /// any `r#` stripped (`r#type` is `type`). `None` for a tuple-struct field.
+    fn clap_arg_id(&self) -> Option<String>;
+}
+
+impl FieldExt for Field {
+    fn clap_arg_id(&self) -> Option<String> {
+        self.attrs.clap_id().or_else(|| self.ident.as_ref().map(|ident| ident.unraw().to_string()))
     }
 }
 
@@ -188,7 +216,7 @@ impl DataStructExt for DataStruct {
     fn clap_subcommand_type(&self) -> Option<&Type> {
         self.fields
             .iter()
-            .find(|field| field.attrs.is_clap_subcommand())
+            .find(|field| field.attrs.has_clap_key("subcommand"))
             .map(|field| field.ty.peel_option())
     }
 }
@@ -215,12 +243,20 @@ impl ParseNestedMetaExt for ParseNestedMeta<'_> {
     }
 }
 
-trait TypeExt {
+pub(crate) trait TypeExt {
+    /// Check for a `Vec`, bare or in an `Option`: `Option<Vec<String>>` is one.
+    fn is_vec(&self) -> bool;
+
     /// Peel one `Option`: `Option<Cmd>` becomes `Cmd`, any other type comes back unchanged.
     fn peel_option(&self) -> &Self;
 }
 
 impl TypeExt for Type {
+    fn is_vec(&self) -> bool {
+        let Self::Path(tp) = self.peel_option() else { return false };
+        tp.path.segments.last().is_some_and(|seg| seg.ident == "Vec")
+    }
+
     fn peel_option(&self) -> &Self {
         let Self::Path(tp) = self else { return self };
         let Some(seg) = tp.path.segments.last() else { return self };

@@ -18,6 +18,7 @@ unicode-width = { workspace = true }
 
 [features]
 markdown = ["dep:pulldown-cmark"]
+interactive = ["clap-couture-derive/interactive"]
 
 [dev-dependencies]
 clap = { workspace = true, features = ["derive"] }

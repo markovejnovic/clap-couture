@@ -62,6 +62,8 @@
 //! The subcommands stay visible to clap, so shell completions and
 //! `tool <cmd> --help` are unaffected -- only the help *listing* changes.
 
+#[cfg(feature = "interactive")]
+pub mod interactive;
 mod parser;
 mod render;
 
@@ -160,6 +162,11 @@ impl<'map> IntoIterator for &'map CommandCategoryMap {
 pub trait Couture {
     /// Each command paired with the category it belongs to.
     const CATEGORIES: CommandCategoryMap = CommandCategoryMap::EMPTY;
+
+    /// The args marked `#[couture(prompt)]`, and where they sit.
+    #[cfg(feature = "interactive")]
+    #[doc(hidden)]
+    const PROMPTS: interactive::PromptNode = interactive::PromptNode::EMPTY;
 }
 
 /// Extension trait adding categorized help to a [`clap::Command`].

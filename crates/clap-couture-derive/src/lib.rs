@@ -2,6 +2,7 @@
 
 mod attrs;
 mod clap_compat;
+mod prompts;
 
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
@@ -44,6 +45,9 @@ enum InheritSpec {
 ///
 /// On a struct, takes the categories of its `#[command(subcommand)]` field, if any. Parse
 /// through `clap_couture::CoutureParser` to get the grouped help.
+///
+/// With the `interactive` feature, `#[couture(prompt)]` or `#[couture(prompt = "...")]` on a field
+/// asks for that arg when the user leaves it out; see `clap_couture::interactive`.
 #[proc_macro_derive(Couture, attributes(category, couture))]
 pub fn derive_couture(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -53,7 +57,7 @@ pub fn derive_couture(input: TokenStream) -> TokenStream {
 fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
     match &input.data {
         Data::Enum(data) => expand_enum(input, data),
-        Data::Struct(data) => Ok(expand_struct(input, data)),
+        Data::Struct(data) => expand_struct(input, data),
         Data::Union(_) => Err(syn::Error::new_spanned(
             &input.ident,
             "`Couture` can only be derived on a subcommand enum or a parser struct",
@@ -120,16 +124,20 @@ fn expand_enum(input: &DeriveInput, data: &DataEnum) -> syn::Result<TokenStream2
         }
     }
 
+    let prompts = prompts::item(&prompts::enum_node(data, &naming)?);
+
     Ok(quote! {
         impl #impl_generics ::clap_couture::Couture for #ty #ty_generics #where_clause {
             const CATEGORIES: ::clap_couture::CommandCategoryMap =
                 ::clap_couture::CommandCategoryMap::new(&[#(#pairs),*]);
+            #prompts
         }
     })
 }
 
-/// Struct: delegate `CATEGORIES` to the `#[command(subcommand)]` field's type, if any.
-fn expand_struct(input: &DeriveInput, data: &DataStruct) -> TokenStream2 {
+/// Struct: delegate `CATEGORIES` to the `#[command(subcommand)]` field's type, if any, and emit
+/// the `PROMPTS` tree.
+fn expand_struct(input: &DeriveInput, data: &DataStruct) -> syn::Result<TokenStream2> {
     let ty = &input.ident;
     let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
     let categories = data.clap_subcommand_type().map(|sub_ty| {
@@ -139,11 +147,14 @@ fn expand_struct(input: &DeriveInput, data: &DataStruct) -> TokenStream2 {
         }
     });
 
-    quote! {
+    let prompts = prompts::item(&prompts::fields_node(&data.fields)?);
+
+    Ok(quote! {
         impl #impl_generics ::clap_couture::Couture for #ty #ty_generics #where_clause {
             #categories
+            #prompts
         }
-    }
+    })
 }
 
 /// The categories `#[category("...")]` may name, or `None` to accept any.

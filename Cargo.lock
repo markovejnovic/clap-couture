@@ -97,6 +97,7 @@ dependencies = [
  "clap-couture-derive",
  "cliclack",
  "console",
+ "dialoguer",
  "pulldown-cmark",
  "rstest",
  "thiserror",
@@ -175,6 +176,16 @@ dependencies = [
  "libc",
  "unicode-width",
  "windows-sys",
+]
+
+[[package]]
+name = "dialoguer"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "25f104b501bf2364e78d0d3974cbc774f738f5865306ed128e1e0d7499c0ad96"
+dependencies = [
+ "console",
+ "shell-words",
 ]
 
 [[package]]
@@ -437,6 +448,12 @@ dependencies = [
  "serde",
  "syn 3.0.6",
 ]
+
+[[package]]
+name = "shell-words"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dc6fe69c597f9c37bfeeeeeb33da3530379845f10be461a66d16d03eca2ded77"
 
 [[package]]
 name = "slab"

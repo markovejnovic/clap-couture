@@ -139,7 +139,7 @@ fn exit_cancelled() -> ! {
 }
 
 /// Parse through [`DefaultPrompter`](crate::interactive::DefaultPrompter).
-#[cfg(feature = "interactive-cliclack")]
+#[cfg(any(feature = "interactive-cliclack", feature = "interactive-dialoguer"))]
 fn parse_default<T>(argv: &[OsString]) -> Result<T, Failure>
 where
     T: CoutureParser,
@@ -149,7 +149,7 @@ where
 }
 
 /// Parse without prompting: no backend is enabled.
-#[cfg(not(feature = "interactive-cliclack"))]
+#[cfg(not(any(feature = "interactive-cliclack", feature = "interactive-dialoguer")))]
 fn parse_default<T>(argv: &[OsString]) -> Result<T, Failure>
 where
     T: CoutureParser,

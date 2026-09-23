@@ -58,8 +58,10 @@
 
 #[cfg(feature = "interactive-cliclack")]
 mod cliclack;
-#[cfg(feature = "interactive-cliclack")]
+#[cfg(any(feature = "interactive-cliclack", feature = "interactive-dialoguer"))]
 mod console_style;
+#[cfg(feature = "interactive-dialoguer")]
+mod dialoguer;
 mod flow;
 mod tree;
 
@@ -68,6 +70,8 @@ use std::io::{self, IsTerminal as _};
 use clap::builder::{PossibleValue, Styles};
 #[cfg(feature = "interactive-cliclack")]
 pub use cliclack::Cliclack;
+#[cfg(feature = "interactive-dialoguer")]
+pub use dialoguer::Dialoguer;
 pub(crate) use flow::run;
 #[doc(hidden)]
 pub use tree::{Mark, PromptChild, PromptNode, PromptSpec};
@@ -76,6 +80,10 @@ pub use tree::{Mark, PromptChild, PromptNode, PromptSpec};
 /// enabled of cliclack, dialoguer and inquire.
 #[cfg(feature = "interactive-cliclack")]
 pub type DefaultPrompter = Cliclack;
+/// The backend [`CoutureParser`](crate::CoutureParser)'s entry points ask through: the first
+/// enabled of cliclack, dialoguer and inquire.
+#[cfg(all(feature = "interactive-dialoguer", not(feature = "interactive-cliclack")))]
+pub type DefaultPrompter = Dialoguer;
 
 /// A yes/no question.
 #[derive(Debug)]
@@ -162,7 +170,7 @@ pub struct TextPrompt<'prompt> {
 
 /// Map a backend's I/O error: `Interrupted` is the user backing out, `NotConnected` a missing
 /// terminal.
-#[cfg(feature = "interactive-cliclack")]
+#[cfg(any(feature = "interactive-cliclack", feature = "interactive-dialoguer"))]
 #[expect(
     clippy::wildcard_enum_match_arm,
     reason = "`io::ErrorKind` is #[non_exhaustive]; every other kind is a plain I/O failure"

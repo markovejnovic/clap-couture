@@ -22,6 +22,7 @@ rstest = { version = "0.27", default-features = false } # no async tests
 thiserror = "2"
 cliclack = "0.5"
 console = "0.16"
+dialoguer = { version = "0.12", default-features = false }
 
 [workspace.lints.rust]
 rust_2018_idioms = { level = "warn", priority = -1 }

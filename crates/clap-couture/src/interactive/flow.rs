@@ -122,10 +122,13 @@ where
     T: FromArgMatches,
 {
     let marks = tree.marks();
-    let matches = relax(cmd.clone(), &marks).try_get_matches_from(argv).map_err(Failure::Clap)?;
-    if !prompter.is_available() {
+    if marks.is_empty() || !prompter.is_available() {
         return finish(cmd, argv, &[]);
     }
+    // Help, usage and errors come from the command the user sees, not the relaxed one.
+    let Ok(matches) = relax(cmd.clone(), &marks).try_get_matches_from(argv) else {
+        return finish(cmd, argv, &[]);
+    };
 
     let session = Session { argv, cmd: &cmd, marks: &marks, prompter };
     let mut answers = Vec::new();

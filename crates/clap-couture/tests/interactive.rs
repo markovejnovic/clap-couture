@@ -4,10 +4,17 @@
 
 mod common;
 
+use core::sync::atomic::{AtomicUsize, Ordering};
+
 use clap::{Args, Parser, Subcommand, ValueEnum, error::ErrorKind};
 use clap_couture::{Couture, CoutureParser as _};
 use common::{Asked, Kind, Reply, ScriptedPrompter};
 use rstest::rstest;
+
+/// How often `Plain`'s value parser ran, to count parses of argv.
+static PLAIN_PARSES: AtomicUsize = AtomicUsize::new(0);
+/// How often `Piped`'s value parser ran, to count parses of argv.
+static PIPED_PARSES: AtomicUsize = AtomicUsize::new(0);
 
 #[derive(Parser, Couture, Debug)]
 struct Deploy {
@@ -91,6 +98,34 @@ enum RepoCmd {
         #[couture(prompt)]
         target: String,
     },
+}
+
+#[derive(Parser, Couture, Debug)]
+struct Plain {
+    #[arg(long, value_parser = count_plain)]
+    input: String,
+}
+
+#[derive(Parser, Couture, Debug)]
+struct Piped {
+    #[arg(long, value_parser = count_piped)]
+    input: String,
+
+    #[arg(long)]
+    #[couture(prompt)]
+    region: String,
+}
+
+#[expect(clippy::unnecessary_wraps, reason = "clap's value_parser takes a fallible fn")]
+fn count_plain(value: &str) -> Result<String, String> {
+    PLAIN_PARSES.fetch_add(1, Ordering::Relaxed);
+    Ok(value.to_owned())
+}
+
+#[expect(clippy::unnecessary_wraps, reason = "clap's value_parser takes a fallible fn")]
+fn count_piped(value: &str) -> Result<String, String> {
+    PIPED_PARSES.fetch_add(1, Ordering::Relaxed);
+    Ok(value.to_owned())
 }
 
 /// A full `Deploy` command line minus the flags that set `skip`.
@@ -256,4 +291,35 @@ fn an_answer_may_start_with_a_dash() {
         offset
     });
     assert_eq!(offset.ok(), Some(Some(-5i32)));
+}
+
+#[rstest]
+fn help_shows_the_marked_args_in_usage() {
+    let prompter = ScriptedPrompter::new([]);
+    let help = Deploy::couture_try_parse_from_with(&prompter, ["deploy", "--help"])
+        .map(drop)
+        .map_err(|err| err.render().to_string());
+    let help = help.err().unwrap_or_default();
+    let usage = help.lines().skip_while(|line| !line.starts_with("Usage:")).nth(1);
+    assert!(
+        usage.is_some_and(|usage| usage.contains("--region <REGION>")),
+        "usage lost the required mark:\n{help}"
+    );
+}
+
+#[rstest]
+fn an_unmarked_cli_parses_argv_once() {
+    let prompter = ScriptedPrompter::new([]);
+    let plain = Plain::couture_try_parse_from_with(&prompter, ["plain", "--input", "-"]);
+    assert!(plain.is_ok(), "{plain:?}");
+    assert_eq!(PLAIN_PARSES.load(Ordering::Relaxed), 1);
+}
+
+#[rstest]
+fn without_a_terminal_argv_is_parsed_once() {
+    let prompter = ScriptedPrompter::unavailable();
+    let argv = ["piped", "--input", "-", "--region", "eu"];
+    let piped = Piped::couture_try_parse_from_with(&prompter, argv);
+    assert!(piped.is_ok(), "{piped:?}");
+    assert_eq!(PIPED_PARSES.load(Ordering::Relaxed), 1);
 }

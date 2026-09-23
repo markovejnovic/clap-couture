@@ -30,7 +30,7 @@ impl Prompter for Refuses {
         true
     }
 
-    fn select(&self, _prompt: &SelectPrompt<'_>) -> Result<String, PromptError> {
+    fn select(&self, _prompt: &SelectPrompt<'_>) -> Result<Option<String>, PromptError> {
         Err(refused())
     }
 

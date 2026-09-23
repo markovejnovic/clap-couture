@@ -27,7 +27,7 @@ pub(crate) enum Kind {
 pub(crate) enum Reply {
     Cancel,
     Confirm(bool),
-    Select(&'static str),
+    Select(Option<&'static str>),
     Text(Option<&'static str>),
 }
 
@@ -88,7 +88,7 @@ impl Prompter for ScriptedPrompter {
         self.available
     }
 
-    fn select(&self, prompt: &SelectPrompt<'_>) -> Result<String, PromptError> {
+    fn select(&self, prompt: &SelectPrompt<'_>) -> Result<Option<String>, PromptError> {
         let asked = Asked {
             default: prompt.default.map(str::to_owned),
             error: prompt.error.map(str::to_owned),
@@ -97,7 +97,7 @@ impl Prompter for ScriptedPrompter {
             question: prompt.question.to_owned(),
         };
         match self.next(asked)? {
-            Reply::Select(name) => Ok(name.to_owned()),
+            Reply::Select(name) => Ok(name.map(str::to_owned)),
             Reply::Cancel => Err(PromptError::Cancelled),
             Reply::Confirm(_) | Reply::Text(_) => Err(wrong_reply()),
         }

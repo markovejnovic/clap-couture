@@ -12,7 +12,7 @@ use inquire::{
     validator::ValueRequiredValidator,
 };
 
-use super::{ConfirmPrompt, PromptError, Prompter, SelectPrompt, TextPrompt, from_io};
+use super::{ConfirmPrompt, NONE_OPTION, PromptError, Prompter, SelectPrompt, TextPrompt, from_io};
 
 /// Prompts drawn by inquire.
 #[derive(Clone, Copy, Debug, Default)]
@@ -28,20 +28,23 @@ impl Prompter for Inquire {
             .map_err(from_inquire)
     }
 
-    fn select(&self, prompt: &SelectPrompt<'_>) -> Result<String, PromptError> {
+    fn select(&self, prompt: &SelectPrompt<'_>) -> Result<Option<String>, PromptError> {
         report(prompt.error)?;
         let names: Vec<&str> = prompt.options.iter().map(PossibleValue::get_name).collect();
         let default =
             prompt.default.and_then(|default| names.iter().position(|name| *name == default));
+        let none = prompt.optional.then_some(NONE_OPTION);
+        let items: Vec<&str> = names.iter().copied().chain(none).collect();
         let select =
-            Select::new(prompt.question, names).with_render_config(render_config(prompt.styles));
-        match default {
+            Select::new(prompt.question, items).with_render_config(render_config(prompt.styles));
+        let picked = match default {
             Some(index) => select.with_starting_cursor(index),
             None => select,
         }
-        .prompt()
-        .map(str::to_owned)
-        .map_err(from_inquire)
+        .raw_prompt()
+        .map_err(from_inquire)?;
+        // Past the options is the `NONE_OPTION` item, only listed for an optional prompt.
+        Ok(names.get(picked.index).map(|name| (*name).to_owned()))
     }
 
     fn text(&self, prompt: &TextPrompt<'_>) -> Result<Option<String>, PromptError> {

@@ -177,6 +177,19 @@ struct Log {
 }
 
 #[derive(Parser, Couture, Debug)]
+struct Paint {
+    #[arg(long, value_enum)]
+    #[couture(prompt = "Which color?")]
+    color: Option<Color>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+enum Color {
+    Blue,
+    Red,
+}
+
+#[derive(Parser, Couture, Debug)]
 struct Plain {
     #[arg(long, value_parser = count_plain)]
     input: String,
@@ -265,7 +278,7 @@ fn asks_yes_or_no_for_a_flag() {
 
 #[rstest]
 fn offers_the_possible_values_of_an_enum() {
-    let prompter = ScriptedPrompter::new([Reply::Select("canary")]);
+    let prompter = ScriptedPrompter::new([Reply::Select(Some("canary"))]);
     let deploy = Deploy::couture_try_parse_from_with(&prompter, deploy_argv("strategy"));
     assert_eq!(deploy.map(|deploy| deploy.strategy).ok(), Some(Strategy::Canary));
     assert_eq!(prompter.asked(), [asked(Kind::Select, "Which strategy?", None, &[
@@ -445,4 +458,11 @@ fn asks_through_optional_and_foreign_flattened_args() {
     assert!(tool.is_ok(), "{tool:?}");
     let questions: Vec<_> = prompter.asked().into_iter().map(|asked| asked.question).collect();
     assert_eq!(questions, ["Which name?", "Which tag?"]);
+}
+
+#[rstest]
+fn leaves_an_optional_enum_unset_when_none_is_picked() {
+    let prompter = ScriptedPrompter::new([Reply::Select(None)]);
+    let paint = Paint::couture_try_parse_from_with(&prompter, ["paint"]);
+    assert_eq!(paint.map(|paint| paint.color).ok(), Some(None));
 }

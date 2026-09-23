@@ -5,8 +5,8 @@ use std::io;
 use clap::builder::Styles;
 
 use super::{
-    ConfirmPrompt, PromptError, Prompter, SelectPrompt, TextPrompt, console_style::console_style,
-    from_io,
+    ConfirmPrompt, NONE_OPTION, PromptError, Prompter, SelectPrompt, TextPrompt,
+    console_style::console_style, from_io,
 };
 
 /// Prompts drawn by cliclack, in its clack style.
@@ -23,17 +23,19 @@ impl Prompter for Cliclack {
         })
     }
 
-    fn select(&self, prompt: &SelectPrompt<'_>) -> Result<String, PromptError> {
+    fn select(&self, prompt: &SelectPrompt<'_>) -> Result<Option<String>, PromptError> {
         themed(prompt.styles, prompt.error, || {
-            let mut select = prompt.options.iter().fold(
+            let select = prompt.options.iter().fold(
                 ::cliclack::select(prompt.question),
                 |select, option| {
                     let hint = option.get_help().map(ToString::to_string).unwrap_or_default();
-                    select.item(option.get_name().to_owned(), option.get_name(), hint)
+                    select.item(Some(option.get_name().to_owned()), option.get_name(), hint)
                 },
             );
+            let mut select =
+                if prompt.optional { select.item(None, NONE_OPTION, "") } else { select };
             match prompt.default {
-                Some(default) => select.initial_value(default.to_owned()).interact(),
+                Some(default) => select.initial_value(Some(default.to_owned())).interact(),
                 None => select.interact(),
             }
         })

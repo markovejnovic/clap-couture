@@ -84,15 +84,14 @@ impl Session<'_> {
                 styles,
             });
         }
-        self.prompter
-            .select(&SelectPrompt {
-                default: current,
-                error,
-                options: &options,
-                question: &question,
-                styles,
-            })
-            .map(Some)
+        self.prompter.select(&SelectPrompt {
+            default: current,
+            error,
+            optional: !arg.is_required_set(),
+            options: &options,
+            question: &question,
+            styles,
+        })
     }
 
     /// Parse with `candidate` as `mark`'s answer on top of the accepted ones.

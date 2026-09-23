@@ -81,6 +81,14 @@ pub use inquire::Inquire;
 #[doc(hidden)]
 pub use tree::{Mark, Probe, ProbeFallback, PromptChild, PromptNode, PromptSpec};
 
+/// The item a backend adds to an optional select; picking it leaves the arg unset.
+#[cfg(any(
+    feature = "interactive-cliclack",
+    feature = "interactive-dialoguer",
+    feature = "interactive-inquire"
+))]
+const NONE_OPTION: &str = "(none)";
+
 /// The backend [`CoutureParser`](crate::CoutureParser)'s entry points ask through: the first
 /// enabled of cliclack, dialoguer and inquire.
 #[cfg(feature = "interactive-cliclack")]
@@ -137,11 +145,12 @@ pub trait Prompter {
         io::stdin().is_terminal() && io::stderr().is_terminal()
     }
 
-    /// Ask to pick one of `prompt.options`, returning the picked option's name.
+    /// Ask to pick one of `prompt.options`, returning the picked option's name, or `None` when an
+    /// optional prompt is answered with none of them.
     ///
     /// # Errors
     /// [`PromptError::Cancelled`] when the user backs out.
-    fn select(&self, prompt: &SelectPrompt<'_>) -> Result<String, PromptError>;
+    fn select(&self, prompt: &SelectPrompt<'_>) -> Result<Option<String>, PromptError>;
 
     /// Ask for free text, returning `None` only for an empty answer to an optional prompt.
     ///
@@ -157,6 +166,8 @@ pub struct SelectPrompt<'prompt> {
     pub default: Option<&'prompt str>,
     /// clap's complaint about the previous answer, if any.
     pub error: Option<&'prompt str>,
+    /// Picking none of the options is allowed, and leaves the arg unset.
+    pub optional: bool,
     /// The visible possible values, in declared order.
     pub options: &'prompt [PossibleValue],
     /// What to ask.

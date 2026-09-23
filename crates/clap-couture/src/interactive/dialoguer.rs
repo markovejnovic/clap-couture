@@ -1,13 +1,11 @@
 //! [`Prompter`] drawn by [dialoguer](https://docs.rs/dialoguer).
 
-use std::io;
-
 use clap::builder::{PossibleValue, Styles};
 use dialoguer::{Confirm, Input, Select, theme::ColorfulTheme};
 
 use super::{
-    ConfirmPrompt, PromptError, Prompter, SelectPrompt, TextPrompt, console_style::console_style,
-    from_io,
+    ConfirmPrompt, NONE_OPTION, PromptError, Prompter, SelectPrompt, TextPrompt,
+    console_style::console_style, from_io,
 };
 
 /// Prompts drawn by dialoguer's colorful theme.
@@ -26,11 +24,13 @@ impl Prompter for Dialoguer {
             .ok_or(PromptError::Cancelled)
     }
 
-    fn select(&self, prompt: &SelectPrompt<'_>) -> Result<String, PromptError> {
+    fn select(&self, prompt: &SelectPrompt<'_>) -> Result<Option<String>, PromptError> {
         let theme = theme(prompt.styles);
         report(&theme, prompt.error)?;
         let names: Vec<&str> = prompt.options.iter().map(PossibleValue::get_name).collect();
-        let select = Select::with_theme(&theme).with_prompt(prompt.question).items(&names);
+        let none = prompt.optional.then_some(NONE_OPTION);
+        let items: Vec<&str> = names.iter().copied().chain(none).collect();
+        let select = Select::with_theme(&theme).with_prompt(prompt.question).items(&items);
         let default =
             prompt.default.and_then(|default| names.iter().position(|name| *name == default));
         let picked = match default {
@@ -40,10 +40,8 @@ impl Prompter for Dialoguer {
         .interact_opt()
         .map_err(from_dialoguer)?
         .ok_or(PromptError::Cancelled)?;
-        names
-            .get(picked)
-            .map(|name| (*name).to_owned())
-            .ok_or_else(|| PromptError::Io(io::Error::other("dialoguer picked no listed option")))
+        // Past the options is the `NONE_OPTION` item, only listed for an optional prompt.
+        Ok(names.get(picked).map(|name| (*name).to_owned()))
     }
 
     fn text(&self, prompt: &TextPrompt<'_>) -> Result<Option<String>, PromptError> {

@@ -12,26 +12,12 @@ jobs:
   publish:
     name: publish to crates.io
     runs-on: ubuntu-latest
-    # Requires a CARGO_REGISTRY_TOKEN secret:
-    # Settings -> Secrets and variables -> Actions -> New repository secret.
-    # Create the token at https://crates.io/settings/tokens.
     environment: crates-io
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-
-      # Don't publish anything that doesn't build and pass its tests.
       - run: cargo test --workspace --all-features
-
-      # Publish in dependency order: the derive crate first, then the crate
-      # that depends on it. `cargo publish` waits for each crate to appear in
-      # the index before returning, so the second publish resolves cleanly.
-      - name: Publish clap-couture-derive
-        run: cargo publish -p clap-couture-derive
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-      - name: Publish clap-couture
-        run: cargo publish -p clap-couture
+      - run: cargo publish --workspace
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}

@@ -6,7 +6,7 @@ mod common;
 
 use core::sync::atomic::{AtomicUsize, Ordering};
 
-use clap::{Args, Parser, Subcommand, ValueEnum, error::ErrorKind};
+use clap::{ArgGroup, Args, Parser, Subcommand, ValueEnum, error::ErrorKind};
 use clap_couture::{Couture, CoutureParser as _};
 use common::{Asked, Kind, Reply, ScriptedPrompter};
 use rstest::rstest;
@@ -98,6 +98,28 @@ enum RepoCmd {
         #[couture(prompt)]
         target: String,
     },
+}
+
+#[derive(Parser, Couture, Debug)]
+#[command(group(ArgGroup::new("target").args(["host", "socket"])))]
+struct Connect {
+    #[arg(long)]
+    host: Option<String>,
+
+    #[arg(long, conflicts_with = "region")]
+    local: bool,
+
+    #[arg(long)]
+    #[couture(prompt = "Which region?")]
+    region: Option<String>,
+
+    #[arg(long)]
+    #[couture(prompt = "Which socket?")]
+    socket: Option<String>,
+
+    #[arg(long, conflicts_with = "region")]
+    #[couture(prompt = "Which zone?")]
+    zone: Option<String>,
 }
 
 #[derive(Parser, Couture, Debug)]
@@ -322,4 +344,25 @@ fn without_a_terminal_argv_is_parsed_once() {
     let piped = Piped::couture_try_parse_from_with(&prompter, argv);
     assert!(piped.is_ok(), "{piped:?}");
     assert_eq!(PIPED_PARSES.load(Ordering::Relaxed), 1);
+}
+
+#[rstest]
+#[case::declared_by_the_passed_arg(&["connect", "--local", "--socket", "s", "--zone", "z"])]
+#[case::declared_by_the_mark_and_an_exclusive_group(&["connect", "--region", "eu", "--host", "h"])]
+fn never_asks_for_a_mark_that_conflicts_with_a_passed_arg(#[case] argv: &[&str]) {
+    let prompter = ScriptedPrompter::new([]);
+    let connect = Connect::couture_try_parse_from_with(&prompter, argv);
+    assert!(connect.is_ok(), "{connect:?}");
+    assert_eq!(prompter.asked(), []);
+}
+
+#[rstest]
+fn never_asks_for_a_mark_that_conflicts_with_an_earlier_answer() {
+    let prompter = ScriptedPrompter::new([Reply::Text(Some("eu"))]);
+    let connect = Connect::couture_try_parse_from_with(&prompter, ["connect", "--host", "h"]);
+    assert_eq!(
+        connect.map(|connect| (connect.region, connect.zone)).ok(),
+        Some((Some("eu".to_owned()), None))
+    );
+    assert_eq!(prompter.asked(), [asked(Kind::Text, "Which region?", None, &[])]);
 }

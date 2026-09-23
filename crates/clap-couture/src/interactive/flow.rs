@@ -9,8 +9,8 @@ use core::iter;
 use std::ffi::OsString;
 
 use clap::{
-    Arg, ArgAction, ArgMatches, Command, FromArgMatches, builder::PossibleValue, error::ErrorKind,
-    parser::ValueSource,
+    Arg, ArgAction, ArgGroup, ArgMatches, Command, FromArgMatches, Id, builder::PossibleValue,
+    error::ErrorKind, parser::ValueSource,
 };
 
 use super::{ConfirmPrompt, Mark, PromptError, PromptNode, Prompter, SelectPrompt, TextPrompt};
@@ -133,6 +133,9 @@ where
     let session = Session { argv, cmd: &cmd, marks: &marks, prompter };
     let mut answers = Vec::new();
     for (mark, current) in pending(&cmd, &matches, &marks) {
+        if blocked(&cmd, &matches, mark, &answers) {
+            continue;
+        }
         match session.answer(mark, current.as_deref(), &answers) {
             Ok(Some(value)) => answers.push(Answer { mark, value }),
             Ok(None) => {}
@@ -147,8 +150,48 @@ where
 }
 
 fn arg_at<'cmd>(cmd: &'cmd Command, path: &[&str], id: &str) -> Option<&'cmd Arg> {
-    let level = path.iter().try_fold(cmd, |level, name| level.find_subcommand(name))?;
-    level.get_arguments().find(|arg| arg.get_id() == id)
+    command_at(cmd, path)?.get_arguments().find(|arg| arg.get_id() == id)
+}
+
+/// Check whether `mark` conflicts with an arg the user passed or an earlier answer.
+///
+/// Answers go in as default values, which clap never checks for conflicts, so asking here
+/// would let the parse land in a state clap rejects when typed.
+fn blocked(cmd: &Command, matches: &ArgMatches, mark: &Mark, answers: &[Answer<'_>]) -> bool {
+    let (Some(level), Some(level_matches)) =
+        (command_at(cmd, &mark.path), matches_at(matches, &mark.path))
+    else {
+        return false;
+    };
+    let Some(arg) = level.get_arguments().find(|arg| arg.get_id() == mark.spec.id) else {
+        return false;
+    };
+    let answered = |id: &Id| {
+        answers.iter().any(|answer| answer.mark.path == mark.path && answer.mark.spec.id == id)
+    };
+    let conflicts = level.get_arg_conflicts_with(arg);
+    level
+        .get_arguments()
+        .filter(|other| other.get_id() != arg.get_id())
+        .filter(|other| answered(other.get_id()) || explicit(level_matches, other.get_id()))
+        .any(|other| {
+            other.is_exclusive_set()
+                || conflicts.iter().any(|conflict| conflict.get_id() == other.get_id())
+                || level.get_arg_conflicts_with(other).iter().any(|c| c.get_id() == arg.get_id())
+                || group_mates(level, arg).any(|mate| mate == other.get_id())
+        })
+}
+
+fn command_at<'cmd>(cmd: &'cmd Command, path: &[&str]) -> Option<&'cmd Command> {
+    path.iter().try_fold(cmd, |level, name| level.find_subcommand(name))
+}
+
+/// Check whether the user passed `id`, on the command line or through its env var.
+fn explicit(matches: &ArgMatches, id: &Id) -> bool {
+    matches!(
+        matches.value_source(id.as_str()),
+        Some(ValueSource::CommandLine | ValueSource::EnvVariable)
+    )
 }
 
 /// Parse `argv` against `cmd` with `answers` injected, then build `T`.
@@ -159,6 +202,16 @@ where
     let mut cmd = inject(cmd, answers.iter().map(|answer| (answer.mark, answer.value.as_str())));
     let mut matches = cmd.try_get_matches_from_mut(argv).map_err(Failure::Clap)?;
     T::from_arg_matches_mut(&mut matches).map_err(|err| Failure::Clap(err.format(&mut cmd)))
+}
+
+/// The args sharing an exclusive `ArgGroup` with `arg`.
+fn group_mates<'cmd>(level: &'cmd Command, arg: &Arg) -> impl Iterator<Item = &'cmd Id> {
+    level
+        .get_groups()
+        .filter(|group| {
+            !ArgGroup::clone(group).is_multiple() && group.get_args().any(|id| id == arg.get_id())
+        })
+        .flat_map(ArgGroup::get_args)
 }
 
 /// For a flag, whether a "yes" stores `false`; `None` for an arg that takes a value.

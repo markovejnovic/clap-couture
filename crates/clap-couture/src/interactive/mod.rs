@@ -22,7 +22,8 @@
 //!
 //! A marked arg that has a default is asked with the default pre-filled. An optional arg answered
 //! with nothing stays unset. An arg passed on the command line or through its env var is never
-//! asked.
+//! asked, and neither is one that conflicts with a passed arg or an earlier answer. Answers are
+//! not re-checked against `requires`, `required_if_eq` and similar rules between args.
 //!
 //! A mark that can never become a single prompt fails to compile:
 //!

@@ -248,22 +248,31 @@ fn matches_at<'matches>(
 }
 
 /// The marks on the path the user took that got no value or only their default, with the
-/// default's value.
+/// default's value. A mark whose `default_value_if` fired is left to the arg that fired it: the
+/// conditional default beats an injected answer, so asking would drop the answer.
 fn pending<'mark>(
     cmd: &Command,
     matches: &ArgMatches,
     marks: &'mark [Mark],
 ) -> Vec<(&'mark Mark, Option<String>)> {
+    // Built, so a flag's action has filled in its implicit default (`false` for `SetTrue`).
+    let mut built = cmd.clone();
+    built.build();
     marks
         .iter()
-        .filter(|mark| arg_at(cmd, &mark.path, mark.spec.id).is_some())
         .filter_map(|mark| {
+            let arg = arg_at(&built, &mark.path, mark.spec.id)?;
             let level = matches_at(matches, &mark.path)?;
             let id = mark.spec.id;
+            let default =
+                arg.get_default_values().first().map(|value| value.to_string_lossy().into_owned());
             match level.value_source(id) {
-                None => Some((mark, None)),
-                Some(ValueSource::DefaultValue) => Some((mark, raw_value(level, id))),
-                Some(_) => None,
+                None if default.is_none() => Some((mark, None)),
+                Some(ValueSource::DefaultValue) => {
+                    let current = raw_value(level, id);
+                    (current == default).then_some((mark, current))
+                }
+                None | Some(_) => None,
             }
         })
         .collect()

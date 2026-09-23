@@ -6,7 +6,9 @@ mod common;
 
 use core::sync::atomic::{AtomicUsize, Ordering};
 
-use clap::{ArgGroup, Args, Parser, Subcommand, ValueEnum, error::ErrorKind};
+use clap::{
+    ArgGroup, Args, Parser, Subcommand, ValueEnum, builder::ArgPredicate, error::ErrorKind,
+};
 use clap_couture::{Couture, CoutureParser as _};
 use common::{Asked, Kind, Reply, ScriptedPrompter};
 use rstest::rstest;
@@ -120,6 +122,31 @@ struct Connect {
     #[arg(long, conflicts_with = "region")]
     #[couture(prompt = "Which zone?")]
     zone: Option<String>,
+}
+
+#[derive(Parser, Couture, Debug)]
+struct Log {
+    #[arg(
+        long,
+        default_value = "info",
+        default_value_if("verbose", ArgPredicate::IsPresent, Some("debug"))
+    )]
+    #[couture(prompt = "Which level?")]
+    level: String,
+
+    #[arg(long)]
+    pinned: bool,
+
+    #[arg(
+        long,
+        default_value = "latest",
+        default_value_if("pinned", ArgPredicate::IsPresent, None)
+    )]
+    #[couture(prompt = "Which tag?")]
+    tag: Option<String>,
+
+    #[arg(long)]
+    verbose: bool,
 }
 
 #[derive(Parser, Couture, Debug)]
@@ -365,4 +392,21 @@ fn never_asks_for_a_mark_that_conflicts_with_an_earlier_answer() {
         Some((Some("eu".to_owned()), None))
     );
     assert_eq!(prompter.asked(), [asked(Kind::Text, "Which region?", None, &[])]);
+}
+
+#[rstest]
+#[case::set_by_the_condition(&["log", "--verbose", "--tag", "v1"], "debug", Some("v1"))]
+#[case::cleared_by_the_condition(&["log", "--pinned", "--level", "warn"], "warn", None)]
+fn never_asks_for_a_mark_whose_conditional_default_fired(
+    #[case] argv: &[&str],
+    #[case] level: &str,
+    #[case] tag: Option<&str>,
+) {
+    let prompter = ScriptedPrompter::new([]);
+    let log = Log::couture_try_parse_from_with(&prompter, argv);
+    assert_eq!(
+        log.map(|log| (log.level, log.tag)).ok(),
+        Some((level.to_owned(), tag.map(str::to_owned)))
+    );
+    assert_eq!(prompter.asked(), []);
 }

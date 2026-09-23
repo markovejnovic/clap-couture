@@ -15,13 +15,14 @@ clap-couture-derive = { path = "../clap-couture-derive", version = "0.1.0" }
 clap = { workspace = true }
 pulldown-cmark = { workspace = true, optional = true }
 unicode-width = { workspace = true }
+thiserror = { workspace = true, optional = true }
 
 [features]
 markdown = ["dep:pulldown-cmark"]
-interactive = ["clap-couture-derive/interactive"]
+interactive = ["clap/string", "clap-couture-derive/interactive", "dep:thiserror"]
 
 [dev-dependencies]
-clap = { workspace = true, features = ["derive"] }
+clap = { workspace = true, features = ["derive", "env"] }
 rstest = { workspace = true }
 
 [lints]

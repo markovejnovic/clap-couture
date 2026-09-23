@@ -27,8 +27,9 @@ use heck::{
     ToUpperCamelCase as _,
 };
 use proc_macro2::TokenStream as TokenStream2;
-use syn::meta::ParseNestedMeta;
-use syn::{Attribute, DataStruct, LitStr, Token, Type, Variant, ext::IdentExt as _};
+use syn::{
+    Attribute, DataStruct, LitStr, Token, Type, Variant, ext::IdentExt as _, meta::ParseNestedMeta,
+};
 
 /// A `rename_all` casing, mirroring `clap_derive`'s `CasingStyle`. The examples rename `DryRun`.
 #[derive(Clone, Copy)]

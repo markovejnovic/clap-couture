@@ -8,8 +8,10 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::{Attribute, Data, DataEnum, DataStruct, DeriveInput, LitStr, parse_macro_input};
 
-use crate::attrs::{CategoriesSpec, Inherit};
-use crate::clap_compat::{DataStructExt as _, SubcommandNaming};
+use crate::{
+    attrs::{CategoriesSpec, Inherit},
+    clap_compat::{DataStructExt as _, SubcommandNaming},
+};
 
 struct CategoryDef {
     description: Option<String>,

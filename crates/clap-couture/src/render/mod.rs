@@ -3,11 +3,12 @@ mod md;
 #[cfg(not(feature = "markdown"))]
 mod plain;
 
-use core::fmt::{self, Display};
-use core::iter;
+use core::{
+    fmt::{self, Display},
+    iter,
+};
 
-use clap::Command;
-use clap::builder::Styles;
+use clap::{Command, builder::Styles};
 #[cfg(feature = "markdown")]
 use md::MdTextRenderer as Renderer;
 #[cfg(not(feature = "markdown"))]

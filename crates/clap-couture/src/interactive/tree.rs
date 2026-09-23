@@ -1,5 +1,9 @@
 //! The static tree of marked args that `#[derive(Couture)]` emits as `Couture::PROMPTS`.
 
+use core::marker::PhantomData;
+
+use crate::Couture;
+
 /// A marked arg and the subcommand path to the command that owns it.
 #[derive(Debug)]
 pub struct Mark {
@@ -7,6 +11,19 @@ pub struct Mark {
     pub path: Vec<&'static str>,
     /// The mark itself.
     pub spec: &'static PromptSpec,
+}
+
+/// `T`'s `PROMPTS`, or an empty tree for a `T` that does not implement `Couture`, so a flattened
+/// `Args` type from another crate needs no impl.
+///
+/// The inherent const applies when `T: Couture`; otherwise [`ProbeFallback`]'s does.
+#[derive(Debug)]
+pub struct Probe<T>(PhantomData<T>);
+
+/// See [`Probe`].
+pub trait ProbeFallback {
+    /// No marks.
+    const PROMPTS: &'static PromptNode = &PromptNode::EMPTY;
 }
 
 /// What hangs off one command level besides its own marked args.
@@ -36,6 +53,16 @@ pub struct PromptSpec {
     /// The `prompt = "..."` override; `None` asks the arg's help text.
     pub question: Option<&'static str>,
 }
+
+impl<T> Probe<T>
+where
+    T: Couture,
+{
+    /// `T`'s marks.
+    pub const PROMPTS: &'static PromptNode = &T::PROMPTS;
+}
+
+impl<T> ProbeFallback for Probe<T> {}
 
 impl PromptNode {
     /// A node with no marks, the default for a hand-written `Couture` impl.

@@ -79,7 +79,7 @@ pub(crate) use flow::run;
 #[cfg(feature = "interactive-inquire")]
 pub use inquire::Inquire;
 #[doc(hidden)]
-pub use tree::{Mark, PromptChild, PromptNode, PromptSpec};
+pub use tree::{Mark, Probe, ProbeFallback, PromptChild, PromptNode, PromptSpec};
 
 /// The backend [`CoutureParser`](crate::CoutureParser)'s entry points ask through: the first
 /// enabled of cliclack, dialoguer and inquire.

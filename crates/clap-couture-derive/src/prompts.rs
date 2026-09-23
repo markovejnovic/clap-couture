@@ -24,9 +24,16 @@ struct Prompt {
 }
 
 /// The `const PROMPTS` item for `node`, or nothing without the `interactive` feature.
+///
+/// `ProbeFallback` in scope lets a type without a `Couture` impl contribute no marks.
 pub(crate) fn item(node: &TokenStream2) -> TokenStream2 {
     if cfg!(feature = "interactive") {
-        quote!(const PROMPTS: ::clap_couture::interactive::PromptNode = #node;)
+        quote! {
+            const PROMPTS: ::clap_couture::interactive::PromptNode = {
+                use ::clap_couture::interactive::ProbeFallback as _;
+                #node
+            };
+        }
     } else {
         TokenStream2::new()
     }
@@ -49,7 +56,7 @@ pub(crate) fn enum_node(data: &DataEnum, naming: &SubcommandNaming) -> syn::Resu
             Fields::Unnamed(fields) => {
                 let Some(field) = fields.unnamed.first() else { continue };
                 let ty = &field.ty;
-                let node = quote!(&<#ty as ::clap_couture::Couture>::PROMPTS);
+                let node = probe(ty);
                 if attrs.has_clap_key("flatten") {
                     quote!(::clap_couture::interactive::PromptChild::Flatten(#node))
                 } else {
@@ -75,21 +82,9 @@ pub(crate) fn fields_node(fields: &Fields) -> syn::Result<TokenStream2> {
         let prompt = parse_prompt(&field.attrs)?;
         match (field_kind(&field.attrs), prompt) {
             (FieldKind::Arg, Some(prompt)) => args.push(spec(field, &prompt)?),
-            (FieldKind::Flatten, None) => {
-                let ty = &field.ty;
-                children.push(quote! {
-                    ::clap_couture::interactive::PromptChild::Flatten(
-                        &<#ty as ::clap_couture::Couture>::PROMPTS
-                    )
-                });
-            }
-            (FieldKind::Subcommand, None) => {
-                let ty = field.ty.peel_option();
-                children.push(quote! {
-                    ::clap_couture::interactive::PromptChild::Flatten(
-                        &<#ty as ::clap_couture::Couture>::PROMPTS
-                    )
-                });
+            (FieldKind::Flatten | FieldKind::Subcommand, None) => {
+                let node = probe(field.ty.peel_option());
+                children.push(quote!(::clap_couture::interactive::PromptChild::Flatten(#node)));
             }
             (FieldKind::Arg | FieldKind::Skip, None) => {}
             (FieldKind::Flatten, Some(prompt)) => {
@@ -157,6 +152,11 @@ fn parse_prompt(attrs: &[Attribute]) -> syn::Result<Option<Prompt>> {
         )),
         prompt => Ok(prompt),
     }
+}
+
+/// `ty`'s marks, or none when `ty` does not implement `Couture`.
+fn probe(ty: &syn::Type) -> TokenStream2 {
+    quote!(<::clap_couture::interactive::Probe<#ty>>::PROMPTS)
 }
 
 fn spec(field: &Field, prompt: &Prompt) -> syn::Result<TokenStream2> {

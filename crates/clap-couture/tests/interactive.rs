@@ -124,6 +124,33 @@ struct Connect {
     zone: Option<String>,
 }
 
+/// Stands in for an `Args` type from another crate, which cannot implement `Couture`.
+#[derive(Args, Debug)]
+struct Verbosity {
+    #[arg(long)]
+    verbose: bool,
+}
+
+#[derive(Parser, Couture, Debug)]
+struct Tool {
+    #[command(flatten)]
+    extra: Option<Extra>,
+
+    #[command(flatten)]
+    log: Verbosity,
+
+    #[arg(long)]
+    #[couture(prompt = "Which name?")]
+    name: String,
+}
+
+#[derive(Args, Couture, Debug)]
+struct Extra {
+    #[arg(long)]
+    #[couture(prompt = "Which tag?")]
+    tag: Option<String>,
+}
+
 #[derive(Parser, Couture, Debug)]
 struct Log {
     #[arg(
@@ -409,4 +436,13 @@ fn never_asks_for_a_mark_whose_conditional_default_fired(
         Some((level.to_owned(), tag.map(str::to_owned)))
     );
     assert_eq!(prompter.asked(), []);
+}
+
+#[rstest]
+fn asks_through_optional_and_foreign_flattened_args() {
+    let prompter = ScriptedPrompter::new([Reply::Text(Some("x")), Reply::Text(None)]);
+    let tool = Tool::couture_try_parse_from_with(&prompter, ["tool", "--verbose"]);
+    assert!(tool.is_ok(), "{tool:?}");
+    let questions: Vec<_> = prompter.asked().into_iter().map(|asked| asked.question).collect();
+    assert_eq!(questions, ["Which name?", "Which tag?"]);
 }

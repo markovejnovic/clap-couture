@@ -18,7 +18,7 @@
 //!     "admin" = {},
 //! })]
 //! enum Cmd {
-//!     /// Search your history
+//!     /// Search your deployment history
 //!     #[category("everyday")]
 //!     Search,
 //!     /// Configure the tool
@@ -60,17 +60,15 @@
 //! ```
 //!
 //! The subcommands stay visible to clap, so shell completions and
-//! `tool <cmd> --help` are unaffected — only the help *listing* changes.
+//! `tool <cmd> --help` are unaffected -- only the help *listing* changes.
 
 mod render;
 
 use clap::{Command, builder::StyledStr};
 pub use clap_couture_derive::Couture;
-use render::render_groups;
+use render::CommandRenderExt as _;
 
-/// A clap subcommand name.
-///
-/// If you have a CLI that supports `app foo`, `app bar`, this refers to `foo` and `bar`.
+/// A clap subcommand name, eg. `foo` in `app foo`.
 pub struct CommandName(&'static str);
 
 impl CommandName {
@@ -88,21 +86,25 @@ impl CommandName {
 }
 
 /// Defines a category of similar commands.
-///
-/// You can create arbitrary categories, associate them to commands via
-/// [`Couture::CATEGORIES`], and then reference them.
 pub struct Category {
-    /// A description you can provide to your categories. This gets rendered columnar.
+    /// Text printed beside the heading, if any.
     pub description: Option<&'static str>,
 
-    /// Stable identifier that can be referenced.
-    ///
-    /// `#[category("...")]` references this field.
+    /// Key that `#[category("...")]` refers to.
     pub label: &'static str,
 
-    /// The user-facing heading. If this is not provided, then [`self`] will use [`Self::label`]
-    /// and display that to the user.
+    /// Heading shown to the user; falls back to [`Self::label`].
     pub title: Option<&'static str>,
+}
+
+impl Category {
+    /// The user-facing heading: [`Self::title`], falling back to [`Self::label`].
+    pub(crate) const fn heading(&self) -> &'static str {
+        match self.title {
+            Some(title) => title,
+            None => self.label,
+        }
+    }
 }
 
 /// A static map from subcommand name to the category it belongs to.
@@ -110,6 +112,18 @@ pub struct Category {
 pub struct CommandCategoryMap(&'static [(CommandName, Category)]);
 
 impl CommandCategoryMap {
+    /// The distinct categories, in first-appearance order.
+    pub(crate) fn distinct(self) -> impl Iterator<Item = &'static Category> {
+        let entries = self.0;
+        entries
+            .iter()
+            .enumerate()
+            .filter(move |(i, entry)| {
+                entries.iter().position(|first| first.1.label == entry.1.label) == Some(*i)
+            })
+            .map(|(_, entry)| &entry.1)
+    }
+
     /// The category assigned to `name`, if any.
     #[must_use]
     pub fn find(&self, name: &str) -> Option<&Category> {
@@ -137,23 +151,18 @@ impl<'map> IntoIterator for &'map CommandCategoryMap {
     }
 }
 
-/// Implemented by `#[derive(Couture)]` to expose a type's command categories.
-///
-/// You can implement this manually, but we recommend using `clap-couture-derive`
-/// to derive it automatically.
+/// A type's command categories, usually from `#[derive(Couture)]` on a subcommand enum.
 pub trait Couture {
     /// Each command paired with the category it belongs to.
-    ///
-    /// Categories render in first-appearance order; a category's `title` and
-    /// `description` come from its first pair (later duplicates, and `None`s, are
-    /// ignored — so an inherited command can carry just a label while the command
-    /// that owns the category supplies the metadata).
     const CATEGORIES: CommandCategoryMap;
 }
 
 /// Extension trait adding categorized help to a [`clap::Command`].
 pub trait CommandExt {
-    /// Attach couture to the given command.
+    /// Group this command's `--help` subcommand listing by `T`'s categories.
+    ///
+    /// Overwrites the command's [`help_template`](Command::help_template) and
+    /// [`before_help`](Command::before_help).
     ///
     /// # Example
     ///
@@ -170,7 +179,7 @@ pub trait CommandExt {
     /// #[derive(Subcommand, Couture)]
     /// #[couture(categories = { "everyday" = { description = "daily drivers" } })]
     /// enum Cmd {
-    ///     /// Search your history
+    ///     /// Search your deployment history
     ///     #[category("everyday")]
     ///     Search,
     /// }
@@ -185,33 +194,23 @@ pub trait CommandExt {
 }
 
 impl CommandExt for Command {
-    fn with_couture<T>(mut self) -> Self
+    fn with_couture<T>(self) -> Self
     where
         T: Couture,
     {
-        let styles = self.get_styles().clone();
+        let styles = self.get_styles();
+        let mut before = StyledStr::new();
+        // `StyledStr`'s `fmt::Write` is infallible.
+        self.write_command_sections(&mut before, T::CATEGORIES).ok();
 
-        // Snapshot visible subcommands before we start mutating `self`.
-        let commands: Vec<(String, Option<String>)> = self
-            .get_subcommands()
-            .filter(|c| !c.is_hide_set())
-            .map(|c| (c.get_name().to_owned(), c.get_about().map(ToString::to_string)))
-            .collect();
-
-        let mut before = String::new();
-        render_groups(&mut before, &commands, T::CATEGORIES, &styles);
-        self = self.before_help(StyledStr::from(before));
-
-        // clap's `{options}` tag renders the option rows but not their heading
-        // (only `{all-args}` does, and that would re-add the flat command list),
-        // so we embed a styled "Options:" heading in the template ourselves —
-        // its ANSI is stripped alongside everything else when colour is off.
+        // clap can't regroup its subcommand listing, so the template lists `{options}` instead of
+        // `{all-args}` and the menu goes in `{before-help}`.
         let header = styles.get_header();
-        self = self.help_template(format!(
+        let template = format!(
             "{{name}} {{version}}\n{{author}}\n{{about}}\n\n{{usage-heading}}\n  \
              {{usage}}\n\n{{before-help}}{header}Options:{header:#}\n{{options}}"
-        ));
+        );
 
-        self
+        self.before_help(before).help_template(template)
     }
 }

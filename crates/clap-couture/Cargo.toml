@@ -2,7 +2,7 @@
 name = "clap-couture"
 version = "0.1.0"
 edition = "2024"
-description = "Beautiful, categorized --help for clap CLIs — group subcommands into titled, styled sections."
+description = "Beautiful, categorized --help for clap CLIs: group subcommands into titled, styled sections."
 keywords = ["clap", "cli", "help", "terminal", "derive"]
 categories = ["command-line-interface", "development-tools"]
 readme = "../../README.md"
@@ -21,6 +21,7 @@ markdown = ["dep:pulldown-cmark"]
 
 [dev-dependencies]
 clap = { workspace = true, features = ["derive"] }
+rstest = { workspace = true }
 
 [lints]
 workspace = true

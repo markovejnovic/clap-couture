@@ -56,15 +56,26 @@
 //! }
 //! ```
 
+#[cfg(feature = "interactive-cliclack")]
+mod cliclack;
+#[cfg(feature = "interactive-cliclack")]
+mod console_style;
 mod flow;
 mod tree;
 
 use std::io::{self, IsTerminal as _};
 
 use clap::builder::{PossibleValue, Styles};
+#[cfg(feature = "interactive-cliclack")]
+pub use cliclack::Cliclack;
 pub(crate) use flow::run;
 #[doc(hidden)]
 pub use tree::{Mark, PromptChild, PromptNode, PromptSpec};
+
+/// The backend [`CoutureParser`](crate::CoutureParser)'s entry points ask through: the first
+/// enabled of cliclack, dialoguer and inquire.
+#[cfg(feature = "interactive-cliclack")]
+pub type DefaultPrompter = Cliclack;
 
 /// A yes/no question.
 #[derive(Debug)]
@@ -147,4 +158,19 @@ pub struct TextPrompt<'prompt> {
     pub question: &'prompt str,
     /// The command's styles, for backends that theme themselves.
     pub styles: &'prompt Styles,
+}
+
+/// Map a backend's I/O error: `Interrupted` is the user backing out, `NotConnected` a missing
+/// terminal.
+#[cfg(feature = "interactive-cliclack")]
+#[expect(
+    clippy::wildcard_enum_match_arm,
+    reason = "`io::ErrorKind` is #[non_exhaustive]; every other kind is a plain I/O failure"
+)]
+fn from_io(err: io::Error) -> PromptError {
+    match err.kind() {
+        io::ErrorKind::Interrupted => PromptError::Cancelled,
+        io::ErrorKind::NotConnected => PromptError::NotATerminal,
+        _ => PromptError::Io(err),
+    }
 }

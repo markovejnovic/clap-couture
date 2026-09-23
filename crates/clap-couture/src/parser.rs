@@ -10,7 +10,9 @@ use crate::{CommandExt as _, Couture};
 
 /// clap's [`Parser`] entry points, with couture's help installed.
 ///
-/// Implemented for every [`Parser`] that also implements [`Couture`].
+/// Implemented for every [`Parser`] that also implements [`Couture`]. With an `interactive-*`
+/// backend feature on, every entry point asks for marked args the user left out; see
+/// [`interactive`](crate::interactive).
 pub trait CoutureParser: Parser + Couture {
     /// The clap [`Command`] with couture's help installed.
     #[must_use]
@@ -136,7 +138,18 @@ fn exit_cancelled() -> ! {
     std::process::exit(130)
 }
 
+/// Parse through [`DefaultPrompter`](crate::interactive::DefaultPrompter).
+#[cfg(feature = "interactive-cliclack")]
+fn parse_default<T>(argv: &[OsString]) -> Result<T, Failure>
+where
+    T: CoutureParser,
+{
+    let prompter = crate::interactive::DefaultPrompter::default();
+    crate::interactive::run(T::couture_command(), &T::PROMPTS, argv, &prompter)
+}
+
 /// Parse without prompting: no backend is enabled.
+#[cfg(not(feature = "interactive-cliclack"))]
 fn parse_default<T>(argv: &[OsString]) -> Result<T, Failure>
 where
     T: CoutureParser,

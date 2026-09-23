@@ -16,10 +16,17 @@ clap = { workspace = true }
 pulldown-cmark = { workspace = true, optional = true }
 unicode-width = { workspace = true }
 thiserror = { workspace = true, optional = true }
+cliclack = { workspace = true, optional = true }
+console = { workspace = true, optional = true }
 
 [features]
 markdown = ["dep:pulldown-cmark"]
 interactive = ["clap/string", "clap-couture-derive/interactive", "dep:thiserror"]
+interactive-cliclack = ["interactive", "dep:cliclack", "dep:console"]
+
+[[example]]
+name = "deploy"
+required-features = ["interactive"]
 
 [dev-dependencies]
 clap = { workspace = true, features = ["derive", "env"] }

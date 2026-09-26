@@ -90,9 +90,24 @@ pub enum PromptError {
     #[error("prompt cancelled")]
     Cancelled,
     #[error(transparent)]
-    Io(#[from] io::Error),
+    Io(io::Error),
     #[error("not a terminal")]
     NotATerminal,
+}
+
+// `Interrupted` is the user backing out, `NotConnected` a missing terminal.
+impl From<io::Error> for PromptError {
+    #[expect(
+        clippy::wildcard_enum_match_arm,
+        reason = "`io::ErrorKind` is #[non_exhaustive]; every other kind is a plain I/O failure"
+    )]
+    fn from(err: io::Error) -> Self {
+        match err.kind() {
+            io::ErrorKind::Interrupted => Self::Cancelled,
+            io::ErrorKind::NotConnected => Self::NotATerminal,
+            _ => Self::Io(err),
+        }
+    }
 }
 
 /// A yes/no question.

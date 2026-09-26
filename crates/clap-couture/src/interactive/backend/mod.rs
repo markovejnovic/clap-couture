@@ -78,7 +78,7 @@ pub trait Backend {
     /// Ask a yes/no question.
     ///
     /// # Errors
-    /// [`PromptError::Cancelled`] when the user backs out.
+    /// - [`PromptError::Cancelled`] when the user backs out.
     fn confirm(&self, prompt: &ConfirmPrompt<'_>) -> Result<bool, PromptError>;
 
     /// Check whether there is a terminal to ask on: stdin and stderr must both be one.
@@ -88,10 +88,8 @@ pub trait Backend {
 
     /// Show clap's complaint about the previous answer, before asking again.
     ///
-    /// By default, `error` is written unstyled to stderr.
-    ///
     /// # Errors
-    /// [`PromptError::Io`] when the message cannot be shown.
+    /// - [`PromptError::Io`] when the message cannot be shown.
     fn report(&self, error: &str, _styles: CommandStyles<'_>) -> Result<(), PromptError> {
         writeln!(io::stderr(), "{error}").map_err(PromptError::Io)
     }
@@ -100,31 +98,12 @@ pub trait Backend {
     /// optional prompt is answered with none of them.
     ///
     /// # Errors
-    /// [`PromptError::Cancelled`] when the user backs out.
+    /// - [`PromptError::Cancelled`] when the user backs out.
     fn select(&self, prompt: &SelectPrompt<'_>) -> Result<Option<String>, PromptError>;
 
     /// Ask for free text, returning `None` only for an empty answer to an optional prompt.
     ///
     /// # Errors
-    /// [`PromptError::Cancelled`] when the user backs out.
+    /// - [`PromptError::Cancelled`] when the user backs out.
     fn text(&self, prompt: &TextPrompt<'_>) -> Result<Option<String>, PromptError>;
-}
-
-/// Map a backend's I/O error: `Interrupted` is the user backing out, `NotConnected` a missing
-/// terminal.
-#[cfg(any(
-    feature = "interactive-cliclack",
-    feature = "interactive-dialoguer",
-    feature = "interactive-inquire"
-))]
-#[expect(
-    clippy::wildcard_enum_match_arm,
-    reason = "`io::ErrorKind` is #[non_exhaustive]; every other kind is a plain I/O failure"
-)]
-fn from_io(err: io::Error) -> PromptError {
-    match err.kind() {
-        io::ErrorKind::Interrupted => PromptError::Cancelled,
-        io::ErrorKind::NotConnected => PromptError::NotATerminal,
-        _ => PromptError::Io(err),
-    }
 }

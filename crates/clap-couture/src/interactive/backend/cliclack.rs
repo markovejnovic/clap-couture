@@ -2,7 +2,7 @@
 
 use std::io;
 
-use super::{Backend, ClapStyle, CommandStyles, NONE_OPTION, from_io};
+use super::{Backend, ClapStyle, CommandStyles, NONE_OPTION};
 use crate::interactive::{ConfirmPrompt, PromptError, SelectPrompt, TextPrompt};
 
 /// Prompts drawn by cliclack, in its clack style.
@@ -66,7 +66,7 @@ impl Theme {
         ::cliclack::set_theme(self);
         let answer = interact();
         ::cliclack::reset_theme();
-        answer.map_err(from_io)
+        answer.map_err(PromptError::from)
     }
 }
 

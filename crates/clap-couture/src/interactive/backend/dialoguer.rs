@@ -3,7 +3,7 @@
 use clap::builder::PossibleValue;
 use dialoguer::{Confirm, Input, Select, theme::ColorfulTheme};
 
-use super::{Backend, ClapStyle, CommandStyles, NONE_OPTION, from_io};
+use super::{Backend, ClapStyle, CommandStyles, NONE_OPTION};
 use crate::interactive::{ConfirmPrompt, PromptError, SelectPrompt, TextPrompt};
 
 /// A dialoguer failure.
@@ -68,7 +68,7 @@ impl Backend for Dialoguer {
 impl From<DialoguerError> for PromptError {
     fn from(DialoguerError(err): DialoguerError) -> Self {
         let dialoguer::Error::IO(err) = err;
-        from_io(err)
+        Self::from(err)
     }
 }
 

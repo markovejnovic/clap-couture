@@ -12,7 +12,7 @@ use inquire::{
     validator::ValueRequiredValidator,
 };
 
-use super::{Backend, ClapColor, ClapStyle, CommandStyles, NONE_OPTION, NamedColor, from_io};
+use super::{Backend, ClapColor, ClapStyle, CommandStyles, NONE_OPTION, NamedColor};
 use crate::interactive::{ConfirmPrompt, PromptError, SelectPrompt, TextPrompt};
 
 struct InquireError(inquire::InquireError);
@@ -132,7 +132,7 @@ impl From<InquireError> for PromptError {
     )]
     fn from(InquireError(err): InquireError) -> Self {
         match err {
-            inquire::InquireError::IO(err) => from_io(err),
+            inquire::InquireError::IO(err) => Self::from(err),
             inquire::InquireError::NotTTY => Self::NotATerminal,
             inquire::InquireError::OperationCanceled
             | inquire::InquireError::OperationInterrupted => Self::Cancelled,

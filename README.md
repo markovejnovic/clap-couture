@@ -4,7 +4,6 @@
 
 <p>
   <strong>Haute couture for your command line.</strong><br>
-  The most beautiful <code>clap</code> extension you've heard of.
 </p>
 
 <p>
@@ -15,6 +14,49 @@
   <a href="https://crates.io/crates/clap"><img alt="clap 4.x" src="https://img.shields.io/badge/clap-4.x-DB2777?style=flat-square"></a>
   <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-DB2777?style=flat-square"></a>
 </p>
+
+
+</div>
+
+**clap-couture** is a [`clap`](https://docs.rs/clap) extension that beautifies
+your `clap` with only a few derive attributes.
+
+## Features
+
+- Organize your help with _categories_.
+- Interactive input (WIP)
+- Markdown for rich styling (WIP)
+
+#### Categories
+
+`clap-couture` allows you to provide a set of categories to better improve the
+`--help` experience your users see. As your project gets larger, the list of
+subcommands makes your CLI intimidating and we don't like that.
+
+With `clap-couture`, you can create categories:
+
+```rust
+#[derive(Subcommand, Couture)]
+#[couture(categories = {
+    "everyday" = { title = "Everyday",
+                   description = "The commands you'll reach for daily" },
+    "deploy"   = { title = "Deploy",
+                   description = "Ship code to production" },
+    "account"  = { title = "Account & sync" },
+})]
+enum Cmd {
+    #[category("deploy")] Deploy,
+    #[category("account")] Login,
+    #[category("everyday")] Logs,
+    #[category("deploy")] Rollback,
+    #[category("everyday")] Search,
+    #[category("deploy")] Secrets,
+    #[category("everyday")] Status,
+    #[category("account")] Sync,
+}
+```
+
+which will generate beautiful `--help`:
 
 <table>
   <tr>
@@ -27,103 +69,9 @@
   </tr>
 </table>
 
-</div>
+## Quick Start
 
-**clap-couture** is a [`clap`](https://docs.rs/clap) extension that turns a
-boring flat `--help` into a categorized, beautifully organized command
-menu---grouped sections, per-category descriptions, and Markdown styling, all
-from a few derive attributes.
-
-## Why
-
-Every clap CLI starts elegant and, around the eighth subcommand, turns into a
-wall. `Commands:` becomes an undifferentiated list where `login` sits next to
-`import` sits next to `search`, and the reader has to squint to find the three
-commands they actually use every day.
-
-`clap-couture` gives you a **category**. You can group commands into titled
-sections with custom descriptions, in a couple of derive attributes, at no
-runtime cost, all with markdown formatting!
-
-## Quickstart
-
-```toml
-# Cargo.toml
-[dependencies]
-clap = { version = "4", features = ["derive"] }
-clap-couture = "0.1"
-```
-
-Add `Couture` next to clap's own derives, name your categories, and pin each
-command to one:
-
-```rust
-use clap::{Parser, Subcommand};
-use clap_couture::Couture;
-
-#[derive(Parser, Couture)]
-#[command(name = "orbit", about = "Deploy and manage your apps from the terminal.")]
-struct Cli {
-    #[command(subcommand)]
-    cmd: Cmd,
-}
-
-#[derive(Subcommand, Couture)]
-#[couture(categories = {
-    "everyday" = { title = "Everyday", description = "The commands you'll reach for daily" },
-    "deploy"   = { title = "Deploy",   description = "Ship code to production" },
-    "account"  = { title = "Account & sync" },
-})]
-enum Cmd {
-    /// Search your deployment history
-    #[category("everyday")]
-    Search,
-    /// Show recent activity
-    #[category("everyday")]
-    Status,
-    /// Ship the current project
-    #[category("deploy")]
-    Deploy,
-    /// Roll back to a previous release
-    #[category("deploy")]
-    Rollback,
-    /// Sign in to your account
-    #[category("account")]
-    Login,
-}
-
-fn main() {
-    let cli = Cli::couture_parse(); // drop-in for `Cli::parse()`
-    // ...dispatch on cli.cmd exactly as before
-}
-```
-
-`couture_parse()` is a drop-in for clap's `parse()`. Now `orbit --help` reads like a
-menu instead of a phone book:
-
-```text
-Deploy and manage your apps from the terminal.
-
-Usage:
-  orbit <COMMAND>
-
-Everyday:        The commands you'll reach for daily
-  search    Search your deployment history
-  status    Show recent activity
-
-Deploy:          Ship code to production
-  deploy    Ship the current project
-  rollback  Roll back to a previous release
-
-Account & sync:
-  login     Sign in to your account
-
-Options:
-  -h, --help     Print help
-  -V, --version  Print version
-```
-
-## Installation
+Run
 
 ```sh
 cargo add clap-couture

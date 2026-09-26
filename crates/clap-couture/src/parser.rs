@@ -5,7 +5,7 @@ use std::ffi::OsString;
 use clap::{Command, Parser};
 
 #[cfg(feature = "interactive")]
-use crate::interactive::Prompter;
+use crate::interactive::Backend;
 use crate::{CommandExt as _, Couture};
 
 /// clap's [`Parser`] entry points, with couture's help installed.
@@ -40,16 +40,16 @@ pub trait CoutureParser: Parser + Couture {
         exit_on_failure(parse_default(&collect(itr)))
     }
 
-    /// Equivalent to [`couture_parse`](Self::couture_parse), asking `prompter` for marked args.
+    /// Equivalent to [`couture_parse`](Self::couture_parse), asking `backend` for marked args.
     #[cfg(feature = "interactive")]
     #[must_use]
-    fn couture_parse_with(prompter: &dyn Prompter) -> Self {
+    fn couture_parse_with(backend: &dyn Backend) -> Self {
         let argv = collect(std::env::args_os());
         exit_on_failure(crate::interactive::run(
             Self::couture_command(),
             &Self::PROMPTS,
             &argv,
-            prompter,
+            backend,
         ))
     }
 
@@ -75,21 +75,18 @@ pub trait CoutureParser: Parser + Couture {
         parse_default(&collect(itr)).map_err(Failure::into_clap)
     }
 
-    /// Equivalent to [`couture_try_parse_from`](Self::couture_try_parse_from), asking `prompter`
+    /// Equivalent to [`couture_try_parse_from`](Self::couture_try_parse_from), asking `backend`
     /// for marked args.
     ///
     /// # Errors
     /// As [`couture_try_parse_from`](Self::couture_try_parse_from).
     #[cfg(feature = "interactive")]
-    fn couture_try_parse_from_with<I, T>(
-        prompter: &dyn Prompter,
-        itr: I,
-    ) -> Result<Self, clap::Error>
+    fn couture_try_parse_from_with<I, T>(backend: &dyn Backend, itr: I) -> Result<Self, clap::Error>
     where
         I: IntoIterator<Item = T>,
         T: Into<OsString> + Clone,
     {
-        crate::interactive::run(Self::couture_command(), &Self::PROMPTS, &collect(itr), prompter)
+        crate::interactive::run(Self::couture_command(), &Self::PROMPTS, &collect(itr), backend)
             .map_err(Failure::into_clap)
     }
 }
@@ -138,7 +135,7 @@ fn exit_cancelled() -> ! {
     std::process::exit(130)
 }
 
-/// Parse through [`DefaultPrompter`](crate::interactive::DefaultPrompter).
+/// Parse through [`DefaultBackend`](crate::interactive::DefaultBackend).
 #[cfg(any(
     feature = "interactive-cliclack",
     feature = "interactive-dialoguer",
@@ -148,8 +145,8 @@ fn parse_default<T>(argv: &[OsString]) -> Result<T, Failure>
 where
     T: CoutureParser,
 {
-    let prompter = crate::interactive::DefaultPrompter::default();
-    crate::interactive::run(T::couture_command(), &T::PROMPTS, argv, &prompter)
+    let backend = crate::interactive::DefaultBackend::default();
+    crate::interactive::run(T::couture_command(), &T::PROMPTS, argv, &backend)
 }
 
 /// Parse without prompting: no backend is enabled.

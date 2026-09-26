@@ -10,7 +10,7 @@ use clap::{
     ArgGroup, Args, Parser, Subcommand, ValueEnum, builder::ArgPredicate, error::ErrorKind,
 };
 use clap_couture::{Couture, CoutureParser as _};
-use common::{Asked, Kind, Reply, ScriptedPrompter};
+use common::{Asked, Kind, Reply, ScriptedBackend};
 use rstest::rstest;
 
 /// How often `Plain`'s value parser ran, to count parses of argv.
@@ -242,33 +242,33 @@ fn asked(kind: Kind, question: &str, default: Option<&str>, options: &[&str]) ->
 
 #[rstest]
 fn asks_for_a_missing_required_arg() {
-    let prompter = ScriptedPrompter::new([Reply::Text(Some("us"))]);
-    let deploy = Deploy::couture_try_parse_from_with(&prompter, deploy_argv("region"));
+    let backend = ScriptedBackend::new([Reply::Text(Some("us"))]);
+    let deploy = Deploy::couture_try_parse_from_with(&backend, deploy_argv("region"));
     assert_eq!(deploy.map(|deploy| deploy.region).ok().as_deref(), Some("us"));
-    assert_eq!(prompter.asked(), [asked(Kind::Text, "Region to deploy to", None, &[])]);
+    assert_eq!(backend.asked(), [asked(Kind::Text, "Region to deploy to", None, &[])]);
 }
 
 #[rstest]
 fn leaves_an_optional_arg_unset_on_an_empty_answer() {
-    let prompter = ScriptedPrompter::new([Reply::Text(None)]);
-    let deploy = Deploy::couture_try_parse_from_with(&prompter, deploy_argv("port"));
+    let backend = ScriptedBackend::new([Reply::Text(None)]);
+    let deploy = Deploy::couture_try_parse_from_with(&backend, deploy_argv("port"));
     assert_eq!(deploy.map(|deploy| deploy.port).ok(), Some(None));
 }
 
 #[rstest]
 fn prefills_the_default() {
-    let prompter = ScriptedPrompter::new([Reply::Text(Some("prod"))]);
-    let deploy = Deploy::couture_try_parse_from_with(&prompter, deploy_argv("env"));
+    let backend = ScriptedBackend::new([Reply::Text(Some("prod"))]);
+    let deploy = Deploy::couture_try_parse_from_with(&backend, deploy_argv("env"));
     assert_eq!(deploy.map(|deploy| deploy.env).ok().as_deref(), Some("prod"));
-    assert_eq!(prompter.asked(), [asked(Kind::Text, "env", Some("staging"), &[])]);
+    assert_eq!(backend.asked(), [asked(Kind::Text, "env", Some("staging"), &[])]);
 }
 
 #[rstest]
 fn asks_yes_or_no_for_a_flag() {
-    let prompter = ScriptedPrompter::new([Reply::Confirm(true)]);
-    let deploy = Deploy::couture_try_parse_from_with(&prompter, deploy_argv("follow"));
+    let backend = ScriptedBackend::new([Reply::Confirm(true)]);
+    let deploy = Deploy::couture_try_parse_from_with(&backend, deploy_argv("follow"));
     assert_eq!(deploy.map(|deploy| deploy.follow).ok(), Some(true));
-    assert_eq!(prompter.asked(), [asked(
+    assert_eq!(backend.asked(), [asked(
         Kind::Confirm,
         "Tail the logs afterwards",
         Some("false"),
@@ -278,28 +278,28 @@ fn asks_yes_or_no_for_a_flag() {
 
 #[rstest]
 fn offers_the_possible_values_of_an_enum() {
-    let prompter = ScriptedPrompter::new([Reply::Select(Some("canary"))]);
-    let deploy = Deploy::couture_try_parse_from_with(&prompter, deploy_argv("strategy"));
+    let backend = ScriptedBackend::new([Reply::Select(Some("canary"))]);
+    let deploy = Deploy::couture_try_parse_from_with(&backend, deploy_argv("strategy"));
     assert_eq!(deploy.map(|deploy| deploy.strategy).ok(), Some(Strategy::Canary));
-    assert_eq!(prompter.asked(), [asked(Kind::Select, "Which strategy?", None, &[
+    assert_eq!(backend.asked(), [asked(Kind::Select, "Which strategy?", None, &[
         "canary", "rolling"
     ])]);
 }
 
 #[rstest]
 fn never_asks_for_passed_args() {
-    let prompter = ScriptedPrompter::new([]);
-    let deploy = Deploy::couture_try_parse_from_with(&prompter, deploy_argv(""));
+    let backend = ScriptedBackend::new([]);
+    let deploy = Deploy::couture_try_parse_from_with(&backend, deploy_argv(""));
     assert!(deploy.is_ok(), "{deploy:?}");
-    assert_eq!(prompter.asked(), []);
+    assert_eq!(backend.asked(), []);
 }
 
 #[rstest]
 fn asks_again_with_claps_message_when_an_answer_is_invalid() {
-    let prompter = ScriptedPrompter::new([Reply::Text(Some("abc")), Reply::Text(Some("8080"))]);
-    let deploy = Deploy::couture_try_parse_from_with(&prompter, deploy_argv("port"));
+    let backend = ScriptedBackend::new([Reply::Text(Some("abc")), Reply::Text(Some("8080"))]);
+    let deploy = Deploy::couture_try_parse_from_with(&backend, deploy_argv("port"));
     assert_eq!(deploy.map(|deploy| deploy.port).ok(), Some(Some(8080)));
-    let errors: Vec<_> = prompter.asked().into_iter().map(|asked| asked.error).collect();
+    let errors: Vec<_> = backend.asked().into_iter().map(|asked| asked.error).collect();
     assert_eq!(errors, [
         None,
         Some("invalid value 'abc' for '--port <PORT>': invalid digit found in string".to_owned())
@@ -308,15 +308,15 @@ fn asks_again_with_claps_message_when_an_answer_is_invalid() {
 
 #[rstest]
 fn a_cancelled_prompt_is_an_io_error() {
-    let prompter = ScriptedPrompter::new([Reply::Cancel]);
-    let deploy = Deploy::couture_try_parse_from_with(&prompter, deploy_argv("region"));
+    let backend = ScriptedBackend::new([Reply::Cancel]);
+    let deploy = Deploy::couture_try_parse_from_with(&backend, deploy_argv("region"));
     assert_eq!(deploy.map_err(|err| err.kind()).err(), Some(ErrorKind::Io));
 }
 
 #[rstest]
 fn without_a_terminal_a_missing_required_arg_is_claps_error() {
-    let prompter = ScriptedPrompter::unavailable();
-    let deploy = Deploy::couture_try_parse_from_with(&prompter, deploy_argv("region"));
+    let backend = ScriptedBackend::unavailable();
+    let deploy = Deploy::couture_try_parse_from_with(&backend, deploy_argv("region"));
     assert_eq!(deploy.map_err(|err| err.kind()).err(), Some(ErrorKind::MissingRequiredArgument));
 }
 
@@ -324,30 +324,30 @@ fn without_a_terminal_a_missing_required_arg_is_claps_error() {
 #[case::struct_variant(&["orbit", "logs"], "Which app?")]
 #[case::flattened_args(&["orbit", "login"], "Which user?")]
 fn only_asks_on_the_subcommand_path_taken(#[case] argv: &[&str], #[case] question: &str) {
-    let prompter = ScriptedPrompter::new([Reply::Text(Some("x"))]);
-    let orbit = Orbit::couture_try_parse_from_with(&prompter, argv);
+    let backend = ScriptedBackend::new([Reply::Text(Some("x"))]);
+    let orbit = Orbit::couture_try_parse_from_with(&backend, argv);
     assert!(orbit.is_ok(), "{orbit:?}");
-    assert_eq!(prompter.asked(), [asked(Kind::Text, question, None, &[])]);
+    assert_eq!(backend.asked(), [asked(Kind::Text, question, None, &[])]);
 }
 
 #[rstest]
 fn asks_every_missing_mark_in_declaration_order() {
-    let prompter = ScriptedPrompter::new([Reply::Text(Some("8080")), Reply::Text(Some("us"))]);
+    let backend = ScriptedBackend::new([Reply::Text(Some("8080")), Reply::Text(Some("us"))]);
     let argv = ["deploy", "--env", "prod", "--follow", "--strategy", "rolling"];
-    let deploy = Deploy::couture_try_parse_from_with(&prompter, argv);
+    let deploy = Deploy::couture_try_parse_from_with(&backend, argv);
     assert_eq!(
         deploy.map(|deploy| (deploy.port, deploy.region)).ok(),
         Some((Some(8080), "us".to_owned()))
     );
-    let questions: Vec<_> = prompter.asked().into_iter().map(|asked| asked.question).collect();
+    let questions: Vec<_> = backend.asked().into_iter().map(|asked| asked.question).collect();
     assert_eq!(questions, ["Which port?", "Region to deploy to"]);
 }
 
 #[rstest]
 fn asks_for_a_missing_positional() {
-    let prompter = ScriptedPrompter::new([Reply::Text(Some("main"))]);
+    let backend = ScriptedBackend::new([Reply::Text(Some("main"))]);
     let argv = ["repo", "--profile", "p", "push", "--offset", "1"];
-    let target = Repo::couture_try_parse_from_with(&prompter, argv).map(|repo| {
+    let target = Repo::couture_try_parse_from_with(&backend, argv).map(|repo| {
         let RepoCmd::Push { target, .. } = repo.cmd;
         target
     });
@@ -356,26 +356,26 @@ fn asks_for_a_missing_positional() {
 
 #[rstest]
 fn never_asks_for_a_global_arg_passed_after_the_subcommand() {
-    let prompter = ScriptedPrompter::new([]);
+    let backend = ScriptedBackend::new([]);
     let argv = ["repo", "push", "x", "--offset", "1", "--profile", "p"];
-    let repo = Repo::couture_try_parse_from_with(&prompter, argv);
+    let repo = Repo::couture_try_parse_from_with(&backend, argv);
     assert_eq!(repo.map(|repo| repo.profile).ok().flatten().as_deref(), Some("p"));
-    assert_eq!(prompter.asked(), []);
+    assert_eq!(backend.asked(), []);
 }
 
 #[rstest]
 fn help_exits_before_asking() {
-    let prompter = ScriptedPrompter::new([]);
-    let repo = Repo::couture_try_parse_from_with(&prompter, ["repo", "push", "--help"]);
+    let backend = ScriptedBackend::new([]);
+    let repo = Repo::couture_try_parse_from_with(&backend, ["repo", "push", "--help"]);
     assert_eq!(repo.map_err(|err| err.kind()).err(), Some(ErrorKind::DisplayHelp));
-    assert_eq!(prompter.asked(), []);
+    assert_eq!(backend.asked(), []);
 }
 
 #[rstest]
 fn an_answer_may_start_with_a_dash() {
-    let prompter = ScriptedPrompter::new([Reply::Text(Some("-5"))]);
+    let backend = ScriptedBackend::new([Reply::Text(Some("-5"))]);
     let argv = ["repo", "--profile", "p", "push", "x"];
-    let offset = Repo::couture_try_parse_from_with(&prompter, argv).map(|repo| {
+    let offset = Repo::couture_try_parse_from_with(&backend, argv).map(|repo| {
         let RepoCmd::Push { offset, .. } = repo.cmd;
         offset
     });
@@ -384,8 +384,8 @@ fn an_answer_may_start_with_a_dash() {
 
 #[rstest]
 fn help_shows_the_marked_args_in_usage() {
-    let prompter = ScriptedPrompter::new([]);
-    let help = Deploy::couture_try_parse_from_with(&prompter, ["deploy", "--help"])
+    let backend = ScriptedBackend::new([]);
+    let help = Deploy::couture_try_parse_from_with(&backend, ["deploy", "--help"])
         .map(drop)
         .map_err(|err| err.render().to_string());
     let help = help.err().unwrap_or_default();
@@ -398,17 +398,17 @@ fn help_shows_the_marked_args_in_usage() {
 
 #[rstest]
 fn an_unmarked_cli_parses_argv_once() {
-    let prompter = ScriptedPrompter::new([]);
-    let plain = Plain::couture_try_parse_from_with(&prompter, ["plain", "--input", "-"]);
+    let backend = ScriptedBackend::new([]);
+    let plain = Plain::couture_try_parse_from_with(&backend, ["plain", "--input", "-"]);
     assert!(plain.is_ok(), "{plain:?}");
     assert_eq!(PLAIN_PARSES.load(Ordering::Relaxed), 1);
 }
 
 #[rstest]
 fn without_a_terminal_argv_is_parsed_once() {
-    let prompter = ScriptedPrompter::unavailable();
+    let backend = ScriptedBackend::unavailable();
     let argv = ["piped", "--input", "-", "--region", "eu"];
-    let piped = Piped::couture_try_parse_from_with(&prompter, argv);
+    let piped = Piped::couture_try_parse_from_with(&backend, argv);
     assert!(piped.is_ok(), "{piped:?}");
     assert_eq!(PIPED_PARSES.load(Ordering::Relaxed), 1);
 }
@@ -417,21 +417,21 @@ fn without_a_terminal_argv_is_parsed_once() {
 #[case::declared_by_the_passed_arg(&["connect", "--local", "--socket", "s", "--zone", "z"])]
 #[case::declared_by_the_mark_and_an_exclusive_group(&["connect", "--region", "eu", "--host", "h"])]
 fn never_asks_for_a_mark_that_conflicts_with_a_passed_arg(#[case] argv: &[&str]) {
-    let prompter = ScriptedPrompter::new([]);
-    let connect = Connect::couture_try_parse_from_with(&prompter, argv);
+    let backend = ScriptedBackend::new([]);
+    let connect = Connect::couture_try_parse_from_with(&backend, argv);
     assert!(connect.is_ok(), "{connect:?}");
-    assert_eq!(prompter.asked(), []);
+    assert_eq!(backend.asked(), []);
 }
 
 #[rstest]
 fn never_asks_for_a_mark_that_conflicts_with_an_earlier_answer() {
-    let prompter = ScriptedPrompter::new([Reply::Text(Some("eu"))]);
-    let connect = Connect::couture_try_parse_from_with(&prompter, ["connect", "--host", "h"]);
+    let backend = ScriptedBackend::new([Reply::Text(Some("eu"))]);
+    let connect = Connect::couture_try_parse_from_with(&backend, ["connect", "--host", "h"]);
     assert_eq!(
         connect.map(|connect| (connect.region, connect.zone)).ok(),
         Some((Some("eu".to_owned()), None))
     );
-    assert_eq!(prompter.asked(), [asked(Kind::Text, "Which region?", None, &[])]);
+    assert_eq!(backend.asked(), [asked(Kind::Text, "Which region?", None, &[])]);
 }
 
 #[rstest]
@@ -442,27 +442,27 @@ fn never_asks_for_a_mark_whose_conditional_default_fired(
     #[case] level: &str,
     #[case] tag: Option<&str>,
 ) {
-    let prompter = ScriptedPrompter::new([]);
-    let log = Log::couture_try_parse_from_with(&prompter, argv);
+    let backend = ScriptedBackend::new([]);
+    let log = Log::couture_try_parse_from_with(&backend, argv);
     assert_eq!(
         log.map(|log| (log.level, log.tag)).ok(),
         Some((level.to_owned(), tag.map(str::to_owned)))
     );
-    assert_eq!(prompter.asked(), []);
+    assert_eq!(backend.asked(), []);
 }
 
 #[rstest]
 fn asks_through_optional_and_foreign_flattened_args() {
-    let prompter = ScriptedPrompter::new([Reply::Text(Some("x")), Reply::Text(None)]);
-    let tool = Tool::couture_try_parse_from_with(&prompter, ["tool", "--verbose"]);
+    let backend = ScriptedBackend::new([Reply::Text(Some("x")), Reply::Text(None)]);
+    let tool = Tool::couture_try_parse_from_with(&backend, ["tool", "--verbose"]);
     assert!(tool.is_ok(), "{tool:?}");
-    let questions: Vec<_> = prompter.asked().into_iter().map(|asked| asked.question).collect();
+    let questions: Vec<_> = backend.asked().into_iter().map(|asked| asked.question).collect();
     assert_eq!(questions, ["Which name?", "Which tag?"]);
 }
 
 #[rstest]
 fn leaves_an_optional_enum_unset_when_none_is_picked() {
-    let prompter = ScriptedPrompter::new([Reply::Select(None)]);
-    let paint = Paint::couture_try_parse_from_with(&prompter, ["paint"]);
+    let backend = ScriptedBackend::new([Reply::Select(None)]);
+    let paint = Paint::couture_try_parse_from_with(&backend, ["paint"]);
     assert_eq!(paint.map(|paint| paint.color).ok(), Some(None));
 }

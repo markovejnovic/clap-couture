@@ -13,7 +13,9 @@ use clap::{
     error::ErrorKind, parser::ValueSource,
 };
 
-use super::{ConfirmPrompt, Mark, PromptError, PromptNode, Prompter, SelectPrompt, TextPrompt};
+use super::{
+    Backend, CommandStyles, ConfirmPrompt, Mark, PromptError, PromptNode, SelectPrompt, TextPrompt,
+};
 use crate::parser::Failure;
 
 /// A mark's accepted answer.
@@ -25,9 +27,9 @@ struct Answer<'mark> {
 /// One parse: the command, its argv, its marks and who to ask.
 struct Session<'run> {
     argv: &'run [OsString],
+    backend: &'run dyn Backend,
     cmd: &'run Command,
     marks: &'run [Mark],
-    prompter: &'run dyn Prompter,
 }
 
 impl Session<'_> {
@@ -62,9 +64,9 @@ impl Session<'_> {
             || arg.get_help().map_or_else(|| mark.spec.id.to_owned(), ToString::to_string),
             str::to_owned,
         );
-        let styles = self.cmd.get_styles();
+        let styles = CommandStyles(self.cmd.get_styles());
         if let Some(negate) = flag_negation(arg.get_action()) {
-            let set = self.prompter.confirm(&ConfirmPrompt {
+            let set = self.backend.confirm(&ConfirmPrompt {
                 default: false,
                 error,
                 question: &question,
@@ -76,7 +78,7 @@ impl Session<'_> {
         let options: Vec<PossibleValue> =
             arg.get_possible_values().into_iter().filter(|value| !value.is_hide_set()).collect();
         if options.is_empty() {
-            return self.prompter.text(&TextPrompt {
+            return self.backend.text(&TextPrompt {
                 default: current,
                 error,
                 optional: !arg.is_required_set(),
@@ -84,7 +86,7 @@ impl Session<'_> {
                 styles,
             });
         }
-        self.prompter.select(&SelectPrompt {
+        self.backend.select(&SelectPrompt {
             default: current,
             error,
             optional: !arg.is_required_set(),
@@ -110,18 +112,18 @@ impl Session<'_> {
     }
 }
 
-/// Parse `argv` against `cmd`, asking `prompter` for the marks in `tree` that got no value.
+/// Parse `argv` against `cmd`, asking `backend` for the marks in `tree` that got no value.
 pub(crate) fn run<T>(
     cmd: Command,
     tree: &'static PromptNode,
     argv: &[OsString],
-    prompter: &dyn Prompter,
+    backend: &dyn Backend,
 ) -> Result<T, Failure>
 where
     T: FromArgMatches,
 {
     let marks = tree.marks();
-    if marks.is_empty() || !prompter.is_available() {
+    if marks.is_empty() || !backend.is_available() {
         return finish(cmd, argv, &[]);
     }
     // Help, usage and errors come from the command the user sees, not the relaxed one.
@@ -129,7 +131,7 @@ where
         return finish(cmd, argv, &[]);
     };
 
-    let session = Session { argv, cmd: &cmd, marks: &marks, prompter };
+    let session = Session { argv, backend, cmd: &cmd, marks: &marks };
     let mut answers = Vec::new();
     for (mark, current) in pending(&cmd, &matches, &marks) {
         if blocked(&cmd, &matches, mark, &answers) {

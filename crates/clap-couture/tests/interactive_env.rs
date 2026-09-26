@@ -7,7 +7,7 @@ use std::io;
 use clap::Parser;
 use clap_couture::{
     Couture, CoutureParser as _,
-    interactive::{ConfirmPrompt, PromptError, Prompter, SelectPrompt, TextPrompt},
+    interactive::{Backend, ConfirmPrompt, PromptError, SelectPrompt, TextPrompt},
 };
 use rstest::rstest;
 
@@ -21,7 +21,7 @@ struct Cli {
 /// A terminal that fails every prompt.
 struct Refuses;
 
-impl Prompter for Refuses {
+impl Backend for Refuses {
     fn confirm(&self, _prompt: &ConfirmPrompt<'_>) -> Result<bool, PromptError> {
         Err(refused())
     }

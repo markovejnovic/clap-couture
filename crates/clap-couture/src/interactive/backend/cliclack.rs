@@ -1,30 +1,25 @@
-//! [`Prompter`] drawn by [cliclack](https://docs.rs/cliclack).
+//! [`Backend`] drawn by [cliclack](https://docs.rs/cliclack).
 
 use std::io;
 
-use clap::builder::Styles;
-
-use super::{
-    ConfirmPrompt, NONE_OPTION, PromptError, Prompter, SelectPrompt, TextPrompt,
-    console_style::console_style, from_io,
+use super::{Backend, CommandStyles, NONE_OPTION, from_io};
+use crate::interactive::{
+    ConfirmPrompt, PromptError, SelectPrompt, TextPrompt, console_style::ClapStyle,
 };
 
 /// Prompts drawn by cliclack, in its clack style.
-///
-/// cliclack's theme is process-wide: each prompt sets one from the command's styles and restores
-/// cliclack's default afterwards.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Cliclack;
 
-impl Prompter for Cliclack {
+impl Backend for Cliclack {
     fn confirm(&self, prompt: &ConfirmPrompt<'_>) -> Result<bool, PromptError> {
-        themed(prompt.styles, prompt.error, || {
+        Theme::from(prompt.styles).scoped(prompt.error, || {
             ::cliclack::confirm(prompt.question).initial_value(prompt.default).interact()
         })
     }
 
     fn select(&self, prompt: &SelectPrompt<'_>) -> Result<Option<String>, PromptError> {
-        themed(prompt.styles, prompt.error, || {
+        Theme::from(prompt.styles).scoped(prompt.error, || {
             let select = prompt.options.iter().fold(
                 ::cliclack::select(prompt.question),
                 |select, option| {
@@ -42,7 +37,7 @@ impl Prompter for Cliclack {
     }
 
     fn text(&self, prompt: &TextPrompt<'_>) -> Result<Option<String>, PromptError> {
-        let answer: String = themed(prompt.styles, prompt.error, || {
+        let answer: String = Theme::from(prompt.styles).scoped(prompt.error, || {
             let mut input = ::cliclack::input(prompt.question).required(!prompt.optional);
             match prompt.default {
                 Some(default) => input.default_input(default).interact(),
@@ -54,9 +49,36 @@ impl Prompter for Cliclack {
 }
 
 /// The command's styles on cliclack's input line.
+///
+/// By default, [`::cliclack`] uses global theming, which is somewhat inconvenient for the use-case
+/// of following clap's theme. The [`Theme::scoped`] function allows you to run a function with a
+/// temporarily globally set theme.
 struct Theme {
     input: console::Style,
     placeholder: console::Style,
+}
+
+impl Theme {
+    /// Run `interact` with this as cliclack's theme, after logging `error`.
+    fn scoped<T>(
+        self,
+        error: Option<&str>,
+        interact: impl FnOnce() -> io::Result<T>,
+    ) -> Result<T, PromptError> {
+        ::cliclack::set_theme(self);
+        let answer = error.map_or(Ok(()), ::cliclack::log::error).and_then(|()| interact());
+        ::cliclack::reset_theme();
+        answer.map_err(from_io)
+    }
+}
+
+impl From<CommandStyles<'_>> for Theme {
+    fn from(CommandStyles(styles): CommandStyles<'_>) -> Self {
+        Self {
+            input: console::Style::from(ClapStyle(styles.get_literal())),
+            placeholder: console::Style::from(ClapStyle(styles.get_placeholder())),
+        }
+    }
 }
 
 impl ::cliclack::Theme for Theme {
@@ -67,19 +89,4 @@ impl ::cliclack::Theme for Theme {
     fn placeholder_style(&self, _state: &::cliclack::ThemeState) -> console::Style {
         self.placeholder.clone()
     }
-}
-
-/// Run `ask` under a theme taken from `styles`, after logging `error`.
-fn themed<T>(
-    styles: &Styles,
-    error: Option<&str>,
-    ask: impl FnOnce() -> io::Result<T>,
-) -> Result<T, PromptError> {
-    ::cliclack::set_theme(Theme {
-        input: console_style(styles.get_literal()),
-        placeholder: console_style(styles.get_placeholder()),
-    });
-    let answer = error.map_or(Ok(()), ::cliclack::log::error).and_then(|()| ask());
-    ::cliclack::reset_theme();
-    answer.map_err(from_io)
 }

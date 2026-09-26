@@ -2,46 +2,56 @@
 
 use clap::builder::styling::{AnsiColor, Color, Effects, Style};
 
-/// A `console::Style` builder method, such as `console::Style::bold`.
-type Effect = fn(console::Style) -> console::Style;
+use super::backend::NamedColor;
 
-/// `style`'s foreground color and its bold, dim, italic and underline effects.
-pub(crate) fn console_style(style: &Style) -> console::Style {
-    let effects: [(Effects, Effect); 4] = [
-        (Effects::BOLD, console::Style::bold),
-        (Effects::DIMMED, console::Style::dim),
-        (Effects::ITALIC, console::Style::italic),
-        (Effects::UNDERLINE, console::Style::underlined),
-    ];
-    let base = style.get_fg_color().map_or_else(console::Style::new, color);
-    effects
-        .into_iter()
-        .filter(|(effect, _)| style.get_effects().contains(*effect))
-        .fold(base, |style, (_, apply)| apply(style))
-}
+/// A clap color, for converting into a `console` foreground.
+struct ClapColor(Color);
 
-fn color(color: Color) -> console::Style {
-    match color {
-        Color::Ansi(ansi) => ansi_color(ansi),
-        Color::Ansi256(index) => console::Style::new().color256(index.0),
-        Color::Rgb(rgb) => console::Style::new().true_color(rgb.0, rgb.1, rgb.2),
+/// A clap style, for converting into a `console` style.
+pub(crate) struct ClapStyle<'style>(pub(crate) &'style Style);
+
+// A `Style`, not a `console::Color`: console carries brightness on the style.
+impl From<NamedColor> for console::Style {
+    fn from(NamedColor(ansi): NamedColor) -> Self {
+        let base = match ansi {
+            AnsiColor::Black | AnsiColor::BrightBlack => console::Color::Black,
+            AnsiColor::Red | AnsiColor::BrightRed => console::Color::Red,
+            AnsiColor::Green | AnsiColor::BrightGreen => console::Color::Green,
+            AnsiColor::Yellow | AnsiColor::BrightYellow => console::Color::Yellow,
+            AnsiColor::Blue | AnsiColor::BrightBlue => console::Color::Blue,
+            AnsiColor::Magenta | AnsiColor::BrightMagenta => console::Color::Magenta,
+            AnsiColor::Cyan | AnsiColor::BrightCyan => console::Color::Cyan,
+            AnsiColor::White | AnsiColor::BrightWhite => console::Color::White,
+        };
+        let style = Self::new().fg(base);
+        if ansi.is_bright() { style.bright() } else { style }
     }
 }
 
-const fn ansi_base(ansi: AnsiColor) -> console::Color {
-    match ansi {
-        AnsiColor::Black | AnsiColor::BrightBlack => console::Color::Black,
-        AnsiColor::Red | AnsiColor::BrightRed => console::Color::Red,
-        AnsiColor::Green | AnsiColor::BrightGreen => console::Color::Green,
-        AnsiColor::Yellow | AnsiColor::BrightYellow => console::Color::Yellow,
-        AnsiColor::Blue | AnsiColor::BrightBlue => console::Color::Blue,
-        AnsiColor::Magenta | AnsiColor::BrightMagenta => console::Color::Magenta,
-        AnsiColor::Cyan | AnsiColor::BrightCyan => console::Color::Cyan,
-        AnsiColor::White | AnsiColor::BrightWhite => console::Color::White,
+impl From<ClapColor> for console::Style {
+    fn from(ClapColor(color): ClapColor) -> Self {
+        match color {
+            Color::Ansi(ansi) => Self::from(NamedColor(ansi)),
+            Color::Ansi256(index) => Self::new().color256(index.0),
+            Color::Rgb(rgb) => Self::new().true_color(rgb.0, rgb.1, rgb.2),
+        }
     }
 }
 
-fn ansi_color(ansi: AnsiColor) -> console::Style {
-    let style = console::Style::new().fg(ansi_base(ansi));
-    if ansi.is_bright() { style.bright() } else { style }
+// Carries only the foreground color and the bold, dim, italic and underline effects.
+impl From<ClapStyle<'_>> for console::Style {
+    fn from(ClapStyle(style): ClapStyle<'_>) -> Self {
+        let effects: [(Effects, fn(Self) -> Self); 4] = [
+            (Effects::BOLD, Self::bold),
+            (Effects::DIMMED, Self::dim),
+            (Effects::ITALIC, Self::italic),
+            (Effects::UNDERLINE, Self::underlined),
+        ];
+        let base =
+            style.get_fg_color().map_or_else(Self::new, |color| Self::from(ClapColor(color)));
+        effects
+            .into_iter()
+            .filter(|(effect, _)| style.get_effects().contains(*effect))
+            .fold(base, |style, (_, apply)| apply(style))
+    }
 }

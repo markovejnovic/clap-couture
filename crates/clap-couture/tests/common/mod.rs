@@ -1,9 +1,9 @@
-//! A `Prompter` that answers from a script and records what it was asked.
+//! A `Backend` that answers from a script and records what it was asked.
 
 use core::cell::RefCell;
 use std::io;
 
-use clap_couture::interactive::{ConfirmPrompt, PromptError, Prompter, SelectPrompt, TextPrompt};
+use clap_couture::interactive::{Backend, ConfirmPrompt, PromptError, SelectPrompt, TextPrompt};
 
 /// One prompt the fake was shown.
 #[derive(Debug, PartialEq, Eq)]
@@ -31,14 +31,14 @@ pub(crate) enum Reply {
     Text(Option<&'static str>),
 }
 
-pub(crate) struct ScriptedPrompter {
+pub(crate) struct ScriptedBackend {
     asked: RefCell<Vec<Asked>>,
     available: bool,
     /// The script, last reply first, so the next one pops off the end.
     replies: RefCell<Vec<Reply>>,
 }
 
-impl ScriptedPrompter {
+impl ScriptedBackend {
     /// Everything asked so far, oldest first.
     pub(crate) fn asked(&self) -> Vec<Asked> {
         self.asked.take()
@@ -62,13 +62,13 @@ impl ScriptedPrompter {
             .ok_or_else(|| PromptError::Io(io::Error::other("the script ran out of replies")))
     }
 
-    /// A prompter with no terminal to ask on.
+    /// A backend with no terminal to ask on.
     pub(crate) fn unavailable() -> Self {
         Self { available: false, ..Self::new([]) }
     }
 }
 
-impl Prompter for ScriptedPrompter {
+impl Backend for ScriptedBackend {
     fn confirm(&self, prompt: &ConfirmPrompt<'_>) -> Result<bool, PromptError> {
         let asked = Asked {
             default: Some(prompt.default.to_string()),

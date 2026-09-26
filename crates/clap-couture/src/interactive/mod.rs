@@ -57,66 +57,31 @@
 //! }
 //! ```
 
-#[cfg(feature = "interactive-cliclack")]
-mod cliclack;
+mod backend;
 #[cfg(any(feature = "interactive-cliclack", feature = "interactive-dialoguer"))]
 mod console_style;
-#[cfg(feature = "interactive-dialoguer")]
-mod dialoguer;
 mod flow;
-#[cfg(feature = "interactive-inquire")]
-mod inquire;
 mod tree;
 
-use std::io::{self, IsTerminal as _};
+use std::io;
 
-use clap::builder::{PossibleValue, Styles};
 #[cfg(feature = "interactive-cliclack")]
-pub use cliclack::Cliclack;
-#[cfg(feature = "interactive-dialoguer")]
-pub use dialoguer::Dialoguer;
-pub(crate) use flow::run;
-#[cfg(feature = "interactive-inquire")]
-pub use inquire::Inquire;
-#[doc(hidden)]
-pub use tree::{Mark, Probe, ProbeFallback, PromptChild, PromptNode, PromptSpec};
-
-/// The item a backend adds to an optional select; picking it leaves the arg unset.
+pub use backend::Cliclack;
 #[cfg(any(
     feature = "interactive-cliclack",
     feature = "interactive-dialoguer",
     feature = "interactive-inquire"
 ))]
-const NONE_OPTION: &str = "(none)";
-
-/// The backend [`CoutureParser`](crate::CoutureParser)'s entry points ask through: the first
-/// enabled of cliclack, dialoguer and inquire.
-#[cfg(feature = "interactive-cliclack")]
-pub type DefaultPrompter = Cliclack;
-/// The backend [`CoutureParser`](crate::CoutureParser)'s entry points ask through: the first
-/// enabled of cliclack, dialoguer and inquire.
-#[cfg(all(feature = "interactive-dialoguer", not(feature = "interactive-cliclack")))]
-pub type DefaultPrompter = Dialoguer;
-/// The backend [`CoutureParser`](crate::CoutureParser)'s entry points ask through: the first
-/// enabled of cliclack, dialoguer and inquire.
-#[cfg(all(
-    feature = "interactive-inquire",
-    not(any(feature = "interactive-cliclack", feature = "interactive-dialoguer"))
-))]
-pub type DefaultPrompter = Inquire;
-
-/// A yes/no question.
-#[derive(Debug)]
-pub struct ConfirmPrompt<'prompt> {
-    /// The answer Enter accepts.
-    pub default: bool,
-    /// clap's complaint about the previous answer, if any.
-    pub error: Option<&'prompt str>,
-    /// What to ask.
-    pub question: &'prompt str,
-    /// The command's styles, for backends that theme themselves.
-    pub styles: &'prompt Styles,
-}
+pub use backend::DefaultBackend;
+#[cfg(feature = "interactive-dialoguer")]
+pub use backend::Dialoguer;
+#[cfg(feature = "interactive-inquire")]
+pub use backend::Inquire;
+pub use backend::{Backend, CommandStyles};
+use clap::builder::PossibleValue;
+pub(crate) use flow::run;
+#[doc(hidden)]
+pub use tree::{Mark, Probe, ProbeFallback, PromptChild, PromptNode, PromptSpec};
 
 /// Why a prompt produced no answer.
 #[derive(Debug, thiserror::Error)]
@@ -130,33 +95,17 @@ pub enum PromptError {
     NotATerminal,
 }
 
-/// A terminal UI that can ask for one arg's value.
-///
-/// Implement it to bring your own UI, or to answer from a script in tests.
-pub trait Prompter {
-    /// Ask a yes/no question.
-    ///
-    /// # Errors
-    /// [`PromptError::Cancelled`] when the user backs out.
-    fn confirm(&self, prompt: &ConfirmPrompt<'_>) -> Result<bool, PromptError>;
-
-    /// Check whether there is a terminal to ask on: stdin and stderr must both be one.
-    fn is_available(&self) -> bool {
-        io::stdin().is_terminal() && io::stderr().is_terminal()
-    }
-
-    /// Ask to pick one of `prompt.options`, returning the picked option's name, or `None` when an
-    /// optional prompt is answered with none of them.
-    ///
-    /// # Errors
-    /// [`PromptError::Cancelled`] when the user backs out.
-    fn select(&self, prompt: &SelectPrompt<'_>) -> Result<Option<String>, PromptError>;
-
-    /// Ask for free text, returning `None` only for an empty answer to an optional prompt.
-    ///
-    /// # Errors
-    /// [`PromptError::Cancelled`] when the user backs out.
-    fn text(&self, prompt: &TextPrompt<'_>) -> Result<Option<String>, PromptError>;
+/// A yes/no question.
+#[derive(Debug)]
+pub struct ConfirmPrompt<'prompt> {
+    /// The answer Enter accepts.
+    pub default: bool,
+    /// clap's complaint about the previous answer, if any.
+    pub error: Option<&'prompt str>,
+    /// What to ask.
+    pub question: &'prompt str,
+    /// The command's styles, for backends that theme themselves.
+    pub styles: CommandStyles<'prompt>,
 }
 
 /// A pick among an arg's possible values.
@@ -173,7 +122,7 @@ pub struct SelectPrompt<'prompt> {
     /// What to ask.
     pub question: &'prompt str,
     /// The command's styles, for backends that theme themselves.
-    pub styles: &'prompt Styles,
+    pub styles: CommandStyles<'prompt>,
 }
 
 /// A free-text question.
@@ -188,24 +137,5 @@ pub struct TextPrompt<'prompt> {
     /// What to ask.
     pub question: &'prompt str,
     /// The command's styles, for backends that theme themselves.
-    pub styles: &'prompt Styles,
-}
-
-/// Map a backend's I/O error: `Interrupted` is the user backing out, `NotConnected` a missing
-/// terminal.
-#[cfg(any(
-    feature = "interactive-cliclack",
-    feature = "interactive-dialoguer",
-    feature = "interactive-inquire"
-))]
-#[expect(
-    clippy::wildcard_enum_match_arm,
-    reason = "`io::ErrorKind` is #[non_exhaustive]; every other kind is a plain I/O failure"
-)]
-fn from_io(err: io::Error) -> PromptError {
-    match err.kind() {
-        io::ErrorKind::Interrupted => PromptError::Cancelled,
-        io::ErrorKind::NotConnected => PromptError::NotATerminal,
-        _ => PromptError::Io(err),
-    }
+    pub styles: CommandStyles<'prompt>,
 }

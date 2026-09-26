@@ -5,11 +5,9 @@ on:
     branches: [main]
   pull_request:
   schedule:
-    # Re-run weekly so newly published advisories are caught even without a
-    # code change. Monday 08:00 UTC.
+    # Weekly, to catch new advisories without a code change.
     - cron: "0 8 * * 1"
 
-# Only advisory checks depend on the schedule; cancel superseded push/PR runs.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true

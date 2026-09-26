@@ -5,7 +5,6 @@ on:
     branches: [main]
   pull_request:
 
-# Cancel superseded runs on the same ref (e.g. force-pushes to a PR).
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -37,6 +36,11 @@ jobs:
           components: clippy
       - uses: Swatinem/rust-cache@v2
       - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      # Each prompt backend alone: `--all-features` hides a `cfg` that only one of them sets.
+      - run: cargo clippy -p clap-couture --all-targets --features interactive -- -D warnings
+      - run: cargo clippy -p clap-couture --all-targets --features interactive-cliclack -- -D warnings
+      - run: cargo clippy -p clap-couture --all-targets --features interactive-dialoguer -- -D warnings
+      - run: cargo clippy -p clap-couture --all-targets --features interactive-inquire -- -D warnings
 
   test:
     name: test
@@ -46,8 +50,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --workspace --all-features
-      # Guard the `markdown` feature gate: the library must build without it.
-      - run: cargo build -p clap-couture --no-default-features
+      # `--all-features` never builds `render/plain.rs`.
+      - run: cargo build -p clap-couture
 
   msrv:
     name: msrv (1.85)
@@ -62,10 +66,9 @@ jobs:
     name: doc
     runs-on: ubuntu-latest
     env:
-      # Fail the build on broken intra-doc links and other rustdoc warnings.
       RUSTDOCFLAGS: -D warnings
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo doc --workspace --all-features --no-deps

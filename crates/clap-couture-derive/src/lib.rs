@@ -20,7 +20,7 @@ struct CategoryDef {
     title: Option<String>,
 }
 
-/// Which undeclared categories `#[category("...")]` may name. Compile-time only.
+/// Which undeclared categories `#[category("...")]` may name.
 enum InheritSpec {
     /// `inherit = true`: reference any category (skip the compile-time check).
     All,

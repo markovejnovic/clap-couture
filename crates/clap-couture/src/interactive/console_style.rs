@@ -1,14 +1,8 @@
 //! clap's styles as `console` styles, for the backends drawn with `console`.
 
-use clap::builder::styling::{AnsiColor, Color, Effects, Style};
+use clap::builder::styling::{AnsiColor, Color, Effects};
 
-use super::backend::NamedColor;
-
-/// A clap color, for converting into a `console` foreground.
-struct ClapColor(Color);
-
-/// A clap style, for converting into a `console` style.
-pub(crate) struct ClapStyle<'style>(pub(crate) &'style Style);
+use super::backend::{ClapColor, ClapStyle, NamedColor};
 
 // A `Style`, not a `console::Color`: console carries brightness on the style.
 impl From<NamedColor> for console::Style {

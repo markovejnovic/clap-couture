@@ -2,10 +2,8 @@
 
 use std::io;
 
-use super::{Backend, CommandStyles, NONE_OPTION, from_io};
-use crate::interactive::{
-    ConfirmPrompt, PromptError, SelectPrompt, TextPrompt, console_style::ClapStyle,
-};
+use super::{Backend, ClapStyle, CommandStyles, NONE_OPTION, from_io};
+use crate::interactive::{ConfirmPrompt, PromptError, SelectPrompt, TextPrompt};
 
 /// Prompts drawn by cliclack, in its clack style.
 #[derive(Clone, Copy, Debug, Default)]

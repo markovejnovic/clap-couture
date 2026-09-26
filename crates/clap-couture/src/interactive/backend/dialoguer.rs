@@ -3,13 +3,10 @@
 use clap::builder::PossibleValue;
 use dialoguer::{Confirm, Input, Select, theme::ColorfulTheme};
 
-use super::{Backend, CommandStyles, NONE_OPTION, from_io};
-use crate::interactive::{
-    ConfirmPrompt, PromptError, SelectPrompt, TextPrompt, console_style::ClapStyle,
-};
+use super::{Backend, ClapStyle, CommandStyles, NONE_OPTION, from_io};
+use crate::interactive::{ConfirmPrompt, PromptError, SelectPrompt, TextPrompt};
 
-/// A dialoguer failure. A `From<dialoguer::Error>` on [`PromptError`] would put dialoguer in the
-/// public API.
+/// A dialoguer failure.
 struct DialoguerError(dialoguer::Error);
 
 /// Prompts drawn by dialoguer's colorful theme.

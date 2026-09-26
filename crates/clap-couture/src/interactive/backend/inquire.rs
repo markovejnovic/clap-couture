@@ -4,16 +4,18 @@ use std::io;
 
 use clap::builder::{
     PossibleValue,
-    styling::{AnsiColor, Color, Effects, Style},
+    styling::{AnsiColor, Color, Effects},
 };
 use inquire::{
-    Confirm, InquireError, Select, Text,
+    Confirm, Select, Text,
     ui::{Attributes, ErrorMessageRenderConfig, RenderConfig, StyleSheet},
     validator::ValueRequiredValidator,
 };
 
-use super::{Backend, CommandStyles, NONE_OPTION, NamedColor, from_io};
+use super::{Backend, ClapColor, ClapStyle, CommandStyles, NONE_OPTION, NamedColor, from_io};
 use crate::interactive::{ConfirmPrompt, PromptError, SelectPrompt, TextPrompt};
+
+struct InquireError(inquire::InquireError);
 
 /// Prompts drawn by inquire.
 #[derive(Clone, Copy, Debug, Default)]
@@ -21,11 +23,11 @@ pub struct Inquire;
 
 impl Backend for Inquire {
     fn confirm(&self, prompt: &ConfirmPrompt<'_>) -> Result<bool, PromptError> {
-        Confirm::new(prompt.question)
+        Ok(Confirm::new(prompt.question)
             .with_default(prompt.default)
             .with_render_config(RenderConfig::from(prompt.styles))
             .prompt()
-            .map_err(from_inquire)
+            .map_err(InquireError)?)
     }
 
     fn select(&self, prompt: &SelectPrompt<'_>) -> Result<Option<String>, PromptError> {
@@ -41,7 +43,7 @@ impl Backend for Inquire {
             None => select,
         }
         .raw_prompt()
-        .map_err(from_inquire)?;
+        .map_err(InquireError)?;
         // Past the options is the `NONE_OPTION` item, only listed for an optional prompt.
         Ok(names.get(picked.index).map(|name| (*name).to_owned()))
     }
@@ -57,7 +59,7 @@ impl Backend for Inquire {
         } else {
             text.with_validator(ValueRequiredValidator::default())
         };
-        let answer = text.prompt().map_err(from_inquire)?;
+        let answer = text.prompt().map_err(InquireError)?;
         Ok(Some(answer).filter(|answer| !answer.is_empty()))
     }
 }
@@ -89,44 +91,52 @@ impl From<CommandStyles<'_>> for RenderConfig<'static> {
     fn from(CommandStyles(styles): CommandStyles<'_>) -> Self {
         let base = Self::default_colored();
         Self {
-            answer: sheet(styles.get_literal()),
-            default_value: sheet(styles.get_placeholder()),
+            answer: StyleSheet::from(ClapStyle(styles.get_literal())),
+            default_value: StyleSheet::from(ClapStyle(styles.get_placeholder())),
             error_message: ErrorMessageRenderConfig {
-                message: sheet(styles.get_error()),
+                message: StyleSheet::from(ClapStyle(styles.get_error())),
                 ..base.error_message
             },
-            prompt: sheet(styles.get_header()),
+            prompt: StyleSheet::from(ClapStyle(styles.get_header())),
             ..base
         }
     }
 }
 
-#[expect(
-    clippy::wildcard_enum_match_arm,
-    reason = "`InquireError` is #[non_exhaustive]; anything unlisted is an I/O-level failure"
-)]
-fn from_inquire(err: InquireError) -> PromptError {
-    match err {
-        InquireError::IO(err) => from_io(err),
-        InquireError::NotTTY => PromptError::NotATerminal,
-        InquireError::OperationCanceled | InquireError::OperationInterrupted => {
-            PromptError::Cancelled
+impl From<ClapColor> for inquire::ui::Color {
+    fn from(ClapColor(color): ClapColor) -> Self {
+        match color {
+            Color::Ansi(ansi) => Self::from(NamedColor(ansi)),
+            Color::Ansi256(index) => Self::AnsiValue(index.0),
+            Color::Rgb(rgb) => Self::Rgb { r: rgb.0, g: rgb.1, b: rgb.2 },
         }
-        other => PromptError::Io(io::Error::other(other)),
     }
 }
 
-/// `style`'s foreground color and its bold and italic effects.
-fn sheet(style: &Style) -> StyleSheet {
-    let color = style.get_fg_color().map(|color| match color {
-        Color::Ansi(ansi) => inquire::ui::Color::from(NamedColor(ansi)),
-        Color::Ansi256(index) => inquire::ui::Color::AnsiValue(index.0),
-        Color::Rgb(rgb) => inquire::ui::Color::Rgb { r: rgb.0, g: rgb.1, b: rgb.2 },
-    });
-    let sheet = color.map_or_else(StyleSheet::new, |color| StyleSheet::new().with_fg(color));
-    let effects = style.get_effects();
-    [(Effects::BOLD, Attributes::BOLD), (Effects::ITALIC, Attributes::ITALIC)]
-        .into_iter()
-        .filter(|(effect, _)| effects.contains(*effect))
-        .fold(sheet, |sheet, (_, attribute)| sheet.with_attr(attribute))
+impl From<ClapStyle<'_>> for StyleSheet {
+    fn from(ClapStyle(style): ClapStyle<'_>) -> Self {
+        let base = style
+            .get_fg_color()
+            .map_or_else(Self::new, |color| Self::new().with_fg(ClapColor(color).into()));
+        [(Effects::BOLD, Attributes::BOLD), (Effects::ITALIC, Attributes::ITALIC)]
+            .into_iter()
+            .filter(|(effect, _)| style.get_effects().contains(*effect))
+            .fold(base, |sheet, (_, attribute)| sheet.with_attr(attribute))
+    }
+}
+
+impl From<InquireError> for PromptError {
+    #[expect(
+        clippy::wildcard_enum_match_arm,
+        reason = "`InquireError` is #[non_exhaustive]; anything unlisted is an I/O-level failure"
+    )]
+    fn from(InquireError(err): InquireError) -> Self {
+        match err {
+            inquire::InquireError::IO(err) => from_io(err),
+            inquire::InquireError::NotTTY => Self::NotATerminal,
+            inquire::InquireError::OperationCanceled
+            | inquire::InquireError::OperationInterrupted => Self::Cancelled,
+            other => Self::Io(io::Error::other(other)),
+        }
+    }
 }

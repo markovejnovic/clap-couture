@@ -39,6 +39,22 @@ pub struct CommandStyles<'styles>(pub &'styles Styles);
 ))]
 pub(crate) struct NamedColor(pub(crate) clap::builder::styling::AnsiColor);
 
+/// A clap color, for a backend to convert into its own color type.
+#[cfg(any(
+    feature = "interactive-cliclack",
+    feature = "interactive-dialoguer",
+    feature = "interactive-inquire"
+))]
+pub(crate) struct ClapColor(pub(crate) clap::builder::styling::Color);
+
+/// A clap style, for a backend to convert into its own style type.
+#[cfg(any(
+    feature = "interactive-cliclack",
+    feature = "interactive-dialoguer",
+    feature = "interactive-inquire"
+))]
+pub(crate) struct ClapStyle<'style>(pub(crate) &'style clap::builder::styling::Style);
+
 /// The backend [`CoutureParser`](crate::CoutureParser)'s entry points ask through: the first
 /// enabled of cliclack, dialoguer and inquire.
 #[cfg(feature = "interactive-cliclack")]

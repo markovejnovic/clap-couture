@@ -19,7 +19,6 @@ pub struct Dialoguer;
 impl Backend for Dialoguer {
     fn confirm(&self, prompt: &ConfirmPrompt<'_>) -> Result<bool, PromptError> {
         let theme = ColorfulTheme::from(prompt.styles);
-        report(&theme, prompt.error)?;
         Confirm::with_theme(&theme)
             .with_prompt(prompt.question)
             .default(prompt.default)
@@ -28,9 +27,15 @@ impl Backend for Dialoguer {
             .ok_or(PromptError::Cancelled)
     }
 
+    fn report(&self, error: &str, styles: CommandStyles<'_>) -> Result<(), PromptError> {
+        let theme = ColorfulTheme::from(styles);
+        console::Term::stderr()
+            .write_line(&theme.error_style.apply_to(error).to_string())
+            .map_err(PromptError::Io)
+    }
+
     fn select(&self, prompt: &SelectPrompt<'_>) -> Result<Option<String>, PromptError> {
         let theme = ColorfulTheme::from(prompt.styles);
-        report(&theme, prompt.error)?;
         let names: Vec<&str> = prompt.options.iter().map(PossibleValue::get_name).collect();
         let none = prompt.optional.then_some(NONE_OPTION);
         let items: Vec<&str> = names.iter().copied().chain(none).collect();
@@ -50,7 +55,6 @@ impl Backend for Dialoguer {
 
     fn text(&self, prompt: &TextPrompt<'_>) -> Result<Option<String>, PromptError> {
         let theme = ColorfulTheme::from(prompt.styles);
-        report(&theme, prompt.error)?;
         let input = Input::<String>::with_theme(&theme)
             .with_prompt(prompt.question)
             .allow_empty(prompt.optional);
@@ -81,12 +85,4 @@ impl From<CommandStyles<'_>> for ColorfulTheme {
             ..Self::default()
         }
     }
-}
-
-/// Show clap's complaint about the previous answer, if any.
-fn report(theme: &ColorfulTheme, error: Option<&str>) -> Result<(), PromptError> {
-    let Some(error) = error else { return Ok(()) };
-    console::Term::stderr()
-        .write_line(&theme.error_style.apply_to(error).to_string())
-        .map_err(PromptError::Io)
 }

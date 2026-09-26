@@ -7,7 +7,7 @@ mod dialoguer;
 #[cfg(feature = "interactive-inquire")]
 mod inquire;
 
-use std::io::{self, IsTerminal as _};
+use std::io::{self, IsTerminal as _, Write as _};
 
 use clap::builder::Styles;
 #[cfg(feature = "interactive-cliclack")]
@@ -68,6 +68,16 @@ pub trait Backend {
     /// Check whether there is a terminal to ask on: stdin and stderr must both be one.
     fn is_available(&self) -> bool {
         io::stdin().is_terminal() && io::stderr().is_terminal()
+    }
+
+    /// Show clap's complaint about the previous answer, before asking again.
+    ///
+    /// By default, `error` is written unstyled to stderr.
+    ///
+    /// # Errors
+    /// [`PromptError::Io`] when the message cannot be shown.
+    fn report(&self, error: &str, _styles: CommandStyles<'_>) -> Result<(), PromptError> {
+        writeln!(io::stderr(), "{error}").map_err(PromptError::Io)
     }
 
     /// Ask to pick one of `prompt.options`, returning the picked option's name, or `None` when an

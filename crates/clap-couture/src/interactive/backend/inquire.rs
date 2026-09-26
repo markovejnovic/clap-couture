@@ -1,6 +1,6 @@
 //! [`Backend`] drawn by [inquire](https://docs.rs/inquire).
 
-use std::io::{self, Write as _};
+use std::io;
 
 use clap::builder::{
     PossibleValue,
@@ -21,7 +21,6 @@ pub struct Inquire;
 
 impl Backend for Inquire {
     fn confirm(&self, prompt: &ConfirmPrompt<'_>) -> Result<bool, PromptError> {
-        report(prompt.error)?;
         Confirm::new(prompt.question)
             .with_default(prompt.default)
             .with_render_config(RenderConfig::from(prompt.styles))
@@ -30,7 +29,6 @@ impl Backend for Inquire {
     }
 
     fn select(&self, prompt: &SelectPrompt<'_>) -> Result<Option<String>, PromptError> {
-        report(prompt.error)?;
         let names: Vec<&str> = prompt.options.iter().map(PossibleValue::get_name).collect();
         let default =
             prompt.default.and_then(|default| names.iter().position(|name| *name == default));
@@ -49,7 +47,6 @@ impl Backend for Inquire {
     }
 
     fn text(&self, prompt: &TextPrompt<'_>) -> Result<Option<String>, PromptError> {
-        report(prompt.error)?;
         let text = Text::new(prompt.question).with_render_config(RenderConfig::from(prompt.styles));
         let text = match prompt.default {
             Some(default) => text.with_default(default),
@@ -117,12 +114,6 @@ fn from_inquire(err: InquireError) -> PromptError {
         }
         other => PromptError::Io(io::Error::other(other)),
     }
-}
-
-/// Show clap's complaint about the previous answer, if any.
-fn report(error: Option<&str>) -> Result<(), PromptError> {
-    let Some(error) = error else { return Ok(()) };
-    writeln!(io::stderr(), "{error}").map_err(PromptError::Io)
 }
 
 /// `style`'s foreground color and its bold and italic effects.

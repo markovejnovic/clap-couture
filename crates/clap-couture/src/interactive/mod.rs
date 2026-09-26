@@ -100,8 +100,6 @@ pub enum PromptError {
 pub struct ConfirmPrompt<'prompt> {
     /// The answer Enter accepts.
     pub default: bool,
-    /// clap's complaint about the previous answer, if any.
-    pub error: Option<&'prompt str>,
     /// What to ask.
     pub question: &'prompt str,
     /// The command's styles, for backends that theme themselves.
@@ -113,8 +111,6 @@ pub struct ConfirmPrompt<'prompt> {
 pub struct SelectPrompt<'prompt> {
     /// The name of the option Enter accepts, if any.
     pub default: Option<&'prompt str>,
-    /// clap's complaint about the previous answer, if any.
-    pub error: Option<&'prompt str>,
     /// Picking none of the options is allowed, and leaves the arg unset.
     pub optional: bool,
     /// The visible possible values, in declared order.
@@ -130,8 +126,6 @@ pub struct SelectPrompt<'prompt> {
 pub struct TextPrompt<'prompt> {
     /// The answer Enter accepts, if any.
     pub default: Option<&'prompt str>,
-    /// clap's complaint about the previous answer, if any.
-    pub error: Option<&'prompt str>,
     /// An empty answer is allowed, and leaves the arg unset.
     pub optional: bool,
     /// What to ask.

@@ -13,13 +13,17 @@ pub struct Cliclack;
 
 impl Backend for Cliclack {
     fn confirm(&self, prompt: &ConfirmPrompt<'_>) -> Result<bool, PromptError> {
-        Theme::from(prompt.styles).scoped(prompt.error, || {
+        Theme::from(prompt.styles).scoped(|| {
             ::cliclack::confirm(prompt.question).initial_value(prompt.default).interact()
         })
     }
 
+    fn report(&self, error: &str, styles: CommandStyles<'_>) -> Result<(), PromptError> {
+        Theme::from(styles).scoped(|| ::cliclack::log::error(error))
+    }
+
     fn select(&self, prompt: &SelectPrompt<'_>) -> Result<Option<String>, PromptError> {
-        Theme::from(prompt.styles).scoped(prompt.error, || {
+        Theme::from(prompt.styles).scoped(|| {
             let select = prompt.options.iter().fold(
                 ::cliclack::select(prompt.question),
                 |select, option| {
@@ -37,7 +41,7 @@ impl Backend for Cliclack {
     }
 
     fn text(&self, prompt: &TextPrompt<'_>) -> Result<Option<String>, PromptError> {
-        let answer: String = Theme::from(prompt.styles).scoped(prompt.error, || {
+        let answer: String = Theme::from(prompt.styles).scoped(|| {
             let mut input = ::cliclack::input(prompt.question).required(!prompt.optional);
             match prompt.default {
                 Some(default) => input.default_input(default).interact(),
@@ -59,14 +63,10 @@ struct Theme {
 }
 
 impl Theme {
-    /// Run `interact` with this as cliclack's theme, after logging `error`.
-    fn scoped<T>(
-        self,
-        error: Option<&str>,
-        interact: impl FnOnce() -> io::Result<T>,
-    ) -> Result<T, PromptError> {
+    /// Run `interact` with this as cliclack's theme.
+    fn scoped<T>(self, interact: impl FnOnce() -> io::Result<T>) -> Result<T, PromptError> {
         ::cliclack::set_theme(self);
-        let answer = error.map_or(Ok(()), ::cliclack::log::error).and_then(|()| interact());
+        let answer = interact();
         ::cliclack::reset_theme();
         answer.map_err(from_io)
     }

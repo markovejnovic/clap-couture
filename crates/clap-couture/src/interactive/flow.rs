@@ -41,14 +41,13 @@ impl Session<'_> {
         answers: &[Answer<'_>],
     ) -> Result<Option<String>, PromptError> {
         let Some(arg) = arg_at(self.cmd, &mark.path, mark.spec.id) else { return Ok(None) };
-        let mut error = None;
         loop {
-            let Some(value) = self.ask(arg, mark, current, error.as_deref())? else {
-                return Ok(None);
-            };
+            let Some(value) = self.ask(arg, mark, current)? else { return Ok(None) };
             match self.trial(answers, mark, &value) {
                 Ok(()) => return Ok(Some(value)),
-                Err(err) => error = Some(summary(&err)),
+                Err(err) => {
+                    self.backend.report(&summary(&err), CommandStyles(self.cmd.get_styles()))?;
+                }
             }
         }
     }
@@ -58,7 +57,6 @@ impl Session<'_> {
         arg: &Arg,
         mark: &Mark,
         current: Option<&str>,
-        error: Option<&str>,
     ) -> Result<Option<String>, PromptError> {
         let question = mark.spec.question.map_or_else(
             || arg.get_help().map_or_else(|| mark.spec.id.to_owned(), ToString::to_string),
@@ -68,7 +66,6 @@ impl Session<'_> {
         if let Some(negate) = flag_negation(arg.get_action()) {
             let set = self.backend.confirm(&ConfirmPrompt {
                 default: false,
-                error,
                 question: &question,
                 styles,
             })?;
@@ -80,7 +77,6 @@ impl Session<'_> {
         if options.is_empty() {
             return self.backend.text(&TextPrompt {
                 default: current,
-                error,
                 optional: !arg.is_required_set(),
                 question: &question,
                 styles,
@@ -88,7 +84,6 @@ impl Session<'_> {
         }
         self.backend.select(&SelectPrompt {
             default: current,
-            error,
             optional: !arg.is_required_set(),
             options: &options,
             question: &question,

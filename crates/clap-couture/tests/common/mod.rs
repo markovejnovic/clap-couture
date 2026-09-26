@@ -3,7 +3,9 @@
 use core::cell::RefCell;
 use std::io;
 
-use clap_couture::interactive::{Backend, ConfirmPrompt, PromptError, SelectPrompt, TextPrompt};
+use clap_couture::interactive::{
+    Backend, CommandStyles, ConfirmPrompt, PromptError, SelectPrompt, TextPrompt,
+};
 
 /// One prompt the fake was shown.
 #[derive(Debug, PartialEq, Eq)]
@@ -34,6 +36,8 @@ pub(crate) enum Reply {
 pub(crate) struct ScriptedBackend {
     asked: RefCell<Vec<Asked>>,
     available: bool,
+    /// The last `report`ed error, not yet shown with a prompt.
+    reported: RefCell<Option<String>>,
     /// The script, last reply first, so the next one pops off the end.
     replies: RefCell<Vec<Reply>>,
 }
@@ -48,13 +52,15 @@ impl ScriptedBackend {
         Self {
             asked: RefCell::new(Vec::new()),
             available: true,
+            reported: RefCell::new(None),
             replies: RefCell::new(
                 replies.into_iter().collect::<Vec<_>>().into_iter().rev().collect(),
             ),
         }
     }
 
-    fn next(&self, asked: Asked) -> Result<Reply, PromptError> {
+    fn next(&self, mut asked: Asked) -> Result<Reply, PromptError> {
+        asked.error = self.reported.take();
         self.asked.borrow_mut().push(asked);
         self.replies
             .borrow_mut()
@@ -72,7 +78,7 @@ impl Backend for ScriptedBackend {
     fn confirm(&self, prompt: &ConfirmPrompt<'_>) -> Result<bool, PromptError> {
         let asked = Asked {
             default: Some(prompt.default.to_string()),
-            error: prompt.error.map(str::to_owned),
+            error: None,
             kind: Kind::Confirm,
             options: Vec::new(),
             question: prompt.question.to_owned(),
@@ -88,10 +94,15 @@ impl Backend for ScriptedBackend {
         self.available
     }
 
+    fn report(&self, error: &str, _styles: CommandStyles<'_>) -> Result<(), PromptError> {
+        *self.reported.borrow_mut() = Some(error.to_owned());
+        Ok(())
+    }
+
     fn select(&self, prompt: &SelectPrompt<'_>) -> Result<Option<String>, PromptError> {
         let asked = Asked {
             default: prompt.default.map(str::to_owned),
-            error: prompt.error.map(str::to_owned),
+            error: None,
             kind: Kind::Select,
             options: prompt.options.iter().map(|value| value.get_name().to_owned()).collect(),
             question: prompt.question.to_owned(),
@@ -106,7 +117,7 @@ impl Backend for ScriptedBackend {
     fn text(&self, prompt: &TextPrompt<'_>) -> Result<Option<String>, PromptError> {
         let asked = Asked {
             default: prompt.default.map(str::to_owned),
-            error: prompt.error.map(str::to_owned),
+            error: None,
             kind: Kind::Text,
             options: Vec::new(),
             question: prompt.question.to_owned(),

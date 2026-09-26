@@ -1,10 +1,7 @@
 <div align="center">
 
 <h1>clap-couture</h1>
-
-<p>
-  <strong>Haute couture for your command line.</strong><br>
-</p>
+<strong>Haute couture for your command line.</strong><br>
 
 <p>
   <a href="https://crates.io/crates/clap-couture"><img alt="crates.io" src="https://img.shields.io/crates/v/clap-couture?style=flat-square&color=DB2777"></a>

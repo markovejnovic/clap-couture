@@ -1,7 +1,10 @@
 <div align="center">
 
 <h1>clap-couture</h1>
-<strong>Haute couture for your command line.</strong><br>
+
+<p>
+  <strong>Haute couture for your command line.</strong><br>
+</p>
 
 <p>
   <a href="https://crates.io/crates/clap-couture"><img alt="crates.io" src="https://img.shields.io/crates/v/clap-couture?style=flat-square&color=DB2777"></a>
@@ -24,7 +27,7 @@ your `clap` with only a few derive attributes.
 - Interactive input (WIP)
 - Markdown for rich styling (WIP)
 
-#### Categories
+### Categories
 
 `clap-couture` allows you to provide a set of categories to better improve the
 `--help` experience your users see. As your project gets larger, the list of

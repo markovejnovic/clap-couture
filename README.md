@@ -60,8 +60,8 @@ which will generate beautiful `--help`:
 
 <table>
   <tr>
-    <td align="center"><b>PLAIN CLAP</b></td>
-    <td align="center"><b>WITH CLAP-COUTURE</b></td>
+    <td align="center"><b>Clap</b></td>
+    <td align="center"><b>With Clap-Couture</b></td>
   </tr>
   <tr>
     <td valign="top"><img src="assets/before.svg" alt="clap's default --help: one long, flat list of commands" width="430"></td>

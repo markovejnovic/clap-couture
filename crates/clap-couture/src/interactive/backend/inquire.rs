@@ -92,16 +92,16 @@ impl Backend for Inquire {
     }
 
     fn secret(&self, prompt: &SecretPrompt<'_>) -> Result<Option<SecretString>, PromptError> {
-        let password = Password::new(prompt.question)
+        let input = Password::new(prompt.question)
             .without_confirmation()
             .with_display_mode(PasswordDisplayMode::Masked)
             .with_render_config(RenderConfig::from(prompt.styles));
-        let password = if prompt.optional {
-            password
+        let input = if prompt.optional {
+            input
         } else {
-            password.with_validator(ValueRequiredValidator::default())
+            input.with_validator(ValueRequiredValidator::default())
         };
-        Ok(into_secret(password.prompt().map_err(InquireError)?))
+        Ok(into_secret(input.prompt().map_err(InquireError)?))
     }
 
     fn select(&self, prompt: &SelectPrompt<'_>) -> Result<Option<String>, PromptError> {

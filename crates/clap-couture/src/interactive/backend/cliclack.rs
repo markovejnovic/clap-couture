@@ -89,9 +89,9 @@ impl Backend for Cliclack {
 
     fn secret(&self, prompt: &SecretPrompt<'_>) -> Result<Option<SecretString>, PromptError> {
         let answer = Theme::from(prompt.styles).scoped(|| {
-            let password = ::cliclack::password(prompt.question);
-            let mut password = if prompt.optional { password.allow_empty() } else { password };
-            password.interact()
+            let input = ::cliclack::password(prompt.question);
+            let mut input = if prompt.optional { input.allow_empty() } else { input };
+            input.interact()
         })?;
         Ok(into_secret(answer))
     }

@@ -2,6 +2,7 @@
 
 use secrecy::SecretString;
 
+use super::sealed::Sealed;
 use crate::Text;
 
 /// The `editor` beside a `#[couture(prompt)]`: ask in the user's editor.
@@ -86,11 +87,10 @@ pub struct SecretAttr {
 
 /// A field type `#[couture(secret)]` can hold, peeled of its `Option`.
 #[diagnostic::on_unimplemented(
-    message = "`#[couture(secret)]` needs a `SecretString` or `Option<SecretString>` field, not \
-               `{Self}`",
+    message = "`#[couture(secret)]` holds a `SecretString`, not `{Self}`",
     label = "not a `SecretString`"
 )]
-pub trait SecretField {}
+pub trait SecretField: Sealed {}
 
 impl SecretField for SecretString {}
 

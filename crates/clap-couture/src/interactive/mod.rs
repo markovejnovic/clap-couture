@@ -145,7 +145,8 @@
 //! ```
 //! 
 //! and its field must be a `SecretString`:
-//! ```compile_fail
+//!
+//! ```compile_fail,E0277
 //! use clap::Parser;
 //! use clap_couture::Couture;
 //!
@@ -159,6 +160,7 @@
 
 mod backend;
 mod prompted_args;
+mod sealed;
 
 use std::io;
 

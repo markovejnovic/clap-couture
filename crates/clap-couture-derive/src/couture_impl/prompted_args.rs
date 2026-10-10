@@ -7,8 +7,8 @@ use darling::{
     util::{Override, SpannedValue},
 };
 use proc_macro2::{Span, TokenStream as TokenStream2};
-use quote::{ToTokens, quote, quote_spanned};
-use syn::{Type, spanned::Spanned as _};
+use quote::{ToTokens, quote};
+use syn::Type;
 
 use crate::{
     clap_compat::{ClapAttrs as _, ClapFieldType as _, FieldKind, SubcommandNaming},
@@ -51,7 +51,7 @@ struct PromptAttr {
     /// The `= ...` override; `None` asks the arg's help text.
     question: Option<TextExpr>,
     /// The `secret` beside it, if any.
-    secret: Option<SecretSpec>,
+    secret: Option<SecretAttr>,
 }
 
 /// What a prompt's answer is for.
@@ -60,12 +60,12 @@ enum Purpose {
     Confirmation,
     Value,
 }
-/// A `secret` beside a prompt, and the field type it must hold.
-struct SecretSpec {
+/// A `secret` beside a prompt, and the type it must hold.
+struct SecretAttr {
     /// `secret(allow_argv)`.
     allow_argv: bool,
     /// The field's type, `Option` peeled, checked against `SecretField`.
-    field_type: Type,
+    secret_type: Type,
 }
 
 impl PromptedArgTree {
@@ -215,18 +215,18 @@ impl PromptAttr {
             .secret
             .as_ref()
             .map(|secret| {
-                if field.attrs.has_clap_default() {
+                if let Some(default_span) = field.attrs.clap_default_span() {
                     return Err(Error::custom(
                         "a `#[couture(secret)]` can't have a default: it would be baked into the \
                          binary and shown in `--help`",
                     )
-                    .with_span(&secret.span()));
+                    .with_span(&default_span));
                 }
                 let allow_argv = match &**secret {
                     Override::Inherit => false,
                     Override::Explicit(options) => options.allow_argv.is_present(),
                 };
-                Ok(SecretSpec { allow_argv, field_type: field.ty.peel_option().clone() })
+                Ok(SecretAttr { allow_argv, secret_type: field.ty.peel_option().clone() })
             })
             .transpose()?;
         Ok(Self { arg_id, editor, purpose, question, secret })
@@ -353,13 +353,13 @@ impl ToTokens for PromptAttr {
             Purpose::Value => quote!(Value),
         };
         let question = OptionalText::from(&self.question);
-        // Spanned at the field type, so a non-`SecretString` field is the error's location.
+        // The type keeps the user's span, so a non-`SecretString` field is the error's location.
         let secret = self.secret.as_ref().map_or_else(
             || quote!(::core::option::Option::None),
-            |SecretSpec { allow_argv, field_type }| {
-                quote_spanned! {field_type.span()=>
+            |SecretAttr { allow_argv, secret_type }| {
+                quote! {
                     ::core::option::Option::Some(
-                        ::clap_couture::interactive::SecretAttr::new::<#field_type>(#allow_argv)
+                        ::clap_couture::interactive::SecretAttr::new::<#secret_type>(#allow_argv)
                     )
                 }
             },

@@ -26,8 +26,11 @@ use heck::{
     ToKebabCase as _, ToLowerCamelCase as _, ToShoutySnakeCase as _, ToSnakeCase as _,
     ToUpperCamelCase as _,
 };
-use proc_macro2::TokenStream as TokenStream2;
-use syn::{Attribute, LitStr, Token, Type, ext::IdentExt as _, meta::ParseNestedMeta};
+use proc_macro2::{Span, TokenStream as TokenStream2};
+use syn::{
+    Attribute, LitStr, Token, Type, ext::IdentExt as _, meta::ParseNestedMeta,
+    spanned::Spanned as _,
+};
 
 use crate::input::VariantInput;
 
@@ -149,6 +152,10 @@ impl From<&[Attribute]> for FieldKind {
 /// A container's, variant's or field's `#[command(...)]` / `#[arg(...)]` / `#[clap(...)]`
 /// attributes, read the way clap reads them.
 pub(crate) trait ClapAttrs {
+    /// Where the first key that gives the arg a default is, if any: any key starting with
+    /// `default_value` or `default_missing_value`, so the conditional `default_value_if(s)` too.
+    fn clap_default_span(&self) -> Option<Span>;
+
     /// The `zone` in `#[arg(id = "zone")]`, or in the deprecated `#[arg(name = "zone")]`, if any.
     fn clap_id(&self) -> Option<String>;
 
@@ -164,15 +171,26 @@ pub(crate) trait ClapAttrs {
     /// no name.
     fn for_each_clap_key(&self, on_key: impl FnMut(&ParseNestedMeta<'_>) -> syn::Result<()>);
 
-    /// Check for any key that gives the arg a default: `default_value`, `default_value_t`,
-    /// `default_values_t`, `default_missing_value`, and their `_os` forms.
-    fn has_clap_default(&self) -> bool;
-
     /// Check for `key` with or without a value, as `subcommand` in `#[command(subcommand)]`.
     fn has_clap_key(&self, key: &str) -> bool;
 }
 
 impl ClapAttrs for [Attribute] {
+    fn clap_default_span(&self) -> Option<Span> {
+        let mut found = None;
+        self.for_each_clap_key(|meta| {
+            let gives_default = meta.path.get_ident().is_some_and(|key| {
+                let key = key.to_string();
+                key.starts_with("default_value") || key.starts_with("default_missing_value")
+            });
+            if gives_default {
+                found.get_or_insert_with(|| meta.path.span());
+            }
+            Ok(())
+        });
+        found
+    }
+
     fn clap_id(&self) -> Option<String> {
         let mut found = None;
         self.for_each_clap_key(|meta| {
@@ -207,18 +225,6 @@ impl ClapAttrs for [Attribute] {
             })
             .ok();
         }
-    }
-
-    fn has_clap_default(&self) -> bool {
-        let mut found = false;
-        self.for_each_clap_key(|meta| {
-            found |= meta.path.get_ident().is_some_and(|key| {
-                let key = key.to_string();
-                key.starts_with("default_value") || key.starts_with("default_missing_value")
-            });
-            Ok(())
-        });
-        found
     }
 
     fn has_clap_key(&self, key: &str) -> bool {

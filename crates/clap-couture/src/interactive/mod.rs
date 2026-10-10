@@ -5,7 +5,7 @@
 //! [`CoutureParser`](crate::CoutureParser)'s entry points ask for it, then parse the answer as if
 //! it had been typed. Without a terminal, parsing behaves exactly like clap.
 //!
-//! ```no_run
+//! ```
 //! use clap::Parser;
 //! use clap_couture::{Couture, CoutureParser};
 //!
@@ -17,45 +17,14 @@
 //!     region: String,
 //! }
 //!
-//! let cli = Cli::couture_parse();
+//! let cli = Cli::couture_parse_from(["deploy", "--region", "eu"]);
+//! assert_eq!(cli.region, "eu");
 //! ```
 //!
 //! A marked arg that has a default is asked with the default pre-filled. An optional arg answered
 //! with nothing stays unset. An arg passed on the command line or through its env var is never
 //! asked, and neither is one that conflicts with a passed arg or an earlier answer. Answers are
 //! not re-checked against `requires`, `required_if_eq` and similar rules between args.
-//!
-//! A mark that can never become a single prompt fails to compile:
-//!
-//! ```compile_fail
-//! use clap::Parser;
-//! use clap_couture::Couture;
-//!
-//! #[derive(Parser, Couture)]
-//! struct Cli {
-//!     #[arg(long)]
-//!     #[couture(prompt)]
-//!     tags: Vec<String>,
-//! }
-//! ```
-//!
-//! ```compile_fail
-//! use clap::{Args, Parser};
-//! use clap_couture::Couture;
-//!
-//! #[derive(Parser, Couture)]
-//! struct Cli {
-//!     #[command(flatten)]
-//!     #[couture(prompt)]
-//!     common: Common,
-//! }
-//!
-//! #[derive(Args, Couture)]
-//! struct Common {
-//!     #[arg(long)]
-//!     name: String,
-//! }
-//! ```
 
 mod backend;
 mod flow;

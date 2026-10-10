@@ -105,7 +105,8 @@
 //! Add `secret` to ask for a [`secrecy::SecretString`] without echoing it. The answer never
 //! reaches clap as plaintext, and the arg refuses a value from the command line, where `ps` and
 //! shell history would see it; `secret(allow_argv)` allows it. A value from its env var is used
-//! without asking, and `--help` doesn't show it.
+//! without asking, and `--help` names the variable but hides its value. An
+//! `Option<SecretString>` field makes the secret optional: left empty, it stays `None`.
 //!
 //! ```
 //! use clap::Parser;

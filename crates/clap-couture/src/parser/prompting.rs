@@ -10,7 +10,7 @@ use std::ffi::OsString;
 
 use clap::{
     Arg, ArgAction, ArgGroup, ArgMatches, Command, FromArgMatches, Id, builder::PossibleValue,
-    error::ErrorKind, parser::ValueSource,
+    parser::ValueSource,
 };
 
 use super::Failure;
@@ -100,8 +100,11 @@ impl Session<'_> {
             |question| question.get().into_owned(),
         );
         let styles = CommandStyles(self.cmd.get_styles());
+        // A flag has nothing to edit, so one that slipped past the derive asks as a flag.
         #[cfg(feature = "interactive-editor")]
-        if let Some(editor) = &prompted_arg.attr.editor {
+        if let Some(editor) =
+            prompted_arg.attr.editor.as_ref().filter(|_| arg.get_action().takes_values())
+        {
             return self.ask_in_editor(arg, prompted_arg, editor, &question, current, rejected);
         }
         if let Some(negate) = flag_negation(arg.get_action()) {
@@ -156,7 +159,11 @@ impl Session<'_> {
             default: rejected.map_or(current, |rejected| Some(rejected.value.as_str())),
             error: rejected.map(|rejected| rejected.error.as_str()),
             extension: editor.extension,
-            file_stem: &format!("{}-{}", self.cmd.get_name(), prompted_arg.attr.arg_id),
+            file_stem: &iter::once(self.cmd.get_name())
+                .chain(prompted_arg.subcommand_path.iter().copied())
+                .chain(iter::once(prompted_arg.attr.arg_id))
+                .collect::<Vec<_>>()
+                .join("-"),
             instructions: &instructions,
             optional,
             question,
@@ -219,9 +226,7 @@ where
             Ok(Some(value)) => answers.push(Answer { prompted_arg, value }),
             Ok(None) => {}
             Err(PromptError::Cancelled) => return Err(Failure::Cancelled),
-            Err(PromptError::Io(err)) => {
-                return Err(Failure::Clap(clap::Error::raw(ErrorKind::Io, err)));
-            }
+            Err(PromptError::Io(err)) => return Err(Failure::Io(err)),
             Err(PromptError::NotATerminal) => return super::parse(cmd, argv),
         }
     }

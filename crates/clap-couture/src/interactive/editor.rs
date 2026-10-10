@@ -213,6 +213,41 @@ struct IgnoredInterrupts {
 
 #[cfg(unix)]
 impl IgnoredInterrupts {
+    /// The action `signal` has now.
+    fn current(signal: libc::c_int) -> Option<libc::sigaction> {
+        // SAFETY: an all-zero `sigaction` is valid storage, only written to.
+        let mut current: libc::sigaction = unsafe { core::mem::zeroed() };
+        // SAFETY: a null new action only reads the current one into `current`.
+        let status = unsafe { libc::sigaction(signal, core::ptr::null(), &raw mut current) };
+        (status == 0).then_some(current)
+    }
+
+    /// Give `command`'s process the default handling of each signal this process didn't ignore
+    /// before: an ignored signal stays ignored across `exec`, a caught one goes back to default.
+    fn default_in_child(&self, command: &mut Command) {
+        use std::os::unix::process::CommandExt as _;
+
+        let defaulted: Vec<libc::c_int> = self
+            .previous
+            .iter()
+            .filter(|(_, previous)| previous.sa_sigaction != libc::SIG_IGN)
+            .map(|(signal, _)| *signal)
+            .collect();
+        let reset = move || {
+            for signal in &defaulted {
+                // SAFETY: `signal` is async-signal-safe, so it may run between `fork` and `exec`.
+                unsafe {
+                    libc::signal(*signal, libc::SIG_DFL);
+                }
+            }
+            Ok(())
+        };
+        // SAFETY: `reset` only calls `signal`, and allocates nothing.
+        unsafe {
+            command.pre_exec(reset);
+        }
+    }
+
     /// Ignore `signal`, returning its previous action.
     fn ignore(signal: libc::c_int) -> Option<libc::sigaction> {
         // SAFETY: an all-zero `sigaction` is valid: `SIG_DFL`, no flags, an empty mask.
@@ -238,12 +273,18 @@ impl IgnoredInterrupts {
 
 #[cfg(unix)]
 impl Drop for IgnoredInterrupts {
+    /// Restore each signal still ignored. One whose handling changed meanwhile, say by another
+    /// thread installing a handler, keeps the new handling.
     fn drop(&mut self) {
         for (signal, previous) in &self.previous {
-            // SAFETY: `previous` is the action `sigaction` reported, so it is valid to reinstall;
-            // the old action is not asked for.
-            unsafe {
-                libc::sigaction(*signal, previous, core::ptr::null_mut());
+            let still_ignored =
+                Self::current(*signal).is_some_and(|current| current.sa_sigaction == libc::SIG_IGN);
+            if still_ignored {
+                // SAFETY: `previous` is the action `sigaction` reported, so it is valid to
+                // reinstall; the old action is not asked for.
+                unsafe {
+                    libc::sigaction(*signal, previous, core::ptr::null_mut());
+                }
             }
         }
     }
@@ -345,13 +386,11 @@ where
 {
     let editor = Editor::from_env(|name| std::env::var_os(name), cfg!(windows))?;
     let rendered = render(prompt);
-    let mut file = tempfile::Builder::new()
-        .prefix(&format!("{}-", file_safe(prompt.file_stem)))
-        .suffix(&format!(".{}", prompt.extension))
-        .tempfile()?;
-    file.write_all(rendered.as_bytes())?;
-    // Closed but kept until dropped, so the editor may replace the file and we read the new one.
-    let path = file.into_temp_path();
+    // A directory of our own, removed with everything in it, so an editor's backups and swap
+    // files go too, and the file can go without a random part in its name.
+    let dir = tempfile::Builder::new().prefix("clap-couture-").tempdir()?;
+    let path = dir.path().join(format!("{}.{}", file_safe(prompt.file_stem), prompt.extension));
+    fs::write(&path, &rendered)?;
     loop {
         let started = Instant::now();
         let ran = editor.run(&path, prompt.waiting)?;
@@ -378,11 +417,16 @@ fn returned_early(elapsed: Duration, rendered: &str, saved: &str) -> bool {
 
 /// Run `command`, ignoring Ctrl-C until it exits, as git does: the editor gets Ctrl-C too, and
 /// decides what it means.
+///
+/// Ignored before the editor is spawned, so no Ctrl-C can kill us and orphan it in between; the
+/// editor itself starts with the default handling.
 fn wait(command: &mut Command) -> io::Result<ExitStatus> {
-    let mut child = command.spawn()?;
-    // Ignored only once the editor is spawned, so it starts with the default Ctrl-C handling.
-    let _interrupts_ignored = IgnoredInterrupts::new();
-    child.wait()
+    let interrupts_ignored = IgnoredInterrupts::new();
+    #[cfg(unix)]
+    interrupts_ignored.default_in_child(command);
+    let status = command.spawn()?.wait();
+    drop(interrupts_ignored);
+    status
 }
 
 /// `stem` with anything but letters, digits, `-` and `_` replaced, to name a file with.
@@ -726,14 +770,10 @@ mod tests {
         assert_eq!(returned_early(elapsed, "file", saved), expected);
     }
 
-    /// The action `signal` has now.
+    /// The handler `signal` has now.
     #[cfg(unix)]
     fn handler_of(signal: libc::c_int) -> Option<libc::sighandler_t> {
-        // SAFETY: an all-zero `sigaction` is valid storage, only written to.
-        let mut current: libc::sigaction = unsafe { core::mem::zeroed() };
-        // SAFETY: a null new action only reads the current one into `current`.
-        let status = unsafe { libc::sigaction(signal, core::ptr::null(), &raw mut current) };
-        (status == 0).then_some(current.sa_sigaction)
+        IgnoredInterrupts::current(signal).map(|current| current.sa_sigaction)
     }
 
     #[cfg(unix)]
@@ -747,6 +787,32 @@ mod tests {
         let after = [libc::SIGINT, libc::SIGQUIT].map(handler_of);
         assert_eq!(during, [Some(libc::SIG_IGN); 2]);
         assert_eq!(after, before);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_handler_installed_meanwhile_is_kept() {
+        extern "C" fn installed_meanwhile(_signal: libc::c_int) {}
+
+        #[expect(clippy::as_conversions, reason = "`sigaction` takes a handler as an address")]
+        let handler = (installed_meanwhile as *const ()).addr();
+        let _signal_handling = lock_signal_handling();
+        // Reading the current action can't fail for a valid signal.
+        let Some(before) = IgnoredInterrupts::current(libc::SIGQUIT) else { return };
+        let ignored = IgnoredInterrupts::new();
+        let mut meanwhile = before;
+        meanwhile.sa_sigaction = handler;
+        // SAFETY: `meanwhile` is a valid action with a plain function as its handler.
+        unsafe {
+            libc::sigaction(libc::SIGQUIT, &raw const meanwhile, core::ptr::null_mut());
+        }
+        drop(ignored);
+        let after = handler_of(libc::SIGQUIT);
+        // SAFETY: `before` is the action `sigaction` reported.
+        unsafe {
+            libc::sigaction(libc::SIGQUIT, &raw const before, core::ptr::null_mut());
+        }
+        assert_eq!(after, Some(handler));
     }
 
     #[cfg(unix)]

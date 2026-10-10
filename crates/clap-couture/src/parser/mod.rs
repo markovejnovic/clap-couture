@@ -93,18 +93,28 @@ pub(crate) enum Failure {
     /// The user backed out of a prompt.
     #[cfg(feature = "interactive")]
     Cancelled,
-    /// clap rejected the arguments, or a prompt failed.
+    /// clap rejected the arguments.
     Clap(clap::Error),
+    /// A prompt failed: the terminal, the temp file or the editor.
+    #[cfg(feature = "interactive")]
+    Io(std::io::Error),
 }
 
 impl Failure {
-    /// Exit the process the way clap would for this failure; 130 for a cancelled prompt.
+    /// Exit the process the way clap would for this failure; 130 for a cancelled prompt, and 1
+    /// for a failed one, which is no usage error.
     fn exit(self) -> ! {
         match self {
             // 130 is the conventional status for an interrupted command.
             #[cfg(feature = "interactive")]
             Self::Cancelled => std::process::exit(130),
             Self::Clap(err) => err.exit(),
+            #[cfg(feature = "interactive")]
+            Self::Io(err) => {
+                // Nothing is left to report a failed print to.
+                drop(io_error(&err).print());
+                std::process::exit(1)
+            }
         }
     }
 
@@ -113,8 +123,16 @@ impl Failure {
             #[cfg(feature = "interactive")]
             Self::Cancelled => clap::Error::raw(clap::error::ErrorKind::Io, "prompt cancelled\n"),
             Self::Clap(err) => err,
+            #[cfg(feature = "interactive")]
+            Self::Io(err) => io_error(&err),
         }
     }
+}
+
+/// `err` as a clap error of kind [`Io`](clap::error::ErrorKind::Io), with clap's `error:` styling.
+#[cfg(feature = "interactive")]
+fn io_error(err: &std::io::Error) -> clap::Error {
+    clap::Error::raw(clap::error::ErrorKind::Io, format!("{err}\n"))
 }
 
 /// Parse through [`DefaultBackend`](crate::interactive::DefaultBackend), or without prompting

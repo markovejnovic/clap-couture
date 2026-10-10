@@ -9,6 +9,18 @@ pub struct EditorAttr {
     pub extension: &'static str,
 }
 
+impl EditorAttr {
+    /// Evaluated beside every `#[couture(prompt, editor)]`: without the `interactive-editor`
+    /// feature, the build fails here instead of the prompt quietly falling back to one line.
+    /// Only reachable when `clap-couture-derive`'s feature is on and ours isn't.
+    #[cfg(feature = "interactive-editor")]
+    pub const FEATURE_CHECK: () = ();
+    /// See the version with the feature on.
+    #[cfg(not(feature = "interactive-editor"))]
+    pub const FEATURE_CHECK: () =
+        panic!("`#[couture(editor)]` needs clap-couture's `interactive-editor` feature");
+}
+
 /// One `#[couture(prompt)]` or `#[couture(prompt = "...")]`.
 #[derive(Debug)]
 pub struct PromptAttr {

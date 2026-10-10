@@ -4,7 +4,7 @@
 use core::cell::RefCell;
 use std::io;
 
-use clap::{Parser, error::ErrorKind};
+use clap::{ArgAction, Parser, Subcommand, error::ErrorKind};
 use clap_couture::{
     Couture, CoutureParser as _,
     interactive::{Backend, ConfirmPrompt, EditorPrompt, PromptError, SelectPrompt, TextPrompt},
@@ -36,6 +36,36 @@ struct German {
     #[arg(long)]
     #[couture(prompt, editor)]
     notes: String,
+}
+
+#[derive(Parser, Couture, Debug)]
+#[command(name = "tool")]
+struct Tool {
+    #[command(subcommand)]
+    command: ToolCommand,
+}
+
+#[derive(Subcommand, Couture, Debug)]
+enum ToolCommand {
+    Ship {
+        /// Release notes.
+        #[arg(long)]
+        #[couture(prompt, editor)]
+        notes: String,
+    },
+}
+
+#[derive(Parser, Couture, Debug)]
+struct Flags {
+    /// Draft?
+    #[arg(long, action = ArgAction::Set)]
+    #[couture(prompt, editor)]
+    draft: bool,
+
+    /// How loud.
+    #[arg(short, action = ArgAction::Count)]
+    #[couture(prompt, editor)]
+    verbose: u8,
 }
 
 /// One `EditorPrompt`, owned.
@@ -217,4 +247,30 @@ fn messages_localize_the_instructions() {
         opened.first().map(|opened| opened.instructions.as_str()),
         Some("Leer lassen zum Abbrechen.")
     );
+}
+
+#[rstest]
+fn the_file_is_named_after_the_subcommand_path() {
+    let editor = Editor::new([Some("Shipped.")]);
+    let tool = Tool::couture_try_parse_from_with(&editor, ["tool", "ship"]);
+    assert!(tool.is_ok(), "{tool:?}");
+    let opened = editor.opened.take();
+    assert_eq!(opened.first().map(|opened| opened.file_stem.as_str()), Some("tool-ship-notes"));
+}
+
+#[rstest]
+fn a_bool_that_takes_a_value_opens_the_editor() {
+    let editor = Editor::new([Some("true")]);
+    let flags = Flags::couture_try_parse_from_with(&editor, ["flags", "-v"]);
+    assert_eq!(flags.ok().map(|flags| flags.draft), Some(true));
+}
+
+#[rstest]
+fn a_counted_flag_is_not_edited() {
+    let editor = Editor::new([]);
+    let flags = Flags::couture_try_parse_from_with(&editor, ["flags", "--draft", "true"]);
+    let err = flags.err().map(|err| err.to_string()).unwrap_or_default();
+    // It takes no value, so it is asked as a plain prompt, which this backend refuses.
+    assert!(err.contains("only editor prompts should be asked"), "{err}");
+    assert_eq!(editor.opened.take(), []);
 }

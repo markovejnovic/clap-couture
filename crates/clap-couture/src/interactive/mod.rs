@@ -154,7 +154,7 @@ pub struct EditorPrompt<'prompt> {
     pub error: Option<&'prompt str>,
     /// The temp file's extension, without the dot.
     pub extension: &'prompt str,
-    /// The temp file's name before its random part: the command's name and the arg's id.
+    /// The temp file's name, before the extension: the command path and the arg's id.
     pub file_stem: &'prompt str,
     /// The header's last line: how to cancel, or how to leave the arg unset.
     pub instructions: &'prompt str,

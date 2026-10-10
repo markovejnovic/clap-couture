@@ -122,7 +122,8 @@ impl PromptedArgBranch {
 impl EditorAttr {
     /// # Errors
     /// - `editor` without the `interactive-editor` feature.
-    /// - `editor` on a `bool` flag, which has no value to edit.
+    /// - `editor` on a `bool` flag, which has no value to edit; a `bool` given an `action` may take
+    ///   one.
     /// - An `extension` that is empty, starts with a dot or holds a path separator.
     fn new(
         field: &FieldInput,
@@ -135,7 +136,7 @@ impl EditorAttr {
             )
             .with_span(&span));
         }
-        if field.ty.is_bool() {
+        if field.ty.is_bool() && !field.attrs.has_clap_key("action") {
             return Err(Error::custom("`#[couture(editor)]` needs an arg that takes a value")
                 .with_span(&span));
         }
@@ -258,9 +259,11 @@ impl ToTokens for PromptAttr {
             || quote!(::core::option::Option::None),
             |EditorAttr { extension }| {
                 quote! {
-                    ::core::option::Option::Some(
-                        ::clap_couture::interactive::EditorAttr { extension: #extension },
-                    )
+                    ::core::option::Option::Some({
+                        // Fails the build when clap-couture can't open an editor.
+                        const _: () = ::clap_couture::interactive::EditorAttr::FEATURE_CHECK;
+                        ::clap_couture::interactive::EditorAttr { extension: #extension }
+                    })
                 }
             },
         );

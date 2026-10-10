@@ -159,7 +159,8 @@ fn the_default_backend_spawns_the_editor_itself() {
     let notes = notes_with(&interrupt_parent.display().to_string(), &quiet());
     assert_eq!(notes.as_deref(), Ok("Survived."));
 
-    // The editor dying of Ctrl-C cancels the prompt, and the temp file goes with it.
+    // The editor dying of Ctrl-C cancels the prompt, and the temp file goes with it, in a
+    // directory of its own that goes too.
     let seen = dir.join("seen");
     let die =
         script(dir, "die", &format!(r#"printf '%s' "$1" > '{}'; kill -INT $$"#, seen.display()));
@@ -167,7 +168,8 @@ fn the_default_backend_spawns_the_editor_itself() {
     assert!(cancelled.as_ref().is_err_and(|err| err.contains("prompt cancelled")), "{cancelled:?}");
     let temp_file = PathBuf::from(fs::read_to_string(&seen).unwrap_or_default());
     assert!(
-        temp_file.extension().is_some_and(|extension| extension == "txt") && !temp_file.exists(),
+        temp_file.file_name().is_some_and(|name| name == "clap-couture-notes.txt")
+            && temp_file.parent().is_some_and(|dir| !dir.exists()),
         "{}",
         temp_file.display()
     );

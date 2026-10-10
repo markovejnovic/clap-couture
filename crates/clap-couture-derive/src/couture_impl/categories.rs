@@ -15,14 +15,14 @@ use syn::{Attribute, LitStr, Type};
 use crate::{
     clap_compat::{ClapAttrs as _, ClapFieldType as _, FieldKind, SubcommandNaming},
     input::{FieldInput, VariantInput},
-    literals::OptionStrLiteral,
+    text::{OptionalText, TextExpr},
 };
 
 /// One category, as `clap_couture::Category`.
 struct Category {
-    description: Option<String>,
+    description: Option<TextExpr>,
     label: String,
-    title: Option<String>,
+    title: Option<TextExpr>,
 }
 
 /// A variant's `#[category("...")]`: the label it files the variant under, kept as a literal for
@@ -62,8 +62,8 @@ impl Spec {
 
 #[derive(Deserialize)]
 struct SpecCategory {
-    description: Option<String>,
-    title: Option<String>,
+    description: Option<TextExpr>,
+    title: Option<TextExpr>,
 }
 
 /// The categories an `impl Couture` reports.
@@ -319,8 +319,8 @@ impl ToTokens for Categories {
 impl ToTokens for Category {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         let label = &self.label;
-        let description = OptionStrLiteral::from(&self.description);
-        let title = OptionStrLiteral::from(&self.title);
+        let description = OptionalText::from(&self.description);
+        let title = OptionalText::from(&self.title);
         tokens.extend(quote! {
             ::clap_couture::Category { description: #description, label: #label, title: #title }
         });

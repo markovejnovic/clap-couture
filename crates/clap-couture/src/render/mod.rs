@@ -3,6 +3,7 @@ mod md;
 #[cfg(not(feature = "markdown"))]
 mod plain;
 
+use alloc::borrow::Cow;
 use core::{
     fmt::{self, Display},
     iter,
@@ -91,11 +92,11 @@ where
         let header = self.view.styles.get_header();
         let heading = self.category.heading();
         write!(f, "{header}{heading}:{header:#}")?;
-        self.category.description.map_or(Ok(()), |description| {
+        self.category.description.as_ref().map_or(Ok(()), |description| {
             let col = self.view.layout.description_col;
             let pad = col.saturating_sub(heading.width().saturating_add(1));
             write!(f, "{:pad$}", "")?;
-            self.view.renderer.render_str(f, description)
+            self.view.renderer.render_str(f, &description.get())
         })
     }
 }
@@ -109,9 +110,9 @@ struct MenuLayout {
 }
 
 impl MenuLayout {
-    fn measure<'name, 'heading>(
+    fn measure<'name>(
         names: impl Iterator<Item = &'name str>,
-        headings: impl Iterator<Item = &'heading str>,
+        headings: impl Iterator<Item = Cow<'static, str>>,
     ) -> Self {
         let name_width = names.map(UnicodeWidthStr::width).max().unwrap_or(0);
         let heading_width = headings.map(|h| h.width().saturating_add(1)).max().unwrap_or(0);

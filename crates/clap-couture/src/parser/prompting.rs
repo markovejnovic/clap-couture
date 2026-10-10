@@ -63,12 +63,12 @@ impl Session<'_> {
         prompted_arg: &PromptedArg,
         current: Option<&str>,
     ) -> Result<Option<String>, PromptError> {
-        let question = prompted_arg.attr.question.map_or_else(
+        let question = prompted_arg.attr.question.as_ref().map_or_else(
             || {
                 arg.get_help()
                     .map_or_else(|| prompted_arg.attr.arg_id.to_owned(), ToString::to_string)
             },
-            str::to_owned,
+            |question| question.get().into_owned(),
         );
         let styles = CommandStyles(self.cmd.get_styles());
         if let Some(negate) = flag_negation(arg.get_action()) {

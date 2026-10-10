@@ -1,7 +1,8 @@
-//! Prompted args: leave out `--region`, `--strategy` or `--follow` and couture asks.
+//! Prompted args: leave out `--region`, `--strategy`, `--follow` or `--notes` and couture asks,
+//! the notes in your `$EDITOR`.
 //!
 //! ```sh
-//! cargo run -p clap-couture --example deploy --features interactive-cliclack
+//! cargo run -p clap-couture --example deploy --features interactive-cliclack,interactive-editor
 //! ```
 
 #![expect(clippy::print_stdout, reason = "a runnable demo prints its result")]
@@ -16,6 +17,11 @@ struct Cli {
     #[arg(long)]
     #[couture(prompt)]
     follow: bool,
+
+    /// Release notes for this deploy.
+    #[arg(long)]
+    #[couture(prompt, editor(extension = "md"))]
+    notes: Option<String>,
 
     /// Region to deploy to.
     #[arg(long)]
@@ -45,4 +51,7 @@ fn main() {
         strategy.unwrap_or_default(),
         cli.follow
     );
+    if let Some(notes) = cli.notes {
+        println!("notes:\n{notes}");
+    }
 }

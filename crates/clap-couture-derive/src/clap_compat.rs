@@ -243,6 +243,9 @@ impl ParseNestedMetaExt for ParseNestedMeta<'_> {
 
 /// A field's type, read the way clap reads it.
 pub(crate) trait ClapFieldType {
+    /// Check whether the field is a plain `bool`, which clap reads as a flag that takes no value.
+    fn is_bool(&self) -> bool;
+
     /// Check whether clap reads the field as taking many values, which it infers from a `Vec`,
     /// bare or in an `Option`: `Option<Vec<String>>` is one.
     fn is_multi_value(&self) -> bool;
@@ -253,6 +256,11 @@ pub(crate) trait ClapFieldType {
 }
 
 impl ClapFieldType for Type {
+    fn is_bool(&self) -> bool {
+        let Self::Path(type_path) = self else { return false };
+        type_path.path.segments.last().is_some_and(|last_segment| last_segment.ident == "bool")
+    }
+
     fn is_multi_value(&self) -> bool {
         let Self::Path(type_path) = self.peel_option() else { return false };
         type_path.path.segments.last().is_some_and(|last_segment| last_segment.ident == "Vec")

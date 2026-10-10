@@ -20,6 +20,7 @@ cliclack = { workspace = true, optional = true }
 console = { workspace = true, optional = true }
 dialoguer = { workspace = true, optional = true }
 inquire = { workspace = true, optional = true }
+tempfile = { workspace = true, optional = true }
 
 [features]
 markdown = ["dep:pulldown-cmark"]
@@ -27,10 +28,15 @@ interactive = ["clap/string", "clap-couture-derive/interactive", "dep:thiserror"
 interactive-cliclack = ["interactive", "dep:cliclack", "dep:console"]
 interactive-dialoguer = ["interactive", "dep:dialoguer", "dep:console"]
 interactive-inquire = ["interactive", "dep:inquire"]
+interactive-editor = [
+    "interactive",
+    "clap-couture-derive/interactive-editor",
+    "dep:tempfile",
+]
 
 [[example]]
 name = "deploy"
-required-features = ["interactive"]
+required-features = ["interactive-editor"]
 
 [dev-dependencies]
 clap = { workspace = true, features = ["derive", "env"] }

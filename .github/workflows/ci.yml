@@ -34,6 +34,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
+          targets: x86_64-pc-windows-msvc
       - uses: Swatinem/rust-cache@v2
       - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       # Each prompt backend alone: `--all-features` hides a `cfg` that only one of them sets.
@@ -41,6 +42,9 @@ jobs:
       - run: cargo clippy -p clap-couture --all-targets --features interactive-cliclack -- -D warnings
       - run: cargo clippy -p clap-couture --all-targets --features interactive-dialoguer -- -D warnings
       - run: cargo clippy -p clap-couture --all-targets --features interactive-inquire -- -D warnings
+      - run: cargo clippy -p clap-couture --all-targets --features interactive-editor -- -D warnings
+      # The editor runs without `sh` on Windows.
+      - run: cargo clippy -p clap-couture --lib --tests --target x86_64-pc-windows-msvc --features interactive-editor -- -D warnings
 
   test:
     name: test

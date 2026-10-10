@@ -193,6 +193,18 @@ impl CommandName {
 /// clap's and add your own.
 #[derive(Clone, Copy, Debug)]
 pub struct Messages {
+    /// Reported when a required `#[couture(prompt, editor)]` arg is answered with an empty file.
+    /// The default is `"Aborting due to an empty answer."`.
+    pub editor_empty: Text,
+    /// The last header line of a required `#[couture(prompt, editor)]` arg's file. The default
+    /// is `"These lines are removed. Leave the file empty to cancel."`.
+    pub editor_instructions: Text,
+    /// The last header line of an optional `#[couture(prompt, editor)]` arg's file. The default
+    /// is `"These lines are removed. Leave the file empty to leave it unset."`.
+    pub editor_instructions_optional: Text,
+    /// Shown while the editor is open. The default is
+    /// `"hint: Waiting for your editor to close the file..."`.
+    pub editor_waiting: Text,
     /// The select option that leaves an optional prompted arg unset. The default is `"(none)"`.
     pub none: Text,
     /// The heading above the options in `--help`. The default is `"Options:"`.
@@ -204,6 +216,14 @@ pub struct Messages {
 impl Messages {
     /// clap's English wording.
     pub const DEFAULT: Self = Self {
+        editor_empty: Text::Literal("Aborting due to an empty answer."),
+        editor_instructions: Text::Literal(
+            "These lines are removed. Leave the file empty to cancel.",
+        ),
+        editor_instructions_optional: Text::Literal(
+            "These lines are removed. Leave the file empty to leave it unset.",
+        ),
+        editor_waiting: Text::Literal("hint: Waiting for your editor to close the file..."),
         none: Text::Literal("(none)"),
         options: Text::Literal("Options:"),
         usage: Text::Literal("Usage:"),

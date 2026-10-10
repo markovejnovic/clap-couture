@@ -27,6 +27,8 @@ pub use dialoguer::Dialoguer;
 pub use inquire::Inquire;
 pub use non_interactive::NonInteractive;
 
+#[cfg(feature = "interactive-editor")]
+use super::EditorPrompt;
 use super::{ConfirmPrompt, PromptError, SelectPrompt, TextPrompt};
 
 /// A command's clap styles, for a backend to build its theme from.
@@ -66,6 +68,19 @@ pub trait Backend {
     /// # Errors
     /// - [`PromptError::Cancelled`] when the user backs out.
     fn confirm(&self, prompt: &ConfirmPrompt<'_>) -> Result<bool, PromptError>;
+
+    /// Ask in the user's editor, returning `None` for an empty answer. Whether an empty answer is
+    /// allowed is decided by the caller, from `prompt.optional`.
+    ///
+    /// The default opens the editor through [`edit`](crate::interactive::edit); override it to
+    /// draw something around the editor, and call `edit` from the override.
+    ///
+    /// # Errors
+    /// - [`PromptError::Io`] when the editor cannot start or exits unsuccessfully.
+    #[cfg(feature = "interactive-editor")]
+    fn editor(&self, prompt: &EditorPrompt<'_>) -> Result<Option<String>, PromptError> {
+        super::edit(prompt)
+    }
 
     /// Check whether there is a terminal to ask on: stdin and stderr must both be one.
     fn is_available(&self) -> bool {

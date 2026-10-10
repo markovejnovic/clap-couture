@@ -11,7 +11,7 @@ use syn::Type;
 
 use crate::{
     clap_compat::{ClapAttrs as _, ClapFieldType as _, FieldKind, SubcommandNaming},
-    input::{FieldInput, VariantInput},
+    input::{EditorOptions, FieldInput, VariantInput},
     text::{OptionalText, TextExpr},
 };
 
@@ -33,10 +33,18 @@ enum PromptedArgBranch {
     Subcommand(String, Type),
 }
 
+/// The `editor` beside a `#[couture(prompt)]`.
+struct EditorAttr {
+    /// The temp file's extension, without the dot.
+    extension: String,
+}
+
 /// One `#[couture(prompt)]` or `#[couture(prompt = "...")]`.
 struct PromptAttr {
     /// The clap id of the arg it is on.
     arg_id: String,
+    /// `Some` for `#[couture(prompt, editor)]`.
+    editor: Option<EditorAttr>,
     /// The `prompt = ...` override; `None` asks the arg's help text.
     question: Option<TextExpr>,
 }
@@ -111,6 +119,43 @@ impl PromptedArgBranch {
     }
 }
 
+impl EditorAttr {
+    /// # Errors
+    /// - `editor` without the `interactive-editor` feature.
+    /// - `editor` on a `bool` flag, which has no value to edit.
+    /// - An `extension` that is empty, starts with a dot or holds a path separator.
+    fn new(
+        field: &FieldInput,
+        editor: &SpannedValue<Override<EditorOptions>>,
+    ) -> darling::Result<Self> {
+        let span = editor.span();
+        if !cfg!(feature = "interactive-editor") {
+            return Err(Error::custom(
+                "`#[couture(editor)]` needs clap-couture's `interactive-editor` feature",
+            )
+            .with_span(&span));
+        }
+        if field.ty.is_bool() {
+            return Err(Error::custom("`#[couture(editor)]` needs an arg that takes a value")
+                .with_span(&span));
+        }
+        let options = match &**editor {
+            Override::Inherit => EditorOptions::default(),
+            Override::Explicit(options) => options.clone(),
+        };
+        let Some(extension) = options.extension else {
+            return Ok(Self { extension: "txt".to_owned() });
+        };
+        if extension.is_empty() || extension.starts_with('.') || extension.contains(['/', '\\']) {
+            return Err(Error::custom(
+                "`extension` is the temp file's extension without the dot, like `\"md\"`",
+            )
+            .with_span(&extension.span()));
+        }
+        Ok(Self { extension: extension.into_inner() })
+    }
+}
+
 impl PromptAttr {
     fn new(field: &FieldInput, prompt: &SpannedValue<Override<TextExpr>>) -> darling::Result<Self> {
         let span = prompt.span();
@@ -131,15 +176,23 @@ impl PromptAttr {
         let Some(arg_id) = field.clap_arg_id() else {
             return Err(Error::custom("`#[couture(prompt)]` needs a named field").with_span(&span));
         };
+        let editor =
+            field.editor.as_ref().map(|editor| EditorAttr::new(field, editor)).transpose()?;
         let question = match &**prompt {
             Override::Inherit => None,
             Override::Explicit(question) => Some(question.clone()),
         };
-        Ok(Self { arg_id, question })
+        Ok(Self { arg_id, editor, question })
     }
 
     /// The field's `#[couture(prompt)]`, if it has one.
     fn of_field(field: &FieldInput) -> darling::Result<Option<Self>> {
+        if let (None, Some(editor)) = (&field.prompt, &field.editor) {
+            return Err(Error::custom(
+                "`#[couture(editor)]` modifies `#[couture(prompt)]`; add `prompt` beside it",
+            )
+            .with_span(&editor.span()));
+        }
         field
             .prompt
             .as_ref()
@@ -201,9 +254,23 @@ impl ToTokens for PromptedArgBranch {
 impl ToTokens for PromptAttr {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         let arg_id = &self.arg_id;
+        let editor = self.editor.as_ref().map_or_else(
+            || quote!(::core::option::Option::None),
+            |EditorAttr { extension }| {
+                quote! {
+                    ::core::option::Option::Some(
+                        ::clap_couture::interactive::EditorAttr { extension: #extension },
+                    )
+                }
+            },
+        );
         let question = OptionalText::from(&self.question);
         tokens.extend(quote! {
-            ::clap_couture::interactive::PromptAttr { arg_id: #arg_id, question: #question }
+            ::clap_couture::interactive::PromptAttr {
+                arg_id: #arg_id,
+                editor: #editor,
+                question: #question,
+            }
         });
     }
 }

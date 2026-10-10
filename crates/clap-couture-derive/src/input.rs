@@ -10,7 +10,7 @@
 )]
 
 use darling::{
-    FromDeriveInput, FromField, FromVariant, ast,
+    FromDeriveInput, FromField, FromMeta, FromVariant, ast,
     util::{Override, SpannedValue},
 };
 use syn::{Attribute, Generics, Ident, Type, ext::IdentExt as _};
@@ -27,11 +27,20 @@ pub(crate) struct CoutureInput {
     pub(crate) ident: Ident,
 }
 
+/// The options of `#[couture(editor(...))]`.
+#[derive(Clone, Default, FromMeta)]
+pub(crate) struct EditorOptions {
+    /// The temp file's extension, without the dot; `txt` when left out.
+    pub(crate) extension: Option<SpannedValue<String>>,
+}
+
 /// A field of a parser struct, an `Args` struct or a struct variant.
 #[derive(FromField)]
 #[darling(attributes(couture), forward_attrs(arg, clap, command))]
 pub(crate) struct FieldInput {
     pub(crate) attrs: Vec<Attribute>,
+    /// `Inherit` for `#[couture(editor)]`, `Explicit` for `#[couture(editor(...))]`.
+    pub(crate) editor: Option<SpannedValue<Override<EditorOptions>>>,
     pub(crate) ident: Option<Ident>,
     /// `Inherit` for `#[couture(prompt)]`, `Explicit` for `#[couture(prompt = ...)]`.
     pub(crate) prompt: Option<SpannedValue<Override<TextExpr>>>,

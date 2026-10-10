@@ -14,6 +14,8 @@ use clap::{
 };
 
 use super::Failure;
+#[cfg(feature = "interactive-editor")]
+use crate::interactive::{EditorAttr, EditorPrompt};
 use crate::{
     Messages,
     interactive::{
@@ -25,6 +27,16 @@ use crate::{
 /// A prompted arg's accepted answer.
 struct Answer<'prompted_arg> {
     prompted_arg: &'prompted_arg PromptedArg,
+    value: String,
+}
+
+/// An answer clap turned down, and why; an editor prompt reopens with it.
+#[cfg_attr(
+    not(feature = "interactive-editor"),
+    expect(dead_code, reason = "only an editor prompt reopens with the rejected answer")
+)]
+struct Rejected {
+    error: String,
     value: String,
 }
 
@@ -50,22 +62,35 @@ impl Session<'_> {
         else {
             return Ok(None);
         };
+        let mut rejected = None;
         loop {
-            let Some(value) = self.ask(arg, prompted_arg, current)? else { return Ok(None) };
+            let Some(value) = self.ask(arg, prompted_arg, current, rejected.as_ref())? else {
+                return Ok(None);
+            };
             match self.trial(answers, prompted_arg, &value) {
                 Ok(()) => return Ok(Some(value)),
                 Err(err) => {
-                    self.backend.report(&summary(&err), CommandStyles(self.cmd.get_styles()))?;
+                    let error = summary(&err);
+                    self.backend.report(&error, CommandStyles(self.cmd.get_styles()))?;
+                    rejected = Some(Rejected { error, value });
                 }
             }
         }
     }
 
+    #[cfg_attr(
+        not(feature = "interactive-editor"),
+        expect(
+            unused_variables,
+            reason = "only an editor prompt reopens with the rejected answer"
+        )
+    )]
     fn ask(
         &self,
         arg: &Arg,
         prompted_arg: &PromptedArg,
         current: Option<&str>,
+        rejected: Option<&Rejected>,
     ) -> Result<Option<String>, PromptError> {
         let question = prompted_arg.attr.question.as_ref().map_or_else(
             || {
@@ -75,6 +100,10 @@ impl Session<'_> {
             |question| question.get().into_owned(),
         );
         let styles = CommandStyles(self.cmd.get_styles());
+        #[cfg(feature = "interactive-editor")]
+        if let Some(editor) = &prompted_arg.attr.editor {
+            return self.ask_in_editor(arg, prompted_arg, editor, &question, current, rejected);
+        }
         if let Some(negate) = flag_negation(arg.get_action()) {
             let set = self.backend.confirm(&ConfirmPrompt {
                 default: false,
@@ -102,6 +131,43 @@ impl Session<'_> {
             question: &question,
             styles,
         })
+    }
+
+    /// Ask in the user's editor, starting from the rejected answer if there is one. An empty
+    /// answer to a required arg aborts, as git aborts on an empty commit message.
+    #[cfg(feature = "interactive-editor")]
+    fn ask_in_editor(
+        &self,
+        arg: &Arg,
+        prompted_arg: &PromptedArg,
+        editor: &EditorAttr,
+        question: &str,
+        current: Option<&str>,
+        rejected: Option<&Rejected>,
+    ) -> Result<Option<String>, PromptError> {
+        let styles = CommandStyles(self.cmd.get_styles());
+        let optional = !arg.is_required_set();
+        let instructions = if optional {
+            self.messages.editor_instructions_optional.get()
+        } else {
+            self.messages.editor_instructions.get()
+        };
+        let answer = self.backend.editor(&EditorPrompt {
+            default: rejected.map_or(current, |rejected| Some(rejected.value.as_str())),
+            error: rejected.map(|rejected| rejected.error.as_str()),
+            extension: editor.extension,
+            file_stem: &format!("{}-{}", self.cmd.get_name(), prompted_arg.attr.arg_id),
+            instructions: &instructions,
+            optional,
+            question,
+            styles,
+            waiting: &self.messages.editor_waiting.get(),
+        })?;
+        if answer.is_none() && !optional {
+            self.backend.report(&self.messages.editor_empty.get(), styles)?;
+            return Err(PromptError::Cancelled);
+        }
+        Ok(answer)
     }
 
     /// Parse with `candidate` as `prompted_arg`'s answer on top of the accepted ones.

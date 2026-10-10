@@ -2,11 +2,20 @@
 
 use crate::Text;
 
+/// The `editor` beside a `#[couture(prompt)]`: ask in the user's editor.
+#[derive(Debug)]
+pub struct EditorAttr {
+    /// The temp file's extension, without the dot.
+    pub extension: &'static str,
+}
+
 /// One `#[couture(prompt)]` or `#[couture(prompt = "...")]`.
 #[derive(Debug)]
 pub struct PromptAttr {
     /// The clap id of the arg it is on.
     pub arg_id: &'static str,
+    /// `Some` for `#[couture(prompt, editor)]`; only set with the `interactive-editor` feature.
+    pub editor: Option<EditorAttr>,
     /// The `prompt = ...` override; `None` asks the arg's help text.
     pub question: Option<Text>,
 }

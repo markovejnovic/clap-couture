@@ -10,6 +10,10 @@ use crate::text::TextExpr;
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct Messages {
+    editor_empty: Option<TextExpr>,
+    editor_instructions: Option<TextExpr>,
+    editor_instructions_optional: Option<TextExpr>,
+    editor_waiting: Option<TextExpr>,
     none: Option<TextExpr>,
     options: Option<TextExpr>,
     usage: Option<TextExpr>,
@@ -17,13 +21,20 @@ pub(crate) struct Messages {
 
 impl ToTokens for Messages {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
-        let set_messages =
-            [("none", &self.none), ("options", &self.options), ("usage", &self.usage)]
-                .into_iter()
-                .filter_map(|(name, text)| {
-                    let name = syn::Ident::new(name, proc_macro2::Span::call_site());
-                    text.as_ref().map(|text| quote!(#name: #text))
-                });
+        let set_messages = [
+            ("editor_empty", &self.editor_empty),
+            ("editor_instructions", &self.editor_instructions),
+            ("editor_instructions_optional", &self.editor_instructions_optional),
+            ("editor_waiting", &self.editor_waiting),
+            ("none", &self.none),
+            ("options", &self.options),
+            ("usage", &self.usage),
+        ]
+        .into_iter()
+        .filter_map(|(name, text)| {
+            let name = syn::Ident::new(name, proc_macro2::Span::call_site());
+            text.as_ref().map(|text| quote!(#name: #text))
+        });
         tokens.extend(quote! {
             ::clap_couture::Messages { #(#set_messages,)* ..::clap_couture::Messages::DEFAULT }
         });

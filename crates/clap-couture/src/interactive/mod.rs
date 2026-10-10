@@ -25,8 +25,67 @@
 //! with nothing stays unset. An arg passed on the command line or through its env var is never
 //! asked, and neither is one that conflicts with a passed arg or an earlier answer. Answers are
 //! not re-checked against `requires`, `required_if_eq` and similar rules between args.
+//!
+//! # Answering in the editor
+//!
+//! With the `interactive-editor` feature, `#[couture(prompt, editor)]` asks in the user's editor
+//! instead, for text a single line can't hold. `editor(extension = "md")` names the temp file's
+//! extension, `txt` by default, so the editor highlights it.
+#![cfg_attr(feature = "interactive-editor", doc = "```no_run")]
+#![cfg_attr(not(feature = "interactive-editor"), doc = "```ignore")]
+//! use clap::Parser;
+//! use clap_couture::{Couture, CoutureParser};
+//!
+//! #[derive(Parser, Couture)]
+//! struct Cli {
+//!     /// Release notes
+//!     #[arg(long)]
+//!     #[couture(prompt, editor(extension = "md"))]
+//!     notes: String,
+//! }
+//!
+//! let cli = Cli::couture_parse();
+//! ```
+//! 
+//! The editor is found and run as git runs its own: `$VISUAL` (unless `TERM` is unset or
+//! `dumb`), then `$EDITOR`, then `vi`, through `sh` so that `EDITOR="code --wait"` works, and
+//! `:` takes the file as written. The file opens with the arg's default, or the answer clap just
+//! turned down, above a header asking the question. The header's lines start with an invisible
+//! U+2063 before their `#`, so it comes back out while the user's own `#` lines stay. An empty
+//! file leaves an optional arg unset and aborts for a required one, like an empty commit
+//! message.
+//!
+//! `editor` needs `prompt` beside it:
+#![cfg_attr(feature = "interactive-editor", doc = "```compile_fail")]
+#![cfg_attr(not(feature = "interactive-editor"), doc = "```ignore")]
+//! use clap::Parser;
+//! use clap_couture::Couture;
+//!
+//! #[derive(Parser, Couture)]
+//! struct Cli {
+//!     #[arg(long)]
+//!     #[couture(editor)]
+//!     notes: String,
+//! }
+//! ```
+//! 
+//! and an arg that takes a value; a flag has nothing to edit:
+#![cfg_attr(feature = "interactive-editor", doc = "```compile_fail")]
+#![cfg_attr(not(feature = "interactive-editor"), doc = "```ignore")]
+//! use clap::Parser;
+//! use clap_couture::Couture;
+//!
+//! #[derive(Parser, Couture)]
+//! struct Cli {
+//!     #[arg(long)]
+//!     #[couture(prompt, editor)]
+//!     follow: bool,
+//! }
+//! ```
 
 mod backend;
+#[cfg(feature = "interactive-editor")]
+mod editor;
 mod prompted_args;
 
 use std::io;
@@ -39,8 +98,10 @@ pub use backend::Dialoguer;
 pub use backend::Inquire;
 pub use backend::{Backend, CommandStyles, DefaultBackend, NonInteractive};
 use clap::builder::PossibleValue;
+#[cfg(feature = "interactive-editor")]
+pub use editor::edit;
 #[doc(hidden)]
-pub use prompted_args::{PromptAttr, PromptedArg, PromptedArgBranch, PromptedArgTree};
+pub use prompted_args::{EditorAttr, PromptAttr, PromptedArg, PromptedArgBranch, PromptedArgTree};
 
 /// Why a prompt produced no answer.
 #[derive(Debug, thiserror::Error)]
@@ -78,6 +139,30 @@ pub struct ConfirmPrompt<'prompt> {
     pub question: &'prompt str,
     /// The command's styles, for backends that theme themselves.
     pub styles: CommandStyles<'prompt>,
+}
+
+/// A question answered in the user's editor, for `#[couture(prompt, editor)]`.
+#[cfg(feature = "interactive-editor")]
+#[derive(Debug)]
+pub struct EditorPrompt<'prompt> {
+    /// The text the file starts with: the arg's default, or the previous rejected answer.
+    pub default: Option<&'prompt str>,
+    /// clap's complaint about the previous answer, shown in the file's header.
+    pub error: Option<&'prompt str>,
+    /// The temp file's extension, without the dot.
+    pub extension: &'prompt str,
+    /// The temp file's name before its random part: the command's name and the arg's id.
+    pub file_stem: &'prompt str,
+    /// The header's last line: how to cancel, or how to leave the arg unset.
+    pub instructions: &'prompt str,
+    /// An empty answer is allowed, and leaves the arg unset.
+    pub optional: bool,
+    /// What to ask.
+    pub question: &'prompt str,
+    /// The command's styles, for backends that theme themselves.
+    pub styles: CommandStyles<'prompt>,
+    /// The hint shown while the editor is open.
+    pub waiting: &'prompt str,
 }
 
 /// A pick among an arg's possible values.

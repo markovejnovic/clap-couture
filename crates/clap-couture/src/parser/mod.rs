@@ -159,8 +159,8 @@ fn guard_secrets<T>(cmd: Command) -> Command
 where
     T: Couture,
 {
-    let tree: &'static crate::interactive::PromptedArgTree = &T::PROMPTED_ARGS;
-    secrets::guard(cmd, &tree.prompted_args(), &secrets::Vault::default())
+    let prompted_arg_tree: &'static crate::interactive::PromptedArgTree = &T::PROMPTED_ARGS;
+    secrets::guard(cmd, &prompted_arg_tree.prompted_args(), &secrets::Vault::default())
 }
 
 /// Parse through [`DefaultBackend`](crate::interactive::DefaultBackend), or without prompting

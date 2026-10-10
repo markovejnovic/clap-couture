@@ -123,6 +123,29 @@ impl SubcommandNaming {
     }
 }
 
+/// How clap treats a struct field.
+#[derive(PartialEq, Eq)]
+pub(crate) enum FieldKind {
+    Arg,
+    Flatten,
+    Skip,
+    Subcommand,
+}
+
+impl From<&[Attribute]> for FieldKind {
+    fn from(attrs: &[Attribute]) -> Self {
+        if attrs.has_clap_key("flatten") {
+            Self::Flatten
+        } else if attrs.has_clap_key("subcommand") {
+            Self::Subcommand
+        } else if attrs.has_clap_key("skip") {
+            Self::Skip
+        } else {
+            Self::Arg
+        }
+    }
+}
+
 /// A container's, variant's or field's `#[command(...)]` / `#[arg(...)]` / `#[clap(...)]`
 /// attributes, read the way clap reads them.
 pub(crate) trait ClapAttrs {

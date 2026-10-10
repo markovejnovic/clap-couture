@@ -37,6 +37,17 @@ enum VariantCasing {
     List,
 }
 
+/// The flattened variant goes last: `CATEGORIES` lists an enum's own commands before its
+/// flattened ones, while clap lists them in variant order.
+#[derive(Subcommand, Couture)]
+#[couture(categories = { "all" = {} })]
+enum Flattening {
+    #[category("all")]
+    Apply,
+    #[command(flatten)]
+    Merged(DefaultCasing),
+}
+
 /// The names clap gives `T`'s variants, and the names `T::CATEGORIES` files them under.
 fn clap_and_couture_names<T>() -> (Vec<String>, Vec<String>)
 where
@@ -54,6 +65,7 @@ where
 #[case::default_casing(clap_and_couture_names::<DefaultCasing>())]
 #[case::enum_rename_all(clap_and_couture_names::<EnumCasing>())]
 #[case::variant_rename_all(clap_and_couture_names::<VariantCasing>())]
+#[case::flatten(clap_and_couture_names::<Flattening>())]
 fn categories_name_variants_the_way_clap_does(#[case] names: (Vec<String>, Vec<String>)) {
     let (clap, couture) = names;
     assert_eq!(couture, clap);

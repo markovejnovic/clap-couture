@@ -59,16 +59,40 @@
 //! }
 //! ```
 //!
+//! A `#[command(flatten)]` variant is no subcommand itself, so it takes no `#[category("...")]`;
+//! file the flattened enum's variants instead:
+//!
+//! ```compile_fail
+//! use clap::Subcommand;
+//! use clap_couture::Couture;
+//!
+//! #[derive(Subcommand, Couture)]
+//! #[couture(categories = { "account" = {} })]
+//! enum Cmd {
+//!     #[category("account")]
+//!     #[command(flatten)]
+//!     Account(Account),
+//! }
+//!
+//! #[derive(Subcommand, Couture)]
+//! enum Account {
+//!     Login,
+//! }
+//! ```
+//!
 //! The subcommands stay visible to clap, so shell completions and
 //! `tool <cmd> --help` are unaffected -- only the help *listing* changes.
 
 #[cfg(feature = "interactive")]
 pub mod interactive;
+mod maybe_couture;
 mod parser;
 mod render;
 
 use clap::{Command, builder::StyledStr};
 pub use clap_couture_derive::Couture;
+#[doc(hidden)]
+pub use maybe_couture::{MaybeCouture, NotCouture};
 pub use parser::CoutureParser;
 use render::CommandRenderExt as _;
 
@@ -112,49 +136,136 @@ impl Category {
 }
 
 /// A static map from subcommand name to the category it belongs to.
+///
+/// Besides its own entries, a map holds the maps of the types `#[command(flatten)]` merges into
+/// its command, so their subcommands keep their categories.
 #[derive(Clone, Copy)]
-pub struct CommandCategoryMap(&'static [(CommandName, Category)]);
+pub struct CommandCategoryMap {
+    /// The categories this map's command declares, in heading order, including ones only
+    /// flattened commands are filed under. They win over a flattened map's same-label category.
+    declared_categories: &'static [Category],
+    /// The maps of the types flattened into this map's command, in declared order.
+    flattened_maps: &'static [Self],
+    /// The `(command, category)` pairs this map files itself.
+    own_entries: &'static [(CommandName, Category)],
+}
 
 impl CommandCategoryMap {
     /// A map with no entries.
-    pub const EMPTY: Self = Self(&[]);
+    pub const EMPTY: Self =
+        Self { declared_categories: &[], flattened_maps: &[], own_entries: &[] };
 
-    /// The distinct categories, in first-appearance order.
+    /// This map, then its flattened maps, depth first.
+    fn depth_first(self) -> DepthFirstMaps {
+        DepthFirstMaps { maps_to_walk: Vec::from([self]) }
+    }
+
+    /// The distinct categories, in first-appearance order: a map's declared categories, then
+    /// those of its entries, then its flattened maps'.
     pub(crate) fn distinct(self) -> impl Iterator<Item = &'static Category> {
-        let entries = self.0;
-        entries
-            .iter()
-            .enumerate()
-            .filter(move |(i, entry)| {
-                entries.iter().position(|first| first.1.label == entry.1.label) == Some(*i)
+        let mut seen_labels = Vec::new();
+        self.depth_first()
+            .flat_map(|map| {
+                map.declared_categories.iter().chain(map.own_entries.iter().map(|entry| &entry.1))
             })
-            .map(|(_, entry)| &entry.1)
+            .filter(move |category| {
+                let is_first = !seen_labels.contains(&category.label);
+                if is_first {
+                    seen_labels.push(category.label);
+                }
+                is_first
+            })
     }
 
     /// The category assigned to `name`, if any.
     #[must_use]
-    pub fn find(&self, name: &str) -> Option<&Category> {
-        self.0.iter().find(|entry| entry.0.as_str() == name).map(|entry| &entry.1)
+    pub fn find(&self, name: &str) -> Option<&'static Category> {
+        self.iter().find(|entry| entry.0.as_str() == name).map(|entry| &entry.1)
     }
 
-    /// Iterate the `(command, category)` pairs in declared order.
-    pub fn iter(&self) -> core::slice::Iter<'_, (CommandName, Category)> {
-        self.0.iter()
+    /// Iterate the `(command, category)` pairs: the map's own in declared order, then each
+    /// flattened map's.
+    #[must_use]
+    pub fn iter(&self) -> CommandCategoryEntries {
+        CommandCategoryEntries {
+            current_map_entries: [].iter(),
+            remaining_maps: self.depth_first(),
+        }
     }
 
     /// Wrap a static slice of `(command, category)` pairs.
     #[must_use]
     pub const fn new(entries: &'static [(CommandName, Category)]) -> Self {
-        Self(entries)
+        Self { declared_categories: &[], flattened_maps: &[], own_entries: entries }
+    }
+
+    /// Declare categories up front, so they head the listing and win over a flattened map's
+    /// same-label category even when this map files no command under them.
+    #[must_use]
+    pub const fn with_declared_categories(self, declared_categories: &'static [Category]) -> Self {
+        Self {
+            declared_categories,
+            flattened_maps: self.flattened_maps,
+            own_entries: self.own_entries,
+        }
+    }
+
+    /// Add the maps of the types flattened into this command, after this map's own entries.
+    #[must_use]
+    pub const fn with_flattened_maps(self, flattened_maps: &'static [Self]) -> Self {
+        Self {
+            declared_categories: self.declared_categories,
+            flattened_maps,
+            own_entries: self.own_entries,
+        }
     }
 }
 
-impl<'map> IntoIterator for &'map CommandCategoryMap {
-    type IntoIter = core::slice::Iter<'map, (CommandName, Category)>;
-    type Item = &'map (CommandName, Category);
+impl IntoIterator for &CommandCategoryMap {
+    type IntoIter = CommandCategoryEntries;
+    type Item = &'static (CommandName, Category);
 
     fn into_iter(self) -> Self::IntoIter {
-        self.0.iter()
+        self.iter()
+    }
+}
+
+/// The `(command, category)` pairs of a [`CommandCategoryMap`], depth first.
+#[derive(Clone)]
+pub struct CommandCategoryEntries {
+    /// The entries of the map being walked.
+    current_map_entries: core::slice::Iter<'static, (CommandName, Category)>,
+    /// The maps after the current one.
+    remaining_maps: DepthFirstMaps,
+}
+
+impl Iterator for CommandCategoryEntries {
+    type Item = &'static (CommandName, Category);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if let Some(entry) = self.current_map_entries.next() {
+                return Some(entry);
+            }
+            self.current_map_entries = self.remaining_maps.next()?.own_entries.iter();
+        }
+    }
+}
+
+/// A [`CommandCategoryMap`] and its flattened maps, depth first.
+#[derive(Clone)]
+struct DepthFirstMaps {
+    /// The maps still to walk, the next one last.
+    maps_to_walk: Vec<CommandCategoryMap>,
+}
+
+impl Iterator for DepthFirstMaps {
+    type Item = CommandCategoryMap;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let map = self.maps_to_walk.pop()?;
+        self.maps_to_walk.extend(map.flattened_maps.iter().rev());
+        Some(map)
     }
 }
 

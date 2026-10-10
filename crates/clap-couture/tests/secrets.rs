@@ -101,7 +101,7 @@ fn the_derive_records_the_secret_and_its_argv_policy() {
         tree.prompted_args()
             .first()
             .and_then(|arg| arg.attr.secret.as_ref())
-            .map(|secret| secret.allow_argv)
+            .map(clap_couture::interactive::SecretAttr::allow_argv)
     };
     assert_eq!(allow_argv(&Login::PROMPTED_ARGS), Some(false));
     assert_eq!(allow_argv(&OptionalLogin::PROMPTED_ARGS), Some(false));

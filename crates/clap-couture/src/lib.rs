@@ -666,6 +666,9 @@ pub trait CommandExt {
     /// Overwrites the command's [`help_template`](Command::help_template) and
     /// [`before_help`](Command::before_help).
     ///
+    /// Leaves `#[couture(secret)]` args unguarded; take the command from
+    /// [`CoutureParser::couture_command`] to refuse them on the command line.
+    ///
     /// # Example
     ///
     /// ```

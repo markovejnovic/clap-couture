@@ -82,7 +82,7 @@ pub struct PromptedArgTree {
 #[derive(Debug)]
 pub struct SecretAttr {
     /// The value may come from the command line.
-    pub allow_argv: bool,
+    allow_argv: bool,
 }
 
 /// A field type `#[couture(secret)]` can hold, peeled of its `Option`.
@@ -130,6 +130,12 @@ impl PromptedArgTree {
 }
 
 impl SecretAttr {
+    /// Whether the value may come from the command line: `secret(allow_argv)`.
+    #[must_use]
+    pub const fn allow_argv(&self) -> bool {
+        self.allow_argv
+    }
+
     /// The attr of a secret held in a `T`. The bound turns a field of the wrong type into a
     /// compile error at the field.
     #[must_use]

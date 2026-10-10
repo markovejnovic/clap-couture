@@ -102,12 +102,17 @@
 //! 
 //! # Secrets
 //!
-//! Add `secret` to ask for a [`secrecy::SecretString`] without echoing it. The answer never
-//! reaches clap as plaintext, and the arg refuses a value from the command line, where `ps` and
-//! shell history would see it; `secret(allow_argv)` allows it. A value from its env var is used
-//! without asking, and `--help` names the variable but hides its value. An
-//! `Option<SecretString>` field makes the secret optional: left empty, it stays `None`.
+//! Add `secret` to ask for a [`secrecy::SecretString`] without echoing it. A prompted answer
+//! never reaches clap as plaintext; a value from the env var or an allowed command line is held
+//! by clap like any arg's. The arg refuses a value from the command line, where `ps` and shell
+//! history would see it; `secret(allow_argv)` allows it. A value from its env var is used without
+//! asking, and `--help` names the variable but hides its value. An `Option<SecretString>` field
+//! makes the secret optional: left empty, it stays `None`.
 //!
+//! Only [`CoutureParser`](crate::CoutureParser)'s entry points and
+//! [`couture_command`](crate::CoutureParser::couture_command) guard secret args; plain
+//! `Cli::parse()` or `Cli::command()` takes `--token` from the command line and shows its env
+//! value in `--help`.
 //! ```
 //! use clap::Parser;
 //! use clap_couture::{Couture, interactive::secrecy::SecretString};

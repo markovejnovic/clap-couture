@@ -98,7 +98,8 @@ impl TypedValueParser for SecretValueParser {
 pub(crate) fn guard(cmd: Command, prompted_args: &[PromptedArg], vault: &Vault) -> Command {
     prompted_args.iter().fold(cmd, |cmd, prompted_arg| {
         let Some(secret_attr) = &prompted_arg.attr.secret else { return cmd };
-        let parser = SecretValueParser { allow_argv: secret_attr.allow_argv, vault: vault.clone() };
+        let parser =
+            SecretValueParser { allow_argv: secret_attr.allow_argv(), vault: vault.clone() };
         with_arg_at(cmd, &prompted_arg.subcommand_path, prompted_arg.attr.arg_id, |arg| {
             arg.value_parser(parser).hide_default_value(true).hide_env_values(true)
         })
@@ -149,7 +150,7 @@ mod tests {
         editor: None,
         purpose: PromptPurpose::Value,
         question: None,
-        secret: Some(SecretAttr { allow_argv: false }),
+        secret: Some(SecretAttr::new::<SecretString>(false)),
     };
 
     static SCRIPTED_TOKEN: PromptAttr = PromptAttr {
@@ -157,7 +158,7 @@ mod tests {
         editor: None,
         purpose: PromptPurpose::Value,
         question: None,
-        secret: Some(SecretAttr { allow_argv: true }),
+        secret: Some(SecretAttr::new::<SecretString>(true)),
     };
 
     fn guarded(attr: &'static PromptAttr, vault: &Vault) -> Command {

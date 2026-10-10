@@ -78,6 +78,7 @@ pub trait CoutureParser: Parser + Couture {
         prompting::parse(
             Self::couture_command(),
             &Self::PROMPTED_ARGS,
+            &Self::MESSAGES,
             &itr.into_iter().map(Into::into).collect::<Vec<OsString>>(),
             backend,
         )
@@ -125,7 +126,7 @@ where
     #[cfg(feature = "interactive")]
     {
         let backend = crate::interactive::DefaultBackend::default();
-        prompting::parse(T::couture_command(), &T::PROMPTED_ARGS, argv, &backend)
+        prompting::parse(T::couture_command(), &T::PROMPTED_ARGS, &T::MESSAGES, argv, &backend)
     }
     #[cfg(not(feature = "interactive"))]
     {

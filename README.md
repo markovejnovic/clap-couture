@@ -38,11 +38,11 @@ With `clap-couture`, you can create categories:
 ```rust
 #[derive(Subcommand, Couture)]
 #[couture(categories = {
-    "everyday" = { title = "Everyday",
+    "everyday" = { title = "Everyday:",
                    description = "The commands you'll reach for daily" },
-    "deploy"   = { title = "Deploy",
+    "deploy"   = { title = "Deploy:",
                    description = "Ship code to production" },
-    "account"  = { title = "Account & sync" },
+    "account"  = { title = "Account & sync:" },
 })]
 enum Cmd {
     #[category("deploy")] Deploy,

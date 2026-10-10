@@ -1,8 +1,5 @@
 //! What the built-in backends share.
 
-/// The item a backend adds to an optional select; picking it leaves the arg unset.
-pub(super) const NONE_OPTION: &str = "(none)";
-
 /// A clap ANSI color, for a backend to convert into its own color type.
 pub(super) struct NamedColor(pub(super) clap::builder::styling::AnsiColor);
 

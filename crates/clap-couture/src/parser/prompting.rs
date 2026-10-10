@@ -14,9 +14,12 @@ use clap::{
 };
 
 use super::Failure;
-use crate::interactive::{
-    Backend, CommandStyles, ConfirmPrompt, PromptError, PromptedArg, PromptedArgTree, SelectPrompt,
-    TextPrompt,
+use crate::{
+    Messages,
+    interactive::{
+        Backend, CommandStyles, ConfirmPrompt, PromptError, PromptedArg, PromptedArgTree,
+        SelectPrompt, TextPrompt,
+    },
 };
 
 /// A prompted arg's accepted answer.
@@ -30,6 +33,7 @@ struct Session<'run> {
     argv: &'run [OsString],
     backend: &'run dyn Backend,
     cmd: &'run Command,
+    messages: &'run Messages,
     prompted_args: &'run [PromptedArg],
 }
 
@@ -63,12 +67,12 @@ impl Session<'_> {
         prompted_arg: &PromptedArg,
         current: Option<&str>,
     ) -> Result<Option<String>, PromptError> {
-        let question = prompted_arg.attr.question.map_or_else(
+        let question = prompted_arg.attr.question.as_ref().map_or_else(
             || {
                 arg.get_help()
                     .map_or_else(|| prompted_arg.attr.arg_id.to_owned(), ToString::to_string)
             },
-            str::to_owned,
+            |question| question.get().into_owned(),
         );
         let styles = CommandStyles(self.cmd.get_styles());
         if let Some(negate) = flag_negation(arg.get_action()) {
@@ -92,6 +96,7 @@ impl Session<'_> {
         }
         self.backend.select(&SelectPrompt {
             default: current,
+            none_option: &self.messages.none.get(),
             optional: !arg.is_required_set(),
             options: &options,
             question: &question,
@@ -120,6 +125,7 @@ impl Session<'_> {
 pub(super) fn parse<T>(
     cmd: Command,
     prompted_arg_tree: &'static PromptedArgTree,
+    messages: &Messages,
     argv: &[OsString],
     backend: &dyn Backend,
 ) -> Result<T, Failure>
@@ -135,7 +141,7 @@ where
         return super::parse(cmd, argv);
     };
 
-    let session = Session { argv, backend, cmd: &cmd, prompted_args: &prompted_args };
+    let session = Session { argv, backend, cmd: &cmd, messages, prompted_args: &prompted_args };
     let mut answers = Vec::new();
     for (prompted_arg, current) in pending(&cmd, &matches, &prompted_args) {
         if blocked(&cmd, &matches, prompted_arg, &answers) {

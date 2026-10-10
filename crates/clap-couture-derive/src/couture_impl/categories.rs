@@ -12,17 +12,18 @@ use serde::{
 use serde_tokenstream::OrderedMap;
 use syn::{Attribute, LitStr, Type};
 
+use super::messages::Messages;
 use crate::{
     clap_compat::{ClapAttrs as _, ClapFieldType as _, FieldKind, SubcommandNaming},
     input::{FieldInput, VariantInput},
-    literals::OptionStrLiteral,
+    text::{OptionalText, TextExpr},
 };
 
 /// One category, as `clap_couture::Category`.
 struct Category {
-    description: Option<String>,
+    description: Option<TextExpr>,
     label: String,
-    title: Option<String>,
+    title: Option<TextExpr>,
 }
 
 /// A variant's `#[category("...")]`: the label it files the variant under, kept as a literal for
@@ -35,14 +36,16 @@ pub(crate) struct Section {
     commands: Vec<String>,
 }
 
-/// The enum's `#[couture(...)]`.
+/// One `#[couture(...)]` on the deriving type.
 #[derive(Deserialize)]
-struct Spec {
+pub(crate) struct Spec {
     /// In declared order.
     #[serde(default, deserialize_with = "in_declared_order")]
     categories: Vec<(String, SpecCategory)>,
     #[serde(default)]
     inherit: Option<Inheritance>,
+    #[serde(default)]
+    pub(crate) messages: Option<Messages>,
 }
 
 impl TryFrom<&Attribute> for CategoryAttr {
@@ -58,12 +61,20 @@ impl Spec {
         let list = attr.meta.require_list()?;
         Ok(serde_tokenstream::from_tokenstream_spanned(list.delimiter.span(), &list.tokens)?)
     }
+
+    /// Each `#[couture(...)]` in `attrs`, parsed.
+    ///
+    /// # Errors
+    /// - A malformed `#[couture(...)]`.
+    pub(crate) fn parse_all(attrs: &[Attribute]) -> darling::Result<Vec<Self>> {
+        attrs.iter().filter(|attr| attr.path().is_ident("couture")).map(Self::parse).collect()
+    }
 }
 
 #[derive(Deserialize)]
 struct SpecCategory {
-    description: Option<String>,
-    title: Option<String>,
+    description: Option<TextExpr>,
+    title: Option<TextExpr>,
 }
 
 /// The categories an `impl Couture` reports.
@@ -104,24 +115,17 @@ impl Categories {
         }
     }
 
-    /// File each variant's `#[category("...")]` under the enum's categories.
+    /// File each variant's `#[category("...")]` under the categories of the enum's `specs`.
     ///
     /// # Errors
-    /// - A malformed `#[couture(...)]` or `#[category(...)]`.
+    /// - A malformed `#[category(...)]`.
     /// - A category the enum neither declares nor inherits, unless it declares and inherits none.
     /// - A `#[category("...")]` on a `#[command(flatten)]` variant, which is no command itself.
     pub(crate) fn parse(
-        attrs: &[Attribute],
+        specs: Vec<Spec>,
         variants: &[VariantInput],
         naming: &SubcommandNaming,
     ) -> darling::Result<Self> {
-        // Each `#[couture(...)]` on the enum, parsed.
-        let specs = attrs
-            .iter()
-            .filter(|attr| attr.path().is_ident("couture"))
-            .map(Spec::parse)
-            .collect::<darling::Result<Vec<_>>>()?;
-
         let inheritance = Inheritance::new(&specs);
 
         // The categories the enum declares, in declared order.
@@ -319,8 +323,8 @@ impl ToTokens for Categories {
 impl ToTokens for Category {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         let label = &self.label;
-        let description = OptionStrLiteral::from(&self.description);
-        let title = OptionStrLiteral::from(&self.title);
+        let description = OptionalText::from(&self.description);
+        let title = OptionalText::from(&self.title);
         tokens.extend(quote! {
             ::clap_couture::Category { description: #description, label: #label, title: #title }
         });

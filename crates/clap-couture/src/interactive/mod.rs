@@ -85,6 +85,8 @@ pub struct ConfirmPrompt<'prompt> {
 pub struct SelectPrompt<'prompt> {
     /// The name of the option Enter accepts, if any.
     pub default: Option<&'prompt str>,
+    /// The extra option an optional prompt lists to pick none of the options.
+    pub none_option: &'prompt str,
     /// Picking none of the options is allowed, and leaves the arg unset.
     pub optional: bool,
     /// The visible possible values, in declared order.

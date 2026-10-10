@@ -14,7 +14,7 @@ use inquire::{
 
 use super::{
     Backend, CommandStyles,
-    builtin::{ClapColor, ClapStyle, NONE_OPTION, NamedColor},
+    builtin::{ClapColor, ClapStyle, NamedColor},
 };
 use crate::interactive::{ConfirmPrompt, PromptError, SelectPrompt, TextPrompt};
 
@@ -37,7 +37,7 @@ impl Backend for Inquire {
         let names: Vec<&str> = prompt.options.iter().map(PossibleValue::get_name).collect();
         let default =
             prompt.default.and_then(|default| names.iter().position(|name| *name == default));
-        let none = prompt.optional.then_some(NONE_OPTION);
+        let none = prompt.optional.then_some(prompt.none_option);
         let items: Vec<&str> = names.iter().copied().chain(none).collect();
         let select = Select::new(prompt.question, items)
             .with_render_config(RenderConfig::from(prompt.styles));
@@ -47,7 +47,7 @@ impl Backend for Inquire {
         }
         .raw_prompt()
         .map_err(InquireError)?;
-        // Past the options is the `NONE_OPTION` item, only listed for an optional prompt.
+        // Past the options is the none option, only listed for an optional prompt.
         Ok(names.get(picked.index).map(|name| (*name).to_owned()))
     }
 

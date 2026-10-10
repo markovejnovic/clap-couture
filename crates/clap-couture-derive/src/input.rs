@@ -15,7 +15,7 @@ use darling::{
 };
 use syn::{Attribute, Generics, Ident, Type, ext::IdentExt as _};
 
-use crate::clap_compat::ClapAttrs as _;
+use crate::{clap_compat::ClapAttrs as _, text::TextExpr};
 
 /// The item `#[derive(Couture)]` is on.
 #[derive(FromDeriveInput)]
@@ -33,8 +33,8 @@ pub(crate) struct CoutureInput {
 pub(crate) struct FieldInput {
     pub(crate) attrs: Vec<Attribute>,
     pub(crate) ident: Option<Ident>,
-    /// `Inherit` for `#[couture(prompt)]`, `Explicit` for `#[couture(prompt = "...")]`.
-    pub(crate) prompt: Option<SpannedValue<Override<String>>>,
+    /// `Inherit` for `#[couture(prompt)]`, `Explicit` for `#[couture(prompt = ...)]`.
+    pub(crate) prompt: Option<SpannedValue<Override<TextExpr>>>,
     pub(crate) ty: Type,
 }
 

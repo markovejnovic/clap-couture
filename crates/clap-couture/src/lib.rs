@@ -83,11 +83,16 @@
 //! The subcommands stay visible to clap, so shell completions and
 //! `tool <cmd> --help` are unaffected -- only the help *listing* changes.
 
+extern crate alloc;
+
 #[cfg(feature = "interactive")]
 pub mod interactive;
 mod maybe_couture;
 mod parser;
 mod render;
+mod text;
+
+use alloc::borrow::Cow;
 
 use clap::{Command, builder::StyledStr};
 pub use clap_couture_derive::Couture;
@@ -95,6 +100,7 @@ pub use clap_couture_derive::Couture;
 pub use maybe_couture::{MaybeCouture, NotCouture};
 pub use parser::CoutureParser;
 use render::CommandRenderExt as _;
+pub use text::Text;
 
 /// A clap subcommand name, eg. `foo` in `app foo`.
 pub struct CommandName(&'static str);
@@ -113,25 +119,113 @@ impl CommandName {
     }
 }
 
+/// The text couture prints itself, for localizing it.
+///
+/// Set any of it with `#[couture(messages = { ... })]` on the type you parse; each value takes an
+/// expression like [`Text`]. A heading message includes its trailing colon, since languages
+/// punctuate it differently: `Usage:`, `用法：`, `Utilisation :`.
+///
+/// # Example
+#[cfg_attr(feature = "interactive", doc = "```")]
+#[cfg_attr(not(feature = "interactive"), doc = "```ignore")]
+/// use clap::{Parser, Subcommand, ValueEnum};
+/// use clap_couture::{Couture, CoutureParser as _};
+///
+/// #[derive(Parser, Couture)]
+/// #[command(name = "tool")]
+/// #[couture(messages = {
+///     none = "无",
+///     options = "选项：",
+///     usage = "用法：",
+/// })]
+/// struct Cli {
+///     /// 部署区域
+///     #[arg(long, value_enum)]
+///     #[couture(prompt)]
+///     region: Option<Region>,
+///
+///     #[command(subcommand)]
+///     cmd: Cmd,
+/// }
+///
+/// #[derive(Clone, ValueEnum)]
+/// enum Region {
+///     Eu,
+///     Us,
+/// }
+///
+/// #[derive(Subcommand, Couture)]
+/// #[couture(categories = { "deploy" = { title = "部署：" } })]
+/// enum Cmd {
+///     /// 部署当前项目
+///     #[category("deploy")]
+///     Ship,
+/// }
+///
+/// Cli::couture_command().print_help().unwrap();
+/// ```
+/// 
+/// `tool --help` renders
+/// ```text
+/// 用法：
+///   tool [OPTIONS] <COMMAND>
+///
+/// 部署：
+///   ship  部署当前项目
+///
+/// 选项：
+///       --region <REGION>  部署区域 [possible values: eu, us]
+///   -h, --help             Print help
+/// ```
+/// 
+/// and `tool ship`, run on a terminal without `--region`, asks for the optional region with
+/// `none` as its last choice. Picking it leaves `region` unset. With the
+/// `interactive-cliclack` backend:
+/// ```text
+/// ◆  部署区域
+/// │  ● eu
+/// │  ○ us
+/// │  ○ 无
+/// └
+/// ```
+/// 
+/// `Print help` and `[possible values: ...]` are clap's own text; for the help flag, disable
+/// clap's and add your own.
+#[derive(Clone, Copy, Debug)]
+pub struct Messages {
+    /// The select option that leaves an optional prompted arg unset. The default is `"(none)"`.
+    pub none: Text,
+    /// The heading above the options in `--help`. The default is `"Options:"`.
+    pub options: Text,
+    /// The heading above the usage in `--help`. The default is `"Usage:"`.
+    pub usage: Text,
+}
+
+impl Messages {
+    /// clap's English wording.
+    pub const DEFAULT: Self = Self {
+        none: Text::Literal("(none)"),
+        options: Text::Literal("Options:"),
+        usage: Text::Literal("Usage:"),
+    };
+}
+
 /// Defines a category of similar commands.
 pub struct Category {
     /// Text printed beside the heading, if any.
-    pub description: Option<&'static str>,
+    pub description: Option<Text>,
 
     /// Key that `#[category("...")]` refers to.
     pub label: &'static str,
 
-    /// Heading shown to the user; falls back to [`Self::label`].
-    pub title: Option<&'static str>,
+    /// Heading shown to the user, colon included; falls back to [`Self::label`] and a colon.
+    pub title: Option<Text>,
 }
 
 impl Category {
-    /// The user-facing heading: [`Self::title`], falling back to [`Self::label`].
-    pub(crate) const fn heading(&self) -> &'static str {
-        match self.title {
-            Some(title) => title,
-            None => self.label,
-        }
+    /// The user-facing heading: [`Self::title`], falling back to [`Self::label`] and a colon.
+    pub(crate) fn heading(&self) -> Cow<'static, str> {
+        self.title.as_ref().map_or_else(|| Cow::Owned(format!("{}:", self.label)), Text::get)
     }
 }
 
@@ -274,6 +368,9 @@ pub trait Couture {
     /// Each command paired with the category it belongs to.
     const CATEGORIES: CommandCategoryMap = CommandCategoryMap::EMPTY;
 
+    /// The text couture prints itself, from `#[couture(messages = { ... })]`.
+    const MESSAGES: Messages = Messages::DEFAULT;
+
     /// The args marked `#[couture(prompt)]`, and where they sit.
     #[cfg(feature = "interactive")]
     #[doc(hidden)]
@@ -282,7 +379,8 @@ pub trait Couture {
 
 /// Extension trait adding categorized help to a [`clap::Command`].
 pub trait CommandExt {
-    /// Group this command's `--help` subcommand listing by `T`'s categories.
+    /// Group this command's `--help` subcommand listing by `T`'s categories, with `T`'s
+    /// [`Messages`].
     ///
     /// Overwrites the command's [`help_template`](Command::help_template) and
     /// [`before_help`](Command::before_help).
@@ -327,11 +425,13 @@ impl CommandExt for Command {
         self.write_command_sections(&mut before, T::CATEGORIES).ok();
 
         // clap can't regroup its subcommand listing, so the template lists `{options}` instead of
-        // `{all-args}` and the menu goes in `{before-help}`.
-        let header = styles.get_header();
+        // `{all-args}` and the menu goes in `{before-help}`. The headings are written out rather
+        // than clap's `{usage-heading}`, which is always English.
+        let (header, usage) = (styles.get_header(), styles.get_usage());
+        let (options_heading, usage_heading) = (T::MESSAGES.options.get(), T::MESSAGES.usage.get());
         let template = format!(
-            "{{name}} {{version}}\n{{author}}\n{{about}}\n\n{{usage-heading}}\n  \
-             {{usage}}\n\n{{before-help}}{header}Options:{header:#}\n{{options}}"
+            "{{name}} {{version}}\n{{author}}\n{{about}}\n\n{usage}{usage_heading}{usage:#}\n  \
+             {{usage}}\n\n{{before-help}}{header}{options_heading}{header:#}\n{{options}}"
         );
 
         self.before_help(before).help_template(template)

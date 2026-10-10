@@ -4,7 +4,10 @@
 
 mod common;
 
-use core::sync::atomic::{AtomicUsize, Ordering};
+use core::{
+    cell::Cell,
+    sync::atomic::{AtomicUsize, Ordering},
+};
 
 use clap::{
     ArgGroup, Args, Parser, Subcommand, ValueEnum, builder::ArgPredicate, error::ErrorKind,
@@ -17,6 +20,11 @@ use rstest::rstest;
 static PLAIN_PARSES: AtomicUsize = AtomicUsize::new(0);
 /// How often `Piped`'s value parser ran, to count parses of argv.
 static PIPED_PARSES: AtomicUsize = AtomicUsize::new(0);
+
+thread_local! {
+    /// What `Localized` asks; thread-local, as tests run in parallel.
+    static REGION_QUESTION: Cell<&'static str> = const { Cell::new("Which region?") };
+}
 
 #[derive(Parser, Couture, Debug)]
 struct Deploy {
@@ -202,6 +210,21 @@ struct Piped {
 
     #[arg(long)]
     #[couture(prompt)]
+    region: String,
+}
+
+#[derive(Parser, Couture, Debug)]
+#[couture(messages = { none = "(keine)" })]
+struct NoneOption {
+    #[arg(long, value_enum)]
+    #[couture(prompt = "Which color?")]
+    color: Option<Color>,
+}
+
+#[derive(Parser, Couture, Debug)]
+struct Localized {
+    #[arg(long)]
+    #[couture(prompt = REGION_QUESTION.get())]
     region: String,
 }
 
@@ -467,4 +490,23 @@ fn leaves_an_optional_enum_unset_when_none_is_picked() {
     let backend = ScriptedBackend::new([Reply::Select(None)]);
     let paint = Paint::couture_try_parse_from_with(&backend, ["paint"]);
     assert_eq!(paint.map(|paint| paint.color).ok(), Some(None));
+}
+
+#[rstest]
+fn a_prompt_expression_is_evaluated_when_asked() {
+    REGION_QUESTION.set("Welche Region?");
+    let backend = ScriptedBackend::new([Reply::Text(Some("eu"))]);
+    let localized = Localized::couture_try_parse_from_with(&backend, ["deploy"]);
+    assert_eq!(localized.map(|localized| localized.region).ok().as_deref(), Some("eu"));
+    assert_eq!(backend.asked(), [asked(Kind::Text, "Welche Region?", None, &[])]);
+}
+
+#[rstest]
+fn an_optional_select_lists_the_none_message() {
+    let backend = ScriptedBackend::new([Reply::Select(None)]);
+    let cli = NoneOption::couture_try_parse_from_with(&backend, ["paint"]);
+    assert_eq!(cli.map(|cli| cli.color).ok(), Some(None));
+    assert_eq!(backend.asked(), [asked(Kind::Select, "Which color?", None, &[
+        "blue", "red", "(keine)"
+    ])]);
 }

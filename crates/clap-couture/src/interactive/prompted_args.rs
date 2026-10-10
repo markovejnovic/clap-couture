@@ -1,12 +1,14 @@
 //! The static tree of prompted args that `#[derive(Couture)]` emits as `Couture::PROMPTED_ARGS`.
 
+use crate::Text;
+
 /// One `#[couture(prompt)]` or `#[couture(prompt = "...")]`.
 #[derive(Debug)]
 pub struct PromptAttr {
     /// The clap id of the arg it is on.
     pub arg_id: &'static str,
-    /// The `prompt = "..."` override; `None` asks the arg's help text.
-    pub question: Option<&'static str>,
+    /// The `prompt = ...` override; `None` asks the arg's help text.
+    pub question: Option<Text>,
 }
 
 /// An arg to prompt for, and the subcommand path to the command that owns it.

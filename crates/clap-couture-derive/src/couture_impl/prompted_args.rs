@@ -12,7 +12,7 @@ use syn::Type;
 use crate::{
     clap_compat::{ClapAttrs as _, ClapFieldType as _, FieldKind, SubcommandNaming},
     input::{FieldInput, VariantInput},
-    literals::OptionStrLiteral,
+    text::{OptionalText, TextExpr},
 };
 
 /// The prompted args of one command level, and the tree below it.
@@ -37,8 +37,8 @@ enum PromptedArgBranch {
 struct PromptAttr {
     /// The clap id of the arg it is on.
     arg_id: String,
-    /// The `prompt = "..."` override; `None` asks the arg's help text.
-    question: Option<String>,
+    /// The `prompt = ...` override; `None` asks the arg's help text.
+    question: Option<TextExpr>,
 }
 
 impl PromptedArgTree {
@@ -112,7 +112,7 @@ impl PromptedArgBranch {
 }
 
 impl PromptAttr {
-    fn new(field: &FieldInput, prompt: &SpannedValue<Override<String>>) -> darling::Result<Self> {
+    fn new(field: &FieldInput, prompt: &SpannedValue<Override<TextExpr>>) -> darling::Result<Self> {
         let span = prompt.span();
         if !cfg!(feature = "interactive") {
             return Err(Error::custom(
@@ -201,7 +201,7 @@ impl ToTokens for PromptedArgBranch {
 impl ToTokens for PromptAttr {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         let arg_id = &self.arg_id;
-        let question = OptionStrLiteral::from(&self.question);
+        let question = OptionalText::from(&self.question);
         tokens.extend(quote! {
             ::clap_couture::interactive::PromptAttr { arg_id: #arg_id, question: #question }
         });

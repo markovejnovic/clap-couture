@@ -47,7 +47,7 @@ struct Verbosity {
 }
 
 #[derive(Subcommand, Couture)]
-#[couture(categories = { "a" = { title = "Alpha" }, "b" = { title = "Beta" } })]
+#[couture(categories = { "a" = { title = "Alpha:" }, "b" = { title = "Beta:" } })]
 enum Cmd {
     #[command(flatten)]
     Account(Account),
@@ -57,7 +57,7 @@ enum Cmd {
 }
 
 #[derive(Subcommand, Couture)]
-#[couture(categories = { "b" = { title = "Child title" } })]
+#[couture(categories = { "b" = { title = "Child title:" } })]
 enum Account {
     /// Log in.
     #[category("b")]

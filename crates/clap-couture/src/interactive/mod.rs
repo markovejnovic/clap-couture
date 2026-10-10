@@ -99,6 +99,63 @@
 //!     follow: bool,
 //! }
 //! ```
+//! 
+//! # Secrets
+//!
+//! Add `secret` to ask for a [`secrecy::SecretString`] without echoing it. The answer never
+//! reaches clap as plaintext, and the arg refuses a value from the command line, where `ps` and
+//! shell history would see it; `secret(allow_argv)` allows it.
+//! ```
+//! use clap::Parser;
+//! use clap_couture::{Couture, interactive::secrecy::SecretString};
+//!
+//! #[derive(Parser, Couture)]
+//! struct Cli {
+//!     /// API token
+//!     #[arg(long, env = "API_TOKEN")]
+//!     #[couture(prompt, secret)]
+//!     token: SecretString,
+//! }
+//! ```
+//! 
+//! `secret` modifies a prompt, so it needs one:
+//! ```compile_fail
+//! use clap::Parser;
+//! use clap_couture::{Couture, interactive::secrecy::SecretString};
+//!
+//! #[derive(Parser, Couture)]
+//! struct Cli {
+//!     #[arg(long)]
+//!     #[couture(secret)]
+//!     token: SecretString,
+//! }
+//! ```
+//! 
+//! A secret takes no default, which would be baked into the binary:
+//! ```compile_fail
+//! use clap::Parser;
+//! use clap_couture::{Couture, interactive::secrecy::SecretString};
+//!
+//! #[derive(Parser, Couture)]
+//! struct Cli {
+//!     #[arg(long, default_value = "hunter2")]
+//!     #[couture(prompt, secret)]
+//!     token: SecretString,
+//! }
+//! ```
+//! 
+//! and its field must be a `SecretString`:
+//! ```compile_fail
+//! use clap::Parser;
+//! use clap_couture::Couture;
+//!
+//! #[derive(Parser, Couture)]
+//! struct Cli {
+//!     #[arg(long)]
+//!     #[couture(prompt, secret)]
+//!     token: String,
+//! }
+//! ```
 
 mod backend;
 mod prompted_args;
@@ -118,13 +175,13 @@ use clap::builder::PossibleValue;
 #[doc(hidden)]
 pub use prompted_args::{
     EditorAttr, PromptAttr, PromptPurpose, PromptedArg, PromptedArgBranch, PromptedArgTree,
+    SecretAttr, SecretField,
 };
-
-pub use crate::os::signal::Signal;
-
 /// The [`secrecy`](https://docs.rs/secrecy) crate couture's secret args are typed with, so the app
 /// names the same `SecretString`.
 pub use secrecy;
+
+pub use crate::os::signal::Signal;
 
 /// Why a prompt produced no answer.
 #[derive(Debug, thiserror::Error)]

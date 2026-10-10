@@ -164,6 +164,10 @@ pub(crate) trait ClapAttrs {
     /// no name.
     fn for_each_clap_key(&self, on_key: impl FnMut(&ParseNestedMeta<'_>) -> syn::Result<()>);
 
+    /// Check for any key that gives the arg a default: `default_value`, `default_value_t`,
+    /// `default_values_t`, `default_missing_value`, and their `_os` forms.
+    fn has_clap_default(&self) -> bool;
+
     /// Check for `key` with or without a value, as `subcommand` in `#[command(subcommand)]`.
     fn has_clap_key(&self, key: &str) -> bool;
 }
@@ -203,6 +207,18 @@ impl ClapAttrs for [Attribute] {
             })
             .ok();
         }
+    }
+
+    fn has_clap_default(&self) -> bool {
+        let mut found = false;
+        self.for_each_clap_key(|meta| {
+            found |= meta.path.get_ident().is_some_and(|key| {
+                let key = key.to_string();
+                key.starts_with("default_value") || key.starts_with("default_missing_value")
+            });
+            Ok(())
+        });
+        found
     }
 
     fn has_clap_key(&self, key: &str) -> bool {

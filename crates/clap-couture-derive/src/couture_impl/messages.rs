@@ -3,7 +3,6 @@
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{ToTokens, quote};
 use serde::Deserialize;
-use syn::Attribute;
 
 use crate::text::TextExpr;
 
@@ -16,34 +15,11 @@ pub(crate) struct Messages {
     usage_heading: Option<TextExpr>,
 }
 
-/// One `#[couture(...)]`'s `messages = { ... }`. Its other keys are read elsewhere.
-#[derive(Deserialize)]
-struct MessagesSpec {
-    #[serde(default)]
-    messages: Option<Messages>,
-}
-
 impl Messages {
-    /// The messages of every `#[couture(messages = { ... })]` in `attrs`; for a message set more
-    /// than once, the last one wins. `None` when none sets any.
-    ///
-    /// # Errors
-    /// - A malformed `#[couture(...)]`, or a message couture doesn't print.
-    pub(crate) fn parse(attrs: &[Attribute]) -> darling::Result<Option<Self>> {
-        attrs.iter().filter(|attr| attr.path().is_ident("couture")).try_fold(
-            None,
-            |merged: Option<Self>, attr| {
-                let list = attr.meta.require_list()?;
-                let spec: MessagesSpec = serde_tokenstream::from_tokenstream_spanned(
-                    list.delimiter.span(),
-                    &list.tokens,
-                )?;
-                Ok(match (merged, spec.messages) {
-                    (Some(earlier), Some(later)) => Some(later.or(earlier)),
-                    (merged, later) => later.or(merged),
-                })
-            },
-        )
+    /// Each `messages = { ... }` in written order, merged: for a message set more than once,
+    /// the last one wins. `None` when there are none.
+    pub(crate) fn merged(all_messages: impl IntoIterator<Item = Self>) -> Option<Self> {
+        all_messages.into_iter().reduce(|earlier, later| later.or(earlier))
     }
 
     /// These messages, with `earlier`'s filling the ones they don't set.

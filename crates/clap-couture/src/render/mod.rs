@@ -91,10 +91,10 @@ where
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let header = self.view.styles.get_header();
         let heading = self.category.heading();
-        write!(f, "{header}{heading}:{header:#}")?;
+        write!(f, "{header}{heading}{header:#}")?;
         self.category.description.as_ref().map_or(Ok(()), |description| {
             let col = self.view.layout.description_col;
-            let pad = col.saturating_sub(heading.width().saturating_add(1));
+            let pad = col.saturating_sub(heading.width());
             write!(f, "{:pad$}", "")?;
             self.view.renderer.render_str(f, &description.get())
         })
@@ -115,7 +115,7 @@ impl MenuLayout {
         headings: impl Iterator<Item = Cow<'static, str>>,
     ) -> Self {
         let name_width = names.map(UnicodeWidthStr::width).max().unwrap_or(0);
-        let heading_width = headings.map(|h| h.width().saturating_add(1)).max().unwrap_or(0);
+        let heading_width = headings.map(|h| h.width()).max().unwrap_or(0);
 
         // A description at or next to the about column reads as another row, so push it two
         // cells past.

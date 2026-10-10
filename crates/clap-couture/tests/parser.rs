@@ -17,7 +17,7 @@ struct Nested {
 }
 
 #[derive(Subcommand, Couture)]
-#[couture(categories = { "everyday" = { title = "Everyday" } })]
+#[couture(categories = { "everyday" = { title = "Everyday:" } })]
 enum Cmd {
     /// Tail live logs.
     #[category("everyday")]

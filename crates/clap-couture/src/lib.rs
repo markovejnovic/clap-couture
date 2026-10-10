@@ -90,6 +90,7 @@ pub mod interactive;
 mod maybe_couture;
 mod parser;
 mod render;
+mod text;
 
 use alloc::borrow::Cow;
 
@@ -99,6 +100,7 @@ pub use clap_couture_derive::Couture;
 pub use maybe_couture::{MaybeCouture, NotCouture};
 pub use parser::CoutureParser;
 use render::CommandRenderExt as _;
+pub use text::Text;
 
 /// A clap subcommand name, eg. `foo` in `app foo`.
 pub struct CommandName(&'static str);
@@ -117,43 +119,85 @@ impl CommandName {
     }
 }
 
-/// User-facing text from a `#[couture(...)]` attribute.
-///
-/// A string literal is kept as is. Any other expression, eg. `title = t!("deploy")`, mirrors
-/// clap's `about = expr`: it is evaluated each time the text is shown, so it follows a locale
-/// picked at runtime.
-#[derive(Clone, Copy, Debug)]
-#[non_exhaustive]
-pub enum Text {
-    /// An expression evaluated each time the text is shown.
-    Computed(fn() -> Cow<'static, str>),
-    /// A string literal.
-    Literal(&'static str),
-}
-
-impl Text {
-    /// The text to show now.
-    #[must_use]
-    pub fn get(&self) -> Cow<'static, str> {
-        match self {
-            Self::Computed(compute) => compute(),
-            Self::Literal(literal) => Cow::Borrowed(literal),
-        }
-    }
-}
-
 /// The text couture prints itself, for localizing it.
 ///
 /// Set any of it with `#[couture(messages = { ... })]` on the type you parse; each value takes an
-/// expression like [`Text`]. A heading is printed with a `:` after it, the way clap prints its
-/// own.
+/// expression like [`Text`]. A heading message includes its trailing colon, since languages
+/// punctuate it differently: `Usage:`, `用法：`, `Utilisation :`.
+///
+/// # Example
+#[cfg_attr(feature = "interactive", doc = "```")]
+#[cfg_attr(not(feature = "interactive"), doc = "```ignore")]
+/// use clap::{Parser, Subcommand, ValueEnum};
+/// use clap_couture::{Couture, CoutureParser as _};
+///
+/// #[derive(Parser, Couture)]
+/// #[command(name = "tool")]
+/// #[couture(messages = {
+///     none_option = "无",
+///     options_heading = "选项：",
+///     usage_heading = "用法：",
+/// })]
+/// struct Cli {
+///     /// 部署区域
+///     #[arg(long, value_enum)]
+///     #[couture(prompt)]
+///     region: Option<Region>,
+///
+///     #[command(subcommand)]
+///     cmd: Cmd,
+/// }
+///
+/// #[derive(Clone, ValueEnum)]
+/// enum Region {
+///     Eu,
+///     Us,
+/// }
+///
+/// #[derive(Subcommand, Couture)]
+/// #[couture(categories = { "deploy" = { title = "部署：" } })]
+/// enum Cmd {
+///     /// 部署当前项目
+///     #[category("deploy")]
+///     Ship,
+/// }
+///
+/// Cli::couture_command().print_help().unwrap();
+/// ```
+/// 
+/// `tool --help` renders
+/// ```text
+/// 用法：
+///   tool [OPTIONS] <COMMAND>
+///
+/// 部署：
+///   ship  部署当前项目
+///
+/// 选项：
+///       --region <REGION>  部署区域 [possible values: eu, us]
+///   -h, --help             Print help
+/// ```
+/// 
+/// and `tool ship`, run on a terminal without `--region`, asks for the optional region with
+/// `none_option` as its last choice. Picking it leaves `region` unset. With the
+/// `interactive-cliclack` backend:
+/// ```text
+/// ◆  部署区域
+/// │  ● eu
+/// │  ○ us
+/// │  ○ 无
+/// └
+/// ```
+/// 
+/// `Print help` and `[possible values: ...]` are clap's own text; for the help flag, disable
+/// clap's and add your own.
 #[derive(Clone, Copy, Debug)]
 pub struct Messages {
-    /// The select option that leaves an optional prompted arg unset.
+    /// The select option that leaves an optional prompted arg unset. The default is `"(none)"`.
     pub none_option: Text,
-    /// The heading above the options in `--help`.
+    /// The heading above the options in `--help`. The default is `"Options:"`.
     pub options_heading: Text,
-    /// The heading above the usage in `--help`.
+    /// The heading above the usage in `--help`. The default is `"Usage:"`.
     pub usage_heading: Text,
 }
 
@@ -161,8 +205,8 @@ impl Messages {
     /// clap's English wording.
     pub const DEFAULT: Self = Self {
         none_option: Text::Literal("(none)"),
-        options_heading: Text::Literal("Options"),
-        usage_heading: Text::Literal("Usage"),
+        options_heading: Text::Literal("Options:"),
+        usage_heading: Text::Literal("Usage:"),
     };
 }
 
@@ -174,14 +218,14 @@ pub struct Category {
     /// Key that `#[category("...")]` refers to.
     pub label: &'static str,
 
-    /// Heading shown to the user; falls back to [`Self::label`].
+    /// Heading shown to the user, colon included; falls back to [`Self::label`] and a colon.
     pub title: Option<Text>,
 }
 
 impl Category {
-    /// The user-facing heading: [`Self::title`], falling back to [`Self::label`].
+    /// The user-facing heading: [`Self::title`], falling back to [`Self::label`] and a colon.
     pub(crate) fn heading(&self) -> Cow<'static, str> {
-        self.title.as_ref().map_or(Cow::Borrowed(self.label), Text::get)
+        self.title.as_ref().map_or_else(|| Cow::Owned(format!("{}:", self.label)), Text::get)
     }
 }
 
@@ -387,8 +431,8 @@ impl CommandExt for Command {
         let (options_heading, usage_heading) =
             (T::MESSAGES.options_heading.get(), T::MESSAGES.usage_heading.get());
         let template = format!(
-            "{{name}} {{version}}\n{{author}}\n{{about}}\n\n{usage}{usage_heading}:{usage:#}\n  \
-             {{usage}}\n\n{{before-help}}{header}{options_heading}:{header:#}\n{{options}}"
+            "{{name}} {{version}}\n{{author}}\n{{about}}\n\n{usage}{usage_heading}{usage:#}\n  \
+             {{usage}}\n\n{{before-help}}{header}{options_heading}{header:#}\n{{options}}"
         );
 
         self.before_help(before).help_template(template)

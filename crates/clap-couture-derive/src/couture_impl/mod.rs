@@ -9,7 +9,11 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::{ToTokens, quote};
 use syn::{Generics, Ident};
 
-use self::{categories::Categories, messages::Messages, prompted_args::PromptedArgTree};
+use self::{
+    categories::{Categories, Spec},
+    messages::Messages,
+    prompted_args::PromptedArgTree,
+};
 use crate::{clap_compat::SubcommandNaming, input::CoutureInput};
 
 /// The `impl clap_couture::Couture` one derive emits.
@@ -30,10 +34,12 @@ impl TryFrom<CoutureInput> for CoutureImpl {
     type Error = darling::Error;
 
     fn try_from(input: CoutureInput) -> darling::Result<Self> {
+        let mut specs = Spec::parse_all(&input.attrs)?;
+        let messages = Messages::merged(specs.iter_mut().filter_map(|spec| spec.messages.take()));
         let (categories, prompted_arg_tree) = match &input.data {
             ast::Data::Enum(variants) => {
                 let naming = SubcommandNaming::from_container(&input.attrs);
-                let categories = Categories::parse(&input.attrs, variants, &naming)?;
+                let categories = Categories::parse(specs, variants, &naming)?;
                 (categories, PromptedArgTree::of_variants(variants, &naming)?)
             }
             ast::Data::Struct(fields) => {
@@ -42,7 +48,7 @@ impl TryFrom<CoutureInput> for CoutureImpl {
         };
         Ok(Self {
             categories,
-            messages: Messages::parse(&input.attrs)?,
+            messages,
             prompted_arg_tree,
             type_generics: input.generics,
             type_name: input.ident,

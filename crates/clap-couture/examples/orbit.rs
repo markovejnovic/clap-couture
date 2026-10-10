@@ -42,9 +42,9 @@ struct Cli {
 
 #[derive(Subcommand, Couture)]
 #[couture(categories = {
-    "everyday" = { title = "Everyday", description = "The commands you'll reach for daily" },
-    "deploy"   = { title = "Deploy",   description = "Ship code to production" },
-    "account"  = { title = "Account & sync" },
+    "everyday" = { title = "Everyday:", description = "The commands you'll reach for daily" },
+    "deploy"   = { title = "Deploy:",  description = "Ship code to production" },
+    "account"  = { title = "Account & sync:" },
 })]
 enum Cmd {
     /// Ship the current project.

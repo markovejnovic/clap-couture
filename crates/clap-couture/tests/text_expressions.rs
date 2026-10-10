@@ -24,8 +24,8 @@ struct Cli {
 #[derive(Subcommand, Couture)]
 #[couture(categories = {
     "deploy" = { title = t("deploy.title"), description = t("deploy.description") },
-    "account" = { title = format!("{}!", "Account"), description = Cow::Borrowed("Who you are") },
-    "everyday" = { title = "Everyday" },
+    "account" = { title = format!("{}:", "Account"), description = Cow::Borrowed("Who you are") },
+    "everyday" = { title = "Everyday:" },
 })]
 enum Cmd {
     /// Sign in.
@@ -53,8 +53,8 @@ fn help_in(locale: Locale) -> String {
 /// A stand-in for an i18n crate's `t!`: the message for `key` in the current locale.
 fn t(key: &'static str) -> &'static str {
     match (LOCALE.get(), key) {
-        (Locale::English, "deploy.title") => "Deploy",
-        (Locale::German, "deploy.title") => "Bereitstellen",
+        (Locale::English, "deploy.title") => "Deploy:",
+        (Locale::German, "deploy.title") => "Bereitstellen:",
         (Locale::English, "deploy.description") => "Ship code to production",
         (Locale::German, "deploy.description") => "Code in Produktion bringen",
         _ => key,
@@ -77,7 +77,7 @@ fn category_text_follows_the_runtime_locale(
 #[rstest]
 fn category_text_takes_strings_cows_and_literals() {
     let help = help_in(Locale::English);
-    for text in ["Account!:", "Who you are", "Everyday:"] {
+    for text in ["Account:", "Who you are", "Everyday:"] {
         assert!(help.contains(text), "no `{text}` in:\n{help}");
     }
 }

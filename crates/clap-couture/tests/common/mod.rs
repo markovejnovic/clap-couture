@@ -3,6 +3,7 @@
 use core::cell::RefCell;
 use std::io;
 
+use clap::builder::PossibleValue;
 use clap_couture::interactive::{
     Backend, CommandStyles, ConfirmPrompt, PromptError, SelectPrompt, TextPrompt,
 };
@@ -108,7 +109,7 @@ impl Backend for ScriptedBackend {
             options: prompt
                 .options
                 .iter()
-                .map(|value| value.get_name())
+                .map(PossibleValue::get_name)
                 .chain(prompt.optional.then_some(prompt.none_option))
                 .map(str::to_owned)
                 .collect(),

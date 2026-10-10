@@ -15,7 +15,9 @@ use crate::{couture_impl::CoutureImpl, input::CoutureInput};
 /// Enable [`clap-couture`](https://docs.rs/clap-couture) on your clap subcommand enum.
 ///
 /// - `#[couture(categories = { "key" = { title = "...", description = "..." }, ... })]` on the enum
-///   declares the categories in display order. `title` and `description` are optional.
+///   declares the categories in display order. `title` and `description` are optional. `title` is
+///   the heading as printed, colon included (`"Deploy:"`, `"部署："`); without one, the heading is
+///   the key and a colon.
 /// - Similar to [`clap`], you can pass arbitrary expressions to any field, eg. `title =
 ///   t!("deploy")`, which can enable localized text.
 /// - `#[category("key")]` on a variant files it under that category. Naming a category the enum
@@ -25,6 +27,9 @@ use crate::{couture_impl::CoutureImpl, input::CoutureInput};
 ///   subcommand enum must derive `Couture` too; a flattened `Args` type need not.
 /// - With the `interactive` feature, `#[couture(prompt)]` or `#[couture(prompt = "...")]` on a
 ///   field asks for that arg when the user leaves it out.
+/// - `#[couture(messages = { usage_heading = ..., options_heading = ..., none_option = ... })]`
+///   replaces the text couture prints itself, eg. to localize it. Any of the three may be left out.
+///   It applies on the type you parse, or the one you pass to `with_couture`.
 ///
 /// # Examples
 ///
@@ -42,7 +47,7 @@ use crate::{couture_impl::CoutureImpl, input::CoutureInput};
 ///
 /// #[derive(Subcommand, Couture)]
 /// #[couture(categories = {
-///     "everyday" = { title = "Everyday", description = "Commands you'll reach for daily" },
+///     "everyday" = { title = "Everyday:", description = "Commands you'll reach for daily" },
 ///     "admin" = {},
 /// })]
 /// enum Cmd {
@@ -82,7 +87,7 @@ use crate::{couture_impl::CoutureImpl, input::CoutureInput};
 /// use clap_couture::Couture;
 ///
 /// #[derive(Subcommand, Couture)]
-/// #[couture(categories = { "admin" = { title = "Administration" } })]
+/// #[couture(categories = { "admin" = { title = "Administration:" } })]
 /// enum Cmd {
 ///     #[category("admin")]
 ///     #[command(subcommand)]
@@ -96,6 +101,34 @@ use crate::{couture_impl::CoutureImpl, input::CoutureInput};
 ///     #[category("admin")]
 ///     Rotate,
 /// }
+/// ```
+///
+/// Localize the text couture prints itself:
+///
+/// ```
+/// use clap::Parser;
+/// use clap_couture::{Couture, CoutureParser as _};
+///
+/// #[derive(Parser, Couture)]
+/// #[couture(messages = { usage_heading = "Verwendung:", options_heading = "Optionen:" })]
+/// struct Cli {
+///     #[arg(long)]
+///     verbose: bool,
+/// }
+///
+/// let help = Cli::couture_command().render_help().to_string();
+/// assert!(help.contains("Verwendung:"));
+/// ```
+///
+/// A message couture doesn't print fails to compile:
+///
+/// ```compile_fail
+/// use clap::Parser;
+/// use clap_couture::Couture;
+///
+/// #[derive(Parser, Couture)]
+/// #[couture(messages = { usage = "Verwendung:" })]
+/// struct Cli {}
 /// ```
 ///
 /// With the interactive mode, you can add a couture prompt to ask the user for input interactively.

@@ -507,6 +507,6 @@ fn an_optional_select_lists_the_none_option_message() {
     let cli = NoneOption::couture_try_parse_from_with(&backend, ["paint"]);
     assert_eq!(cli.map(|cli| cli.color).ok(), Some(None));
     assert_eq!(backend.asked(), [asked(Kind::Select, "Which color?", None, &[
-        "red", "blue", "(keine)"
+        "blue", "red", "(keine)"
     ])]);
 }

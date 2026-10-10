@@ -11,16 +11,24 @@ struct Default {
 }
 
 #[derive(Parser, Couture)]
-#[couture(messages = { usage_heading = "Verwendung", options_heading = "Optionen" })]
+#[couture(messages = { usage_heading = "Verwendung:", options_heading = "Optionen:" })]
 struct German {
+    #[command(subcommand)]
+    cmd: Cmd,
+}
+
+/// A heading message carries its own colon, spaced the French way here.
+#[derive(Parser, Couture)]
+#[couture(messages = { usage_heading = "Utilisation :", options_heading = "Options :" })]
+struct French {
     #[command(subcommand)]
     cmd: Cmd,
 }
 
 /// A later `#[couture(...)]` wins, but only for the messages it sets.
 #[derive(Parser, Couture)]
-#[couture(messages = { usage_heading = "Verwendung", options_heading = "Optionen" })]
-#[couture(messages = { options_heading = String::from("Einstellungen") })]
+#[couture(messages = { usage_heading = "Verwendung:", options_heading = "Optionen:" })]
+#[couture(messages = { options_heading = String::from("Einstellungen:") })]
 struct Overridden {
     #[command(subcommand)]
     cmd: Cmd,
@@ -28,8 +36,8 @@ struct Overridden {
 
 #[derive(Subcommand, Couture)]
 #[couture(
-    categories = { "everyday" = { title = "Alltag" } },
-    messages = { options_heading = "Optionen" },
+    categories = { "everyday" = { title = "Alltag:" } },
+    messages = { options_heading = "Optionen:" },
 )]
 enum Cmd {
     /// Tail live logs.
@@ -41,6 +49,7 @@ enum Cmd {
 #[case::default(Default::couture_command(), "Usage:", "Options:")]
 #[case::set(German::couture_command(), "Verwendung:", "Optionen:")]
 #[case::set_twice(Overridden::couture_command(), "Verwendung:", "Einstellungen:")]
+#[case::own_punctuation(French::couture_command(), "Utilisation :", "Options :")]
 #[case::on_the_subcommand_enum(Default::command().with_couture::<Cmd>(), "Usage:", "Optionen:")]
 fn help_headings_take_the_messages(
     #[case] mut cmd: clap::Command,
@@ -48,6 +57,7 @@ fn help_headings_take_the_messages(
     #[case] options_heading: &str,
 ) {
     let help = cmd.render_help().to_string();
-    assert!(help.contains(usage_heading), "no `{usage_heading}` in:\n{help}");
-    assert!(help.contains(options_heading), "no `{options_heading}` in:\n{help}");
+    for heading in [usage_heading, options_heading] {
+        assert!(help.lines().any(|line| line == heading), "no `{heading}` line in:\n{help}");
+    }
 }

@@ -1,4 +1,4 @@
-//! Ask on the terminal for marked args the user left out.
+//! Ask on the terminal for prompted args the user left out.
 //!
 //! Mark a field with `#[couture(prompt)]` to ask its help text, or `#[couture(prompt = "...")]`
 //! to ask something else. When the user leaves the arg out and stdin and stderr are terminals,
@@ -21,7 +21,7 @@
 //! assert_eq!(cli.region, "eu");
 //! ```
 //!
-//! A marked arg that has a default is asked with the default pre-filled. An optional arg answered
+//! A prompted arg that has a default is asked with the default pre-filled. An optional arg answered
 //! with nothing stays unset. An arg passed on the command line or through its env var is never
 //! asked, and neither is one that conflicts with a passed arg or an earlier answer. Answers are
 //! not re-checked against `requires`, `required_if_eq` and similar rules between args.
@@ -48,7 +48,7 @@ pub use backend::{Backend, CommandStyles};
 use clap::builder::PossibleValue;
 pub(crate) use flow::run;
 #[doc(hidden)]
-pub use tree::{Mark, Probe, ProbeFallback, PromptChild, PromptNode, PromptSpec};
+pub use tree::{Probe, ProbeFallback, PromptChild, PromptNode, PromptSpec, PromptedArg};
 
 /// Why a prompt produced no answer.
 #[derive(Debug, thiserror::Error)]

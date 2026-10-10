@@ -1,4 +1,4 @@
-//! `#[couture(prompt)]` asks for marked args the user left out, then parses the answers like
+//! `#[couture(prompt)]` asks for prompted args the user left out, then parses the answers like
 //! typed ones.
 #![cfg(feature = "interactive")]
 
@@ -331,7 +331,7 @@ fn only_asks_on_the_subcommand_path_taken(#[case] argv: &[&str], #[case] questio
 }
 
 #[rstest]
-fn asks_every_missing_mark_in_declaration_order() {
+fn asks_every_missing_prompted_arg_in_declaration_order() {
     let backend = ScriptedBackend::new([Reply::Text(Some("8080")), Reply::Text(Some("us"))]);
     let argv = ["deploy", "--env", "prod", "--follow", "--strategy", "rolling"];
     let deploy = Deploy::couture_try_parse_from_with(&backend, argv);
@@ -383,7 +383,7 @@ fn an_answer_may_start_with_a_dash() {
 }
 
 #[rstest]
-fn help_shows_the_marked_args_in_usage() {
+fn help_shows_the_prompted_args_in_usage() {
     let backend = ScriptedBackend::new([]);
     let help = Deploy::couture_try_parse_from_with(&backend, ["deploy", "--help"])
         .map(drop)
@@ -392,12 +392,12 @@ fn help_shows_the_marked_args_in_usage() {
     let usage = help.lines().skip_while(|line| !line.starts_with("Usage:")).nth(1);
     assert!(
         usage.is_some_and(|usage| usage.contains("--region <REGION>")),
-        "usage lost the required mark:\n{help}"
+        "usage lost the required prompted arg:\n{help}"
     );
 }
 
 #[rstest]
-fn an_unmarked_cli_parses_argv_once() {
+fn a_cli_without_prompts_parses_argv_once() {
     let backend = ScriptedBackend::new([]);
     let plain = Plain::couture_try_parse_from_with(&backend, ["plain", "--input", "-"]);
     assert!(plain.is_ok(), "{plain:?}");
@@ -415,8 +415,8 @@ fn without_a_terminal_argv_is_parsed_once() {
 
 #[rstest]
 #[case::declared_by_the_passed_arg(&["connect", "--local", "--socket", "s", "--zone", "z"])]
-#[case::declared_by_the_mark_and_an_exclusive_group(&["connect", "--region", "eu", "--host", "h"])]
-fn never_asks_for_a_mark_that_conflicts_with_a_passed_arg(#[case] argv: &[&str]) {
+#[case::declared_by_the_prompted_arg_and_an_exclusive_group(&["connect", "--region", "eu", "--host", "h"])]
+fn never_asks_for_a_prompted_arg_that_conflicts_with_a_passed_arg(#[case] argv: &[&str]) {
     let backend = ScriptedBackend::new([]);
     let connect = Connect::couture_try_parse_from_with(&backend, argv);
     assert!(connect.is_ok(), "{connect:?}");
@@ -424,7 +424,7 @@ fn never_asks_for_a_mark_that_conflicts_with_a_passed_arg(#[case] argv: &[&str])
 }
 
 #[rstest]
-fn never_asks_for_a_mark_that_conflicts_with_an_earlier_answer() {
+fn never_asks_for_a_prompted_arg_that_conflicts_with_an_earlier_answer() {
     let backend = ScriptedBackend::new([Reply::Text(Some("eu"))]);
     let connect = Connect::couture_try_parse_from_with(&backend, ["connect", "--host", "h"]);
     assert_eq!(
@@ -437,7 +437,7 @@ fn never_asks_for_a_mark_that_conflicts_with_an_earlier_answer() {
 #[rstest]
 #[case::set_by_the_condition(&["log", "--verbose", "--tag", "v1"], "debug", Some("v1"))]
 #[case::cleared_by_the_condition(&["log", "--pinned", "--level", "warn"], "warn", None)]
-fn never_asks_for_a_mark_whose_conditional_default_fired(
+fn never_asks_for_a_prompted_arg_whose_conditional_default_fired(
     #[case] argv: &[&str],
     #[case] level: &str,
     #[case] tag: Option<&str>,

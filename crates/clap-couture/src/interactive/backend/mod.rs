@@ -1,4 +1,4 @@
-//! The terminal UIs that ask for marked args.
+//! The terminal UIs that ask for prompted args.
 
 #[cfg(feature = "interactive-cliclack")]
 mod cliclack;

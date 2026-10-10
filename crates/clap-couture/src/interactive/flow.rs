@@ -1,4 +1,4 @@
-//! Parse, ask for the marked args that got no value, then parse again with the answers.
+//! Parse, ask for the prompted args that got no value, then parse again with the answers.
 //!
 //! Every answer goes back into the command as its arg's `default_value`, so clap converts and
 //! validates it exactly like a typed value. Each answer is checked with a trial parse as soon as
@@ -14,36 +14,41 @@ use clap::{
 };
 
 use super::{
-    Backend, CommandStyles, ConfirmPrompt, Mark, PromptError, PromptNode, SelectPrompt, TextPrompt,
+    Backend, CommandStyles, ConfirmPrompt, PromptError, PromptNode, PromptedArg, SelectPrompt,
+    TextPrompt,
 };
 use crate::parser::Failure;
 
-/// A mark's accepted answer.
-struct Answer<'mark> {
-    mark: &'mark Mark,
+/// A prompted arg's accepted answer.
+struct Answer<'prompted_arg> {
+    prompted_arg: &'prompted_arg PromptedArg,
     value: String,
 }
 
-/// One parse: the command, its argv, its marks and who to ask.
+/// One parse: the command, its argv, its prompted args and who to ask.
 struct Session<'run> {
     argv: &'run [OsString],
     backend: &'run dyn Backend,
     cmd: &'run Command,
-    marks: &'run [Mark],
+    prompted_args: &'run [PromptedArg],
 }
 
 impl Session<'_> {
-    /// Ask for `mark` until clap accepts the answer; `None` when an optional mark is left empty.
+    /// Ask for `prompted_arg` until clap accepts the answer; `None` when an optional one is left
+    /// empty.
     fn answer(
         &self,
-        mark: &Mark,
+        prompted_arg: &PromptedArg,
         current: Option<&str>,
         answers: &[Answer<'_>],
     ) -> Result<Option<String>, PromptError> {
-        let Some(arg) = arg_at(self.cmd, &mark.path, mark.spec.id) else { return Ok(None) };
+        let Some(arg) = arg_at(self.cmd, &prompted_arg.subcommand_path, prompted_arg.prompt.id)
+        else {
+            return Ok(None);
+        };
         loop {
-            let Some(value) = self.ask(arg, mark, current)? else { return Ok(None) };
-            match self.trial(answers, mark, &value) {
+            let Some(value) = self.ask(arg, prompted_arg, current)? else { return Ok(None) };
+            match self.trial(answers, prompted_arg, &value) {
                 Ok(()) => return Ok(Some(value)),
                 Err(err) => {
                     self.backend.report(&summary(&err), CommandStyles(self.cmd.get_styles()))?;
@@ -55,11 +60,14 @@ impl Session<'_> {
     fn ask(
         &self,
         arg: &Arg,
-        mark: &Mark,
+        prompted_arg: &PromptedArg,
         current: Option<&str>,
     ) -> Result<Option<String>, PromptError> {
-        let question = mark.spec.question.map_or_else(
-            || arg.get_help().map_or_else(|| mark.spec.id.to_owned(), ToString::to_string),
+        let question = prompted_arg.prompt.question.map_or_else(
+            || {
+                arg.get_help()
+                    .map_or_else(|| prompted_arg.prompt.id.to_owned(), ToString::to_string)
+            },
             str::to_owned,
         );
         let styles = CommandStyles(self.cmd.get_styles());
@@ -91,23 +99,24 @@ impl Session<'_> {
         })
     }
 
-    /// Parse with `candidate` as `mark`'s answer on top of the accepted ones.
+    /// Parse with `candidate` as `prompted_arg`'s answer on top of the accepted ones.
     fn trial(
         &self,
         answers: &[Answer<'_>],
-        mark: &Mark,
+        prompted_arg: &PromptedArg,
         candidate: &str,
     ) -> Result<(), clap::Error> {
-        let accepted = answers.iter().map(|answer| (answer.mark, answer.value.as_str()));
+        let accepted = answers.iter().map(|answer| (answer.prompted_arg, answer.value.as_str()));
         let cmd = inject(
-            relax(self.cmd.clone(), self.marks),
-            accepted.chain(iter::once((mark, candidate))),
+            relax(self.cmd.clone(), self.prompted_args),
+            accepted.chain(iter::once((prompted_arg, candidate))),
         );
         cmd.try_get_matches_from(self.argv).map(drop)
     }
 }
 
-/// Parse `argv` against `cmd`, asking `backend` for the marks in `tree` that got no value.
+/// Parse `argv` against `cmd`, asking `backend` for the prompted args in `tree` that got no
+/// value.
 pub(crate) fn run<T>(
     cmd: Command,
     tree: &'static PromptNode,
@@ -117,23 +126,23 @@ pub(crate) fn run<T>(
 where
     T: FromArgMatches,
 {
-    let marks = tree.marks();
-    if marks.is_empty() || !backend.is_available() {
+    let prompted_args = tree.prompted_args();
+    if prompted_args.is_empty() || !backend.is_available() {
         return finish(cmd, argv, &[]);
     }
     // Help, usage and errors come from the command the user sees, not the relaxed one.
-    let Ok(matches) = relax(cmd.clone(), &marks).try_get_matches_from(argv) else {
+    let Ok(matches) = relax(cmd.clone(), &prompted_args).try_get_matches_from(argv) else {
         return finish(cmd, argv, &[]);
     };
 
-    let session = Session { argv, backend, cmd: &cmd, marks: &marks };
+    let session = Session { argv, backend, cmd: &cmd, prompted_args: &prompted_args };
     let mut answers = Vec::new();
-    for (mark, current) in pending(&cmd, &matches, &marks) {
-        if blocked(&cmd, &matches, mark, &answers) {
+    for (prompted_arg, current) in pending(&cmd, &matches, &prompted_args) {
+        if blocked(&cmd, &matches, prompted_arg, &answers) {
             continue;
         }
-        match session.answer(mark, current.as_deref(), &answers) {
-            Ok(Some(value)) => answers.push(Answer { mark, value }),
+        match session.answer(prompted_arg, current.as_deref(), &answers) {
+            Ok(Some(value)) => answers.push(Answer { prompted_arg, value }),
             Ok(None) => {}
             Err(PromptError::Cancelled) => return Err(Failure::Cancelled),
             Err(PromptError::Io(err)) => {
@@ -149,21 +158,30 @@ fn arg_at<'cmd>(cmd: &'cmd Command, path: &[&str], id: &str) -> Option<&'cmd Arg
     command_at(cmd, path)?.get_arguments().find(|arg| arg.get_id() == id)
 }
 
-/// Check whether `mark` conflicts with an arg the user passed or an earlier answer.
+/// Check whether `prompted_arg` conflicts with an arg the user passed or an earlier answer.
 ///
 /// Answers go in as default values, which clap never checks for conflicts, so asking here
 /// would let the parse land in a state clap rejects when typed.
-fn blocked(cmd: &Command, matches: &ArgMatches, mark: &Mark, answers: &[Answer<'_>]) -> bool {
-    let (Some(level), Some(level_matches)) =
-        (command_at(cmd, &mark.path), matches_at(matches, &mark.path))
-    else {
+fn blocked(
+    cmd: &Command,
+    matches: &ArgMatches,
+    prompted_arg: &PromptedArg,
+    answers: &[Answer<'_>],
+) -> bool {
+    let (Some(level), Some(level_matches)) = (
+        command_at(cmd, &prompted_arg.subcommand_path),
+        matches_at(matches, &prompted_arg.subcommand_path),
+    ) else {
         return false;
     };
-    let Some(arg) = level.get_arguments().find(|arg| arg.get_id() == mark.spec.id) else {
+    let Some(arg) = level.get_arguments().find(|arg| arg.get_id() == prompted_arg.prompt.id) else {
         return false;
     };
     let answered = |id: &Id| {
-        answers.iter().any(|answer| answer.mark.path == mark.path && answer.mark.spec.id == id)
+        answers.iter().any(|answer| {
+            answer.prompted_arg.subcommand_path == prompted_arg.subcommand_path
+                && answer.prompted_arg.prompt.id == id
+        })
     };
     let conflicts = level.get_arg_conflicts_with(arg);
     level
@@ -195,7 +213,8 @@ fn finish<T>(cmd: Command, argv: &[OsString], answers: &[Answer<'_>]) -> Result<
 where
     T: FromArgMatches,
 {
-    let mut cmd = inject(cmd, answers.iter().map(|answer| (answer.mark, answer.value.as_str())));
+    let mut cmd =
+        inject(cmd, answers.iter().map(|answer| (answer.prompted_arg, answer.value.as_str())));
     let mut matches = cmd.try_get_matches_from_mut(argv).map_err(Failure::Clap)?;
     T::from_arg_matches_mut(&mut matches).map_err(|err| Failure::Clap(err.format(&mut cmd)))
 }
@@ -224,13 +243,15 @@ const fn flag_negation(action: &ArgAction) -> Option<bool> {
 }
 
 /// Set each answer as its arg's default value.
-fn inject<'mark>(
+fn inject<'prompted_arg>(
     cmd: Command,
-    answers: impl IntoIterator<Item = (&'mark Mark, &'mark str)>,
+    answers: impl IntoIterator<Item = (&'prompted_arg PromptedArg, &'prompted_arg str)>,
 ) -> Command {
-    answers.into_iter().fold(cmd, |cmd, (mark, value)| {
+    answers.into_iter().fold(cmd, |cmd, (prompted_arg, value)| {
         let value = value.to_owned();
-        with_arg_at(cmd, &mark.path, mark.spec.id, |arg| arg.required(false).default_value(value))
+        with_arg_at(cmd, &prompted_arg.subcommand_path, prompted_arg.prompt.id, |arg| {
+            arg.required(false).default_value(value)
+        })
     })
 }
 
@@ -243,30 +264,30 @@ fn matches_at<'matches>(
     })
 }
 
-/// The marks on the path the user took that got no value or only their default, with the
-/// default's value. A mark whose `default_value_if` fired is left to the arg that fired it: the
+/// The prompted args on the path the user took that got no value or only their default, with
+/// the default's value. One whose `default_value_if` fired is left to the arg that fired it: the
 /// conditional default beats an injected answer, so asking would drop the answer.
-fn pending<'mark>(
+fn pending<'prompted_arg>(
     cmd: &Command,
     matches: &ArgMatches,
-    marks: &'mark [Mark],
-) -> Vec<(&'mark Mark, Option<String>)> {
+    prompted_args: &'prompted_arg [PromptedArg],
+) -> Vec<(&'prompted_arg PromptedArg, Option<String>)> {
     // Built, so a flag's action has filled in its implicit default (`false` for `SetTrue`).
     let mut built = cmd.clone();
     built.build();
-    marks
+    prompted_args
         .iter()
-        .filter_map(|mark| {
-            let arg = arg_at(&built, &mark.path, mark.spec.id)?;
-            let level = matches_at(matches, &mark.path)?;
-            let id = mark.spec.id;
+        .filter_map(|prompted_arg| {
+            let arg = arg_at(&built, &prompted_arg.subcommand_path, prompted_arg.prompt.id)?;
+            let level = matches_at(matches, &prompted_arg.subcommand_path)?;
+            let id = prompted_arg.prompt.id;
             let default =
                 arg.get_default_values().first().map(|value| value.to_string_lossy().into_owned());
             match level.value_source(id) {
-                None if default.is_none() => Some((mark, None)),
+                None if default.is_none() => Some((prompted_arg, None)),
                 Some(ValueSource::DefaultValue) => {
                     let current = raw_value(level, id);
-                    (current == default).then_some((mark, current))
+                    (current == default).then_some((prompted_arg, current))
                 }
                 None | Some(_) => None,
             }
@@ -279,10 +300,12 @@ fn raw_value(matches: &ArgMatches, id: &str) -> Option<String> {
     raw.next().map(|value| value.to_string_lossy().into_owned())
 }
 
-/// Make every mark optional, so a missing one does not stop the first parse.
-fn relax(cmd: Command, marks: &[Mark]) -> Command {
-    marks.iter().fold(cmd, |cmd, mark| {
-        with_arg_at(cmd, &mark.path, mark.spec.id, |arg| arg.required(false))
+/// Make every prompted arg optional, so a missing one does not stop the first parse.
+fn relax(cmd: Command, prompted_args: &[PromptedArg]) -> Command {
+    prompted_args.iter().fold(cmd, |cmd, prompted_arg| {
+        with_arg_at(cmd, &prompted_arg.subcommand_path, prompted_arg.prompt.id, |arg| {
+            arg.required(false)
+        })
     })
 }
 

@@ -66,9 +66,12 @@ fn arg_at<'cmd>(cmd: &'cmd Command, path: &[&str], id: &str) -> Option<&'cmd cla
 }
 
 #[rstest]
-fn marks_follow_the_command_tree() {
-    let marks: Vec<_> =
-        Cli::PROMPTS.marks().into_iter().map(|mark| (mark.path.join(" "), mark.spec.id)).collect();
+fn prompted_args_follow_the_command_tree() {
+    let prompted_args: Vec<_> = Cli::PROMPTS
+        .prompted_args()
+        .into_iter()
+        .map(|prompted_arg| (prompted_arg.subcommand_path.join(" "), prompted_arg.prompt.id))
+        .collect();
     let expected = [
         (String::new(), "zone"),
         (String::new(), "type"),
@@ -77,16 +80,18 @@ fn marks_follow_the_command_tree() {
         ("remote push".to_owned(), "force_name"),
         (String::new(), "team_name"),
     ];
-    assert_eq!(marks, expected);
+    assert_eq!(prompted_args, expected);
 }
 
 #[rstest]
-fn every_mark_names_an_arg_clap_defines() {
+fn every_prompted_arg_is_an_arg_clap_defines() {
     let cmd = Cli::command();
     let missing: Vec<_> = Cli::PROMPTS
-        .marks()
+        .prompted_args()
         .into_iter()
-        .filter(|mark| arg_at(&cmd, &mark.path, mark.spec.id).is_none())
+        .filter(|prompted_arg| {
+            arg_at(&cmd, &prompted_arg.subcommand_path, prompted_arg.prompt.id).is_none()
+        })
         .collect();
     assert!(missing.is_empty(), "clap defines no arg for {missing:?}");
 }

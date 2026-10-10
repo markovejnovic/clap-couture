@@ -11,7 +11,7 @@ use crate::{CommandExt as _, Couture};
 /// clap's [`Parser`] entry points, with couture's help installed.
 ///
 /// Implemented for every [`Parser`] that also implements [`Couture`]. With an `interactive-*`
-/// backend feature on, every entry point asks for marked args the user left out; see
+/// backend feature on, every entry point asks for prompted args the user left out; see
 /// [`interactive`](crate::interactive).
 pub trait CoutureParser: Parser + Couture {
     /// The clap [`Command`] with couture's help installed.
@@ -40,7 +40,7 @@ pub trait CoutureParser: Parser + Couture {
         exit_on_failure(parse_default(&collect(itr)))
     }
 
-    /// Equivalent to [`couture_parse`](Self::couture_parse), asking `backend` for marked args.
+    /// Equivalent to [`couture_parse`](Self::couture_parse), asking `backend` for prompted args.
     #[cfg(feature = "interactive")]
     #[must_use]
     fn couture_parse_with(backend: &dyn Backend) -> Self {
@@ -76,7 +76,7 @@ pub trait CoutureParser: Parser + Couture {
     }
 
     /// Equivalent to [`couture_try_parse_from`](Self::couture_try_parse_from), asking `backend`
-    /// for marked args.
+    /// for prompted args.
     ///
     /// # Errors
     /// As [`couture_try_parse_from`](Self::couture_try_parse_from).

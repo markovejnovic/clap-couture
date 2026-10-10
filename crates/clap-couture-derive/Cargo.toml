@@ -23,6 +23,7 @@ quote = { workspace = true }
 syn = { workspace = true }
 serde = { workspace = true }
 serde_tokenstream = { workspace = true }
+darling = { workspace = true }
 
 [dev-dependencies]
 clap = { workspace = true, features = ["derive"] }

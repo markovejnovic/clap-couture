@@ -10,7 +10,7 @@
   <a href="https://crates.io/crates/clap-couture"><img alt="crates.io" src="https://img.shields.io/crates/v/clap-couture?style=flat-square&color=DB2777"></a>
   <a href="https://docs.rs/clap-couture"><img alt="docs.rs" src="https://img.shields.io/docsrs/clap-couture?style=flat-square&color=DB2777"></a>
   <a href="https://github.com/markovejnovic/clap-couture/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/markovejnovic/clap-couture/ci.yml?branch=main&style=flat-square&label=CI"></a>
-  <a href="#installation"><img alt="MSRV 1.85" src="https://img.shields.io/badge/MSRV-1.85-DB2777?style=flat-square"></a>
+  <a href="#installation"><img alt="MSRV 1.88" src="https://img.shields.io/badge/MSRV-1.88-DB2777?style=flat-square"></a>
   <a href="https://crates.io/crates/clap"><img alt="clap 4.x" src="https://img.shields.io/badge/clap-4.x-DB2777?style=flat-square"></a>
   <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-DB2777?style=flat-square"></a>
 </p>
@@ -79,7 +79,7 @@ cargo add clap-couture
 cargo add clap-couture --features markdown
 ```
 
-clap-couture targets **clap 4.x** and Rust **1.85+** (edition 2024).
+clap-couture targets **clap 4.x** and Rust **1.88+** (edition 2024).
 
 ## License
 

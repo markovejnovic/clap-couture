@@ -27,10 +27,9 @@ use heck::{
     ToUpperCamelCase as _,
 };
 use proc_macro2::TokenStream as TokenStream2;
-use syn::{
-    Attribute, DataStruct, Field, LitStr, Token, Type, Variant, ext::IdentExt as _,
-    meta::ParseNestedMeta,
-};
+use syn::{Attribute, LitStr, Token, Type, ext::IdentExt as _, meta::ParseNestedMeta};
+
+use crate::input::VariantInput;
 
 /// A `rename_all` casing, mirroring `clap_derive`'s `CasingStyle`. The examples rename `DryRun`.
 #[derive(Clone, Copy)]
@@ -116,7 +115,7 @@ impl SubcommandNaming {
     /// The name clap gives `variant`: `ls` for `#[command(name = "ls")] List`, otherwise the
     /// variant's or the enum's casing applied to the ident with any `r#` stripped (`r#Type` is
     /// `type`).
-    pub(crate) fn name_of(&self, variant: &Variant) -> String {
+    pub(crate) fn name_of(&self, variant: &VariantInput) -> String {
         variant.attrs.clap_name().unwrap_or_else(|| {
             let casing = CasingStyle::from_attrs(&variant.attrs).unwrap_or(self.casing);
             casing.apply(&variant.ident.unraw().to_string())
@@ -124,8 +123,9 @@ impl SubcommandNaming {
     }
 }
 
-/// Queries over an item's own `#[command(...)]` / `#[arg(...)]` / `#[clap(...)]` attributes.
-pub(crate) trait ClapAttrsExt {
+/// A container's, variant's or field's `#[command(...)]` / `#[arg(...)]` / `#[clap(...)]`
+/// attributes, read the way clap reads them.
+pub(crate) trait ClapAttrs {
     /// The `zone` in `#[arg(id = "zone")]`, or in the deprecated `#[arg(name = "zone")]`, if any.
     fn clap_id(&self) -> Option<String>;
 
@@ -145,7 +145,7 @@ pub(crate) trait ClapAttrsExt {
     fn has_clap_key(&self, key: &str) -> bool;
 }
 
-impl ClapAttrsExt for [Attribute] {
+impl ClapAttrs for [Attribute] {
     fn clap_id(&self) -> Option<String> {
         let mut found = None;
         self.for_each_clap_key(|meta| {
@@ -192,39 +192,12 @@ impl ClapAttrsExt for [Attribute] {
     }
 }
 
-/// The arg a struct field becomes.
-pub(crate) trait FieldExt {
-    /// The id clap gives the field's arg: [`ClapAttrsExt::clap_id`], else the field ident with
-    /// any `r#` stripped (`r#type` is `type`). `None` for a tuple-struct field.
-    fn clap_arg_id(&self) -> Option<String>;
-}
-
-impl FieldExt for Field {
-    fn clap_arg_id(&self) -> Option<String> {
-        self.attrs.clap_id().or_else(|| self.ident.as_ref().map(|ident| ident.unraw().to_string()))
-    }
-}
-
-/// Finding the field clap treats as the subcommand.
-pub(crate) trait DataStructExt {
-    /// The type of the first `#[command(subcommand)]` / `#[clap(subcommand)]` field, with one
-    /// `Option` peeled since clap allows optional subcommands: `Cmd` for `cmd: Option<Cmd>`.
-    fn clap_subcommand_type(&self) -> Option<&Type>;
-}
-
-impl DataStructExt for DataStruct {
-    fn clap_subcommand_type(&self) -> Option<&Type> {
-        self.fields
-            .iter()
-            .find(|field| field.attrs.has_clap_key("subcommand"))
-            .map(|field| field.ty.peel_option())
-    }
-}
-
 trait ParseNestedMetaExt {
-    /// Consume the value of a key the visitor ignored, so `parse_nested_meta` can advance: the
-    /// `= "List"` in `about = "List"`, or the `(true)` in `next_line_help(true)`. A no-op for bare
-    /// flags like `subcommand` and for keys whose value the visitor already parsed.
+    /// Skip this key's value if nothing has read it yet.
+    ///
+    /// syn refuses to move on to the next key while the current one's value is unread, so after
+    /// looking at a key we skip whatever is left: the `= "List"` of `about = "List"`, or the
+    /// `(true)` of `next_line_help(true)`. A bare key like `subcommand` has no value to skip.
     fn skip_value(&self) -> syn::Result<()>;
 }
 
@@ -234,38 +207,45 @@ impl ParseNestedMetaExt for ParseNestedMeta<'_> {
             self.value()?.parse::<syn::Expr>()?;
             return Ok(());
         }
+
         if self.input.peek(syn::token::Paren) {
-            let inner;
-            syn::parenthesized!(inner in self.input);
-            inner.parse::<TokenStream2>()?;
+            let parenthesized_value;
+            syn::parenthesized!(parenthesized_value in self.input);
+            parenthesized_value.parse::<TokenStream2>()?;
         }
+
         Ok(())
     }
 }
 
-pub(crate) trait TypeExt {
-    /// Check for a `Vec`, bare or in an `Option`: `Option<Vec<String>>` is one.
-    fn is_vec(&self) -> bool;
+/// A field's type, read the way clap reads it.
+pub(crate) trait ClapFieldType {
+    /// Check whether clap reads the field as taking many values, which it infers from a `Vec`,
+    /// bare or in an `Option`: `Option<Vec<String>>` is one.
+    fn is_multi_value(&self) -> bool;
 
-    /// Peel one `Option`: `Option<Cmd>` becomes `Cmd`, any other type comes back unchanged.
+    /// Peel one `Option`, which clap reads as "may be absent": `Option<Cmd>` becomes `Cmd`, any
+    /// other type comes back unchanged.
     fn peel_option(&self) -> &Self;
 }
 
-impl TypeExt for Type {
-    fn is_vec(&self) -> bool {
-        let Self::Path(tp) = self.peel_option() else { return false };
-        tp.path.segments.last().is_some_and(|seg| seg.ident == "Vec")
+impl ClapFieldType for Type {
+    fn is_multi_value(&self) -> bool {
+        let Self::Path(type_path) = self.peel_option() else { return false };
+        type_path.path.segments.last().is_some_and(|last_segment| last_segment.ident == "Vec")
     }
 
     fn peel_option(&self) -> &Self {
-        let Self::Path(tp) = self else { return self };
-        let Some(seg) = tp.path.segments.last() else { return self };
-        if seg.ident != "Option" {
+        let Self::Path(type_path) = self else { return self };
+        let Some(last_segment) = type_path.path.segments.last() else { return self };
+        if last_segment.ident != "Option" {
             return self;
         }
-        let syn::PathArguments::AngleBracketed(args) = &seg.arguments else { return self };
-        match args.args.first() {
-            Some(syn::GenericArgument::Type(inner)) => inner,
+        let syn::PathArguments::AngleBracketed(generic_arguments) = &last_segment.arguments else {
+            return self;
+        };
+        match generic_arguments.args.first() {
+            Some(syn::GenericArgument::Type(wrapped_type)) => wrapped_type,
             _ => self,
         }
     }

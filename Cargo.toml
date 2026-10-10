@@ -4,7 +4,7 @@ members = ["crates/*"]
 
 [workspace.package]
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.88"
 license = "MIT"
 repository = "https://github.com/atuinsh/clap-couture"
 
@@ -18,6 +18,7 @@ pulldown-cmark = { version = "0.13", default-features = false }
 unicode-width = "0.2"
 serde = { version = "1", features = ["derive"] }
 serde_tokenstream = "0.3"
+darling = "0.24"
 rstest = { version = "0.27", default-features = false } # no async tests
 thiserror = "2"
 cliclack = "0.5"
@@ -60,4 +61,5 @@ shadow_unrelated = "allow"                  # as above; shadow_same stays on
 absolute_paths = "allow"                    # fully-qualified paths in macro output are deliberate
 field_scoped_visibility_modifiers = "allow" # `pub(crate)` fields are fine
 redundant_pub_crate = "allow"               # `pub(crate)` in a private module is harmless
+definition_in_module_root = "allow"         # conflicts with mod_module_files: mod.rs holds its module's code
 tests_outside_test_module = "allow"         # integration tests under tests/ have no test module

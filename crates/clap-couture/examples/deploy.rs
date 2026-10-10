@@ -1,4 +1,4 @@
-//! Prompts for marked args: leave out `--region`, `--strategy` or `--follow` and couture asks.
+//! Prompted args: leave out `--region`, `--strategy` or `--follow` and couture asks.
 //!
 //! ```sh
 //! cargo run -p clap-couture --example deploy --features interactive-cliclack

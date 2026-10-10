@@ -89,11 +89,15 @@ impl From<ClapColor> for console::Style {
     }
 }
 
+/// Adds one text effect to a console style, e.g. `console::Style::bold`.
+#[cfg(any(feature = "interactive-cliclack", feature = "interactive-dialoguer"))]
+type ApplyEffect = fn(console::Style) -> console::Style;
+
 // Carries only the foreground color and the bold, dim, italic and underline effects.
 #[cfg(any(feature = "interactive-cliclack", feature = "interactive-dialoguer"))]
 impl From<ClapStyle<'_>> for console::Style {
     fn from(ClapStyle(style): ClapStyle<'_>) -> Self {
-        let effects: [(Effects, fn(Self) -> Self); 4] = [
+        let effects: [(Effects, ApplyEffect); 4] = [
             (Effects::BOLD, Self::bold),
             (Effects::DIMMED, Self::dim),
             (Effects::ITALIC, Self::italic),
@@ -104,7 +108,7 @@ impl From<ClapStyle<'_>> for console::Style {
         effects
             .into_iter()
             .filter(|(effect, _)| style.get_effects().contains(*effect))
-            .fold(base, |style, (_, apply)| apply(style))
+            .fold(base, |console_style, (_, apply)| apply(console_style))
     }
 }
 

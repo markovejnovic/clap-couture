@@ -7,10 +7,10 @@ use darling::{
 };
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{ToTokens, quote};
-use syn::{Attribute, Type};
+use syn::Type;
 
 use crate::{
-    clap_compat::{ClapAttrs as _, ClapFieldType as _, SubcommandNaming},
+    clap_compat::{ClapAttrs as _, ClapFieldType as _, FieldKind, SubcommandNaming},
     input::{FieldInput, VariantInput},
     literals::OptionStrLiteral,
 };
@@ -39,14 +39,6 @@ struct PromptAttr {
     arg_id: String,
     /// The `prompt = "..."` override; `None` asks the arg's help text.
     question: Option<String>,
-}
-
-/// How clap treats a struct field.
-enum FieldKind {
-    Arg,
-    Flatten,
-    Skip,
-    Subcommand,
 }
 
 impl PromptedArgTree {
@@ -168,20 +160,6 @@ impl PromptAttr {
     }
 }
 
-impl From<&[Attribute]> for FieldKind {
-    fn from(attrs: &[Attribute]) -> Self {
-        if attrs.has_clap_key("flatten") {
-            Self::Flatten
-        } else if attrs.has_clap_key("subcommand") {
-            Self::Subcommand
-        } else if attrs.has_clap_key("skip") {
-            Self::Skip
-        } else {
-            Self::Arg
-        }
-    }
-}
-
 impl ToTokens for PromptedArgTree {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         let (branches, own_args) = (&self.branches, &self.own_args);
@@ -237,5 +215,5 @@ fn misplaced(span: Span, instead: &str) -> Error {
 
 /// `field_type`'s prompted args, or none when `field_type` does not implement `Couture`.
 fn maybe_couture_prompted_args(field_type: &Type) -> TokenStream2 {
-    quote!(<::clap_couture::interactive::MaybeCouture<#field_type>>::PROMPTED_ARGS)
+    quote!(<::clap_couture::MaybeCouture<#field_type>>::PROMPTED_ARGS)
 }

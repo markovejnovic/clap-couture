@@ -40,9 +40,7 @@ pub use backend::Inquire;
 pub use backend::{Backend, CommandStyles, DefaultBackend, NonInteractive};
 use clap::builder::PossibleValue;
 #[doc(hidden)]
-pub use prompted_args::{
-    MaybeCouture, NotCouture, PromptAttr, PromptedArg, PromptedArgBranch, PromptedArgTree,
-};
+pub use prompted_args::{PromptAttr, PromptedArg, PromptedArgBranch, PromptedArgTree};
 
 /// Why a prompt produced no answer.
 #[derive(Debug, thiserror::Error)]

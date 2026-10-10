@@ -13,7 +13,7 @@ use serde_tokenstream::OrderedMap;
 use syn::{Attribute, LitStr, Type};
 
 use crate::{
-    clap_compat::{ClapAttrs as _, ClapFieldType as _, SubcommandNaming},
+    clap_compat::{ClapAttrs as _, ClapFieldType as _, FieldKind, SubcommandNaming},
     input::{FieldInput, VariantInput},
     literals::OptionStrLiteral,
 };
@@ -68,22 +68,46 @@ struct SpecCategory {
 
 /// The categories an `impl Couture` reports.
 pub(crate) enum Categories {
-    /// A subcommand enum's own: its declared categories in declared order, then inherited ones in
-    /// first-use order. Headings render in this order.
-    Sections(Vec<Section>),
-    /// A parser struct's: those of its `#[command(subcommand)]` field's type.
-    Subcommand(Box<Type>),
+    /// A struct's: those of its `#[command(subcommand)]` and `#[command(flatten)]` fields' types,
+    /// in field order.
+    Fields(Vec<MergedField>),
+    /// A subcommand enum's.
+    Sections {
+        /// The types its `#[command(flatten)]` variants merge in, in variant order. Their
+        /// categories come after the enum's own.
+        flattened: Vec<Type>,
+        /// Its declared categories in declared order, then inherited ones in first-use order.
+        /// Headings render in this order.
+        sections: Vec<Section>,
+    },
+}
+
+/// A struct field whose type's categories the struct's command takes on.
+pub(crate) enum MergedField {
+    /// A `#[command(flatten)]` field's type, which need not implement `Couture`: a flattened
+    /// `Args` type from another crate files nothing.
+    Flattened(Type),
+    /// A `#[command(subcommand)]` field's type.
+    Subcommand(Type),
 }
 
 impl Categories {
-    /// The first `#[command(subcommand)]` field's type's categories, with one `Option` peeled
-    /// since clap allows an optional subcommand: `Cmd` for `cmd: Option<Cmd>`. `None` for a
-    /// parser struct without a subcommand.
-    pub(crate) fn of_subcommand_field(fields: &[FieldInput]) -> Option<Self> {
-        fields
+    /// The categories of each `#[command(subcommand)]` and `#[command(flatten)]` field's type,
+    /// with one `Option` peeled since clap allows either to be optional: `Cmd` for
+    /// `cmd: Option<Cmd>`.
+    pub(crate) fn of_fields(fields: &[FieldInput]) -> Self {
+        let merged_fields = fields
             .iter()
-            .find(|field| field.attrs.has_clap_key("subcommand"))
-            .map(|field| Self::Subcommand(Box::new(field.ty.peel_option().clone())))
+            .filter_map(|field| {
+                let field_type = field.ty.peel_option().clone();
+                match FieldKind::from(field.attrs.as_slice()) {
+                    FieldKind::Flatten => Some(MergedField::Flattened(field_type)),
+                    FieldKind::Subcommand => Some(MergedField::Subcommand(field_type)),
+                    FieldKind::Arg | FieldKind::Skip => None,
+                }
+            })
+            .collect();
+        Self::Fields(merged_fields)
     }
 
     /// File each variant's `#[category("...")]` under the enum's categories.
@@ -91,6 +115,7 @@ impl Categories {
     /// # Errors
     /// - A malformed `#[couture(...)]` or `#[category(...)]`.
     /// - A category the enum neither declares nor inherits, unless it declares and inherits none.
+    /// - A `#[category("...")]` on a `#[command(flatten)]` variant, which is no command itself.
     pub(crate) fn parse(
         attrs: &[Attribute],
         variants: &[VariantInput],
@@ -131,6 +156,16 @@ impl Categories {
                     .find(|attr| attr.path().is_ident("category"))
                     .map(CategoryAttr::try_from)?;
                 let CategoryAttr(label) = errors.handle(last_category_attr)?;
+                if variant.attrs.has_clap_key("flatten") {
+                    errors.push(
+                        Error::custom(
+                            "`#[category]` on a `#[command(flatten)]` variant files nothing; put \
+                             it on the flattened enum's variants",
+                        )
+                        .with_span(&label),
+                    );
+                    return None;
+                }
                 Some((label, naming.name_of(variant)))
             })
             .collect();
@@ -165,7 +200,15 @@ impl Categories {
             })
             .collect();
 
-        errors.finish_with(Self::Sections(sections))
+        // The type of each `#[command(flatten)]` newtype variant; clap rejects any other shape.
+        let flattened = variants
+            .iter()
+            .filter(|variant| variant.attrs.has_clap_key("flatten"))
+            .filter_map(|variant| variant.fields.fields.first())
+            .map(|field| field.ty.clone())
+            .collect();
+
+        errors.finish_with(Self::Sections { flattened, sections })
     }
 }
 
@@ -244,12 +287,19 @@ impl<'de> Visitor<'de> for InheritanceVisitor {
 
 impl ToTokens for Categories {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
-        let sections = match self {
-            Self::Sections(sections) => sections,
-            Self::Subcommand(subcommand_type) => {
-                tokens.extend(quote!(<#subcommand_type as ::clap_couture::Couture>::CATEGORIES));
-                return;
+        let (sections, flattened_maps): (&[Section], Vec<TokenStream2>) = match self {
+            Self::Fields(merged_fields) => {
+                (&[], merged_fields.iter().map(ToTokens::to_token_stream).collect())
             }
+            Self::Sections { flattened, sections } => (
+                sections,
+                flattened
+                    .iter()
+                    .map(|flattened_type| {
+                        quote!(<#flattened_type as ::clap_couture::Couture>::CATEGORIES)
+                    })
+                    .collect(),
+            ),
         };
         let entries = sections.iter().flat_map(|section| {
             let category = &section.category;
@@ -258,7 +308,25 @@ impl ToTokens for Categories {
                 .iter()
                 .map(move |command| quote!((::clap_couture::CommandName::new(#command), #category)))
         });
-        tokens.extend(quote!(::clap_couture::CommandCategoryMap::new(&[#(#entries),*])));
+        let categories = sections.iter().map(|section| &section.category);
+        tokens.extend(quote! {
+            ::clap_couture::CommandCategoryMap::new(&[#(#entries),*])
+                .with_categories(&[#(#categories),*])
+                .with_flattened(&[#(#flattened_maps),*])
+        });
+    }
+}
+
+impl ToTokens for MergedField {
+    fn to_tokens(&self, tokens: &mut TokenStream2) {
+        tokens.extend(match self {
+            Self::Flattened(flattened_type) => {
+                quote!(<::clap_couture::MaybeCouture<#flattened_type>>::CATEGORIES)
+            }
+            Self::Subcommand(subcommand_type) => {
+                quote!(<#subcommand_type as ::clap_couture::Couture>::CATEGORIES)
+            }
+        });
     }
 }
 

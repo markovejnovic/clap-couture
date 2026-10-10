@@ -1,22 +1,5 @@
 //! The static tree of prompted args that `#[derive(Couture)]` emits as `Couture::PROMPTED_ARGS`.
 
-use core::marker::PhantomData;
-
-use crate::Couture;
-
-/// `T`, which may or may not implement `Couture`. Its `PROMPTED_ARGS` are `T`'s, or an empty tree
-/// for a `T` without the derive, so a flattened `Args` type from another crate needs no impl.
-///
-/// The inherent const applies when `T: Couture`; otherwise [`NotCouture`]'s does.
-#[derive(Debug)]
-pub struct MaybeCouture<T>(PhantomData<T>);
-
-/// The `PROMPTED_ARGS` of a [`MaybeCouture`] whose `T` does not implement `Couture`.
-pub trait NotCouture {
-    /// No prompted args.
-    const PROMPTED_ARGS: &'static PromptedArgTree = &PromptedArgTree::EMPTY;
-}
-
 /// One `#[couture(prompt)]` or `#[couture(prompt = "...")]`.
 #[derive(Debug)]
 pub struct PromptAttr {
@@ -53,16 +36,6 @@ pub struct PromptedArgTree {
     /// The args prompted for at this level.
     pub own_args: &'static [PromptAttr],
 }
-
-impl<T> MaybeCouture<T>
-where
-    T: Couture,
-{
-    /// `T`'s prompted args.
-    pub const PROMPTED_ARGS: &'static PromptedArgTree = &T::PROMPTED_ARGS;
-}
-
-impl<T> NotCouture for MaybeCouture<T> {}
 
 impl PromptedArgTree {
     /// A tree with no prompted args, the default for a hand-written `Couture` impl.

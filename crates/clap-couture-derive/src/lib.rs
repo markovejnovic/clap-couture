@@ -18,6 +18,9 @@ use crate::{couture_impl::CoutureImpl, input::CoutureInput};
 ///   declares the categories in display order. `title` and `description` are optional.
 /// - `#[category("key")]` on a variant files it under that category. Naming a category the enum
 ///   neither declares nor inherits is a compile error, unless it declares and inherits none.
+/// - A `#[command(flatten)]` variant or field brings its type's categories along, after the enum's
+///   own. On a label both use, the enum's declared title and description win. A flattened
+///   subcommand enum must derive `Couture` too; a flattened `Args` type need not.
 /// - With the `interactive` feature, `#[couture(prompt)]` or `#[couture(prompt = "...")]` on a
 ///   field asks for that arg when the user leaves it out.
 ///

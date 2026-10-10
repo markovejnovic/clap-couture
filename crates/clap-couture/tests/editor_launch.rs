@@ -77,6 +77,22 @@ fn the_default_backend_runs_editor_like_git() {
     // `:` is git's no-op editor: the pre-filled default is taken.
     assert_eq!(notes_with(":").as_deref(), Ok("Bug fixes."));
 
+    // Ctrl-C reaches the CLI too, which ignores it while the editor is open.
+    assert_eq!(notes_with("kill -INT $PPID; printf 'Survived.\\n' >").as_deref(), Ok("Survived."));
+
+    // The editor dying of Ctrl-C cancels the prompt, and the temp file goes with it.
+    let seen = std::env::temp_dir().join(format!("clap-couture-editor-{}", std::process::id()));
+    let cancelled =
+        notes_with(&format!("printf '%s' \"$1\" > '{}'; kill -INT $$; :", seen.display()));
+    assert!(cancelled.as_ref().is_err_and(|err| err.contains("prompt cancelled")), "{cancelled:?}");
+    let temp_file = std::path::PathBuf::from(std::fs::read_to_string(&seen).unwrap_or_default());
+    std::fs::remove_file(&seen).ok();
+    assert!(
+        temp_file.extension().is_some_and(|extension| extension == "txt") && !temp_file.exists(),
+        "{}",
+        temp_file.display()
+    );
+
     let failed = notes_with("false").err().unwrap_or_default();
     assert!(failed.contains("There was a problem with the editor 'false'."), "{failed}");
 }

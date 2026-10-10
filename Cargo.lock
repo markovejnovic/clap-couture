@@ -99,11 +99,13 @@ dependencies = [
  "console",
  "dialoguer",
  "inquire",
+ "libc",
  "pulldown-cmark",
  "rstest",
  "tempfile",
  "thiserror",
  "unicode-width",
+ "windows-sys",
 ]
 
 [[package]]

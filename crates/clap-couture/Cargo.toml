@@ -22,6 +22,13 @@ dialoguer = { workspace = true, optional = true }
 inquire = { workspace = true, optional = true }
 tempfile = { workspace = true, optional = true }
 
+# `interactive-editor` ignores Ctrl-C while the editor runs, as git does.
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true, optional = true }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true, optional = true }
+
 [features]
 markdown = ["dep:pulldown-cmark"]
 interactive = ["clap/string", "clap-couture-derive/interactive", "dep:thiserror"]
@@ -31,7 +38,9 @@ interactive-inquire = ["interactive", "dep:inquire"]
 interactive-editor = [
     "interactive",
     "clap-couture-derive/interactive-editor",
+    "dep:libc",
     "dep:tempfile",
+    "dep:windows-sys",
 ]
 
 [[example]]

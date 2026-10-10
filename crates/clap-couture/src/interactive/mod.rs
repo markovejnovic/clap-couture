@@ -122,6 +122,10 @@ pub use prompted_args::{
 
 pub use crate::os::signal::Signal;
 
+/// The [`secrecy`](https://docs.rs/secrecy) crate couture's secret args are typed with, so the app
+/// names the same `SecretString`.
+pub use secrecy;
+
 /// Why a prompt produced no answer.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]

@@ -18,12 +18,14 @@ unicode-width = { workspace = true }
 thiserror = { workspace = true, optional = true }
 cliclack = { workspace = true, optional = true }
 console = { workspace = true, optional = true }
-dialoguer = { workspace = true, optional = true }
+dialoguer = { workspace = true, optional = true, features = ["password"] }
 inquire = { workspace = true, optional = true }
 tempfile = { workspace = true, optional = true }
 encoding_rs = { workspace = true, optional = true }
 which = { workspace = true, optional = true }
 anstream = { workspace = true, optional = true }
+secrecy = { workspace = true, optional = true }
+zeroize = { workspace = true, optional = true }
 
 [target.'cfg(unix)'.dependencies]
 libc = { workspace = true, optional = true }
@@ -41,11 +43,14 @@ markdown = ["dep:pulldown-cmark"]
 # Prompts are declared with `#[couture(prompt)]`, so they need the derive.
 interactive = [
     "derive",
+    "clap/env",
     "clap/string",
     "clap-couture-derive/interactive",
     "dep:libc",
+    "dep:secrecy",
     "dep:thiserror",
     "dep:windows-sys",
+    "dep:zeroize",
 ]
 interactive-cliclack = ["interactive", "dep:cliclack", "dep:console"]
 interactive-dialoguer = ["interactive", "dep:dialoguer", "dep:console"]

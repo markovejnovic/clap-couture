@@ -8,7 +8,8 @@ use clap::Parser;
 use clap_couture::{
     Couture, CoutureParser as _,
     interactive::{
-        Backend, ConfirmPrompt, MultiSelectPrompt, PromptError, SelectPrompt, TextPrompt,
+        Backend, ConfirmPrompt, MultiSelectPrompt, PromptError, SecretPrompt, SelectPrompt,
+        TextPrompt, secrecy::SecretString,
     },
 };
 use rstest::rstest;
@@ -33,6 +34,10 @@ impl Backend for Refuses {
     }
 
     fn multi_select(&self, _prompt: &MultiSelectPrompt<'_>) -> Result<Vec<String>, PromptError> {
+        Err(refused())
+    }
+
+    fn secret(&self, _prompt: &SecretPrompt<'_>) -> Result<Option<SecretString>, PromptError> {
         Err(refused())
     }
 

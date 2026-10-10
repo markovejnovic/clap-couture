@@ -2,12 +2,19 @@
 
 use std::io;
 
+use secrecy::SecretString;
+
 #[cfg(feature = "interactive-editor")]
 use super::builtin::Edited;
-use super::{Backend, CommandStyles, builtin::ClapStyle};
+use super::{
+    Backend, CommandStyles,
+    builtin::{ClapStyle, into_secret},
+};
 #[cfg(feature = "interactive-editor")]
 use crate::interactive::EditorPrompt;
-use crate::interactive::{ConfirmPrompt, MultiSelectPrompt, PromptError, SelectPrompt, TextPrompt};
+use crate::interactive::{
+    ConfirmPrompt, MultiSelectPrompt, PromptError, SecretPrompt, SelectPrompt, TextPrompt,
+};
 
 /// Prompts drawn by cliclack, in its clack style.
 #[derive(Clone, Copy, Debug, Default)]
@@ -78,6 +85,15 @@ impl Backend for Cliclack {
 
     fn report(&self, error: &str, styles: CommandStyles<'_>) -> Result<(), PromptError> {
         Theme::from(styles).scoped(|| ::cliclack::log::error(error))
+    }
+
+    fn secret(&self, prompt: &SecretPrompt<'_>) -> Result<Option<SecretString>, PromptError> {
+        let answer = Theme::from(prompt.styles).scoped(|| {
+            let password = ::cliclack::password(prompt.question);
+            let mut password = if prompt.optional { password.allow_empty() } else { password };
+            password.interact()
+        })?;
+        Ok(into_secret(answer))
     }
 
     fn select(&self, prompt: &SelectPrompt<'_>) -> Result<Option<String>, PromptError> {

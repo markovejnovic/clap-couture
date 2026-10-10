@@ -1,14 +1,20 @@
 //! [`Backend`] drawn by [dialoguer](https://docs.rs/dialoguer).
 
 use clap::builder::PossibleValue;
-use dialoguer::{Confirm, Input, MultiSelect, Select, theme::ColorfulTheme};
+use dialoguer::{Confirm, Input, MultiSelect, Password, Select, theme::ColorfulTheme};
+use secrecy::SecretString;
 
 #[cfg(feature = "interactive-editor")]
 use super::builtin::Edited;
-use super::{Backend, CommandStyles, builtin::ClapStyle};
+use super::{
+    Backend, CommandStyles,
+    builtin::{ClapStyle, into_secret},
+};
 #[cfg(feature = "interactive-editor")]
 use crate::interactive::EditorPrompt;
-use crate::interactive::{ConfirmPrompt, MultiSelectPrompt, PromptError, SelectPrompt, TextPrompt};
+use crate::interactive::{
+    ConfirmPrompt, MultiSelectPrompt, PromptError, SecretPrompt, SelectPrompt, TextPrompt,
+};
 
 /// A dialoguer failure.
 struct DialoguerError(dialoguer::Error);
@@ -81,6 +87,16 @@ impl Backend for Dialoguer {
         console::Term::stderr()
             .write_line(&theme.error_style.apply_to(error).to_string())
             .map_err(PromptError::Io)
+    }
+
+    fn secret(&self, prompt: &SecretPrompt<'_>) -> Result<Option<SecretString>, PromptError> {
+        let theme = ColorfulTheme::from(prompt.styles);
+        let answer = Password::with_theme(&theme)
+            .with_prompt(prompt.question)
+            .allow_empty_password(prompt.optional)
+            .interact()
+            .map_err(DialoguerError)?;
+        Ok(into_secret(answer))
     }
 
     fn select(&self, prompt: &SelectPrompt<'_>) -> Result<Option<String>, PromptError> {

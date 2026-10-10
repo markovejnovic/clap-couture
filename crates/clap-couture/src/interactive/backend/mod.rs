@@ -30,10 +30,13 @@ pub use editor_interaction::EditorInteraction;
 #[cfg(feature = "interactive-inquire")]
 pub use inquire::Inquire;
 pub use non_interactive::NonInteractive;
+use secrecy::SecretString;
 
 #[cfg(feature = "interactive-editor")]
 use super::EditorPrompt;
-use super::{ConfirmPrompt, MultiSelectPrompt, PromptError, SelectPrompt, TextPrompt};
+use super::{
+    ConfirmPrompt, MultiSelectPrompt, PromptError, SecretPrompt, SelectPrompt, TextPrompt,
+};
 
 /// A command's clap styles, for a backend to build its theme from.
 #[derive(Clone, Copy, Debug)]
@@ -111,6 +114,13 @@ pub trait Backend {
     fn report(&self, error: &str, _styles: CommandStyles<'_>) -> Result<(), PromptError> {
         writeln!(io::stderr(), "{error}").map_err(PromptError::Io)
     }
+
+    /// Ask for a secret without echoing it, returning `None` only for an empty answer to an
+    /// optional prompt.
+    ///
+    /// # Errors
+    /// - [`PromptError::Cancelled`] when the user backs out.
+    fn secret(&self, prompt: &SecretPrompt<'_>) -> Result<Option<SecretString>, PromptError>;
 
     /// Ask to pick one of `prompt.options`, returning the picked option's name, or `None` when an
     /// optional prompt is answered with none of them.

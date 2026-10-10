@@ -7,18 +7,21 @@ use clap::builder::{
     styling::{AnsiColor, Color, Effects},
 };
 use inquire::{
-    Confirm, MultiSelect, Select, Text,
+    Confirm, MultiSelect, Password, PasswordDisplayMode, Select, Text,
     ui::{Attributes, ErrorMessageRenderConfig, RenderConfig, StyleSheet},
     validator::{MinLengthValidator, ValueRequiredValidator},
 };
+use secrecy::SecretString;
 
 use super::{
     Backend, CommandStyles,
-    builtin::{ClapColor, ClapStyle, NamedColor},
+    builtin::{ClapColor, ClapStyle, NamedColor, into_secret},
 };
 #[cfg(feature = "interactive-editor")]
 use crate::interactive::EditorPrompt;
-use crate::interactive::{ConfirmPrompt, MultiSelectPrompt, PromptError, SelectPrompt, TextPrompt};
+use crate::interactive::{
+    ConfirmPrompt, MultiSelectPrompt, PromptError, SecretPrompt, SelectPrompt, TextPrompt,
+};
 
 struct InquireError(inquire::InquireError);
 
@@ -86,6 +89,19 @@ impl Backend for Inquire {
         };
         let picked = select.prompt().map_err(InquireError)?;
         Ok(picked.into_iter().map(str::to_owned).collect())
+    }
+
+    fn secret(&self, prompt: &SecretPrompt<'_>) -> Result<Option<SecretString>, PromptError> {
+        let password = Password::new(prompt.question)
+            .without_confirmation()
+            .with_display_mode(PasswordDisplayMode::Masked)
+            .with_render_config(RenderConfig::from(prompt.styles));
+        let password = if prompt.optional {
+            password
+        } else {
+            password.with_validator(ValueRequiredValidator::default())
+        };
+        Ok(into_secret(password.prompt().map_err(InquireError)?))
     }
 
     fn select(&self, prompt: &SelectPrompt<'_>) -> Result<Option<String>, PromptError> {

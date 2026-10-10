@@ -145,7 +145,6 @@
 //! ```
 //! 
 //! and its field must be a `SecretString`:
-//!
 //! ```compile_fail,E0277
 //! use clap::Parser;
 //! use clap_couture::Couture;
@@ -270,6 +269,17 @@ pub struct MultiSelectPrompt<'prompt> {
     pub question: &'prompt str,
     /// What to tell the user when they select nothing, unless the prompt is optional.
     pub selection_required: &'prompt str,
+    /// The command's styles, for backends that theme themselves.
+    pub styles: CommandStyles<'prompt>,
+}
+
+/// A question whose answer is typed masked and never echoed.
+#[derive(Debug)]
+pub struct SecretPrompt<'prompt> {
+    /// An empty answer is allowed, and leaves the arg unset.
+    pub optional: bool,
+    /// What to ask.
+    pub question: &'prompt str,
     /// The command's styles, for backends that theme themselves.
     pub styles: CommandStyles<'prompt>,
 }

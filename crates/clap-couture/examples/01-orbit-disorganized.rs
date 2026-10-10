@@ -1,22 +1,39 @@
-//! The `orbit` demo CLI on plain clap: one flat list of subcommands.
-//! `01-orbit-organized` is the same CLI with couture.
+//! A minimal example of what programs look like without clap-couture.
 //!
-//! ```sh
-//! cargo run -p clap-couture --example 01-orbit-disorganized -- --help
+//! **This example does not use clap-couture and is intended as a "before" render.**
+//!
+//! Please see `01-orbit-organized.rs` for how couture makes this cleaner and neater.
+//!
+//! # Example Output
+//!
+//! `cargo run -p clap-couture --example 01-orbit-disorganized -- --help` outputs:
+//!
+//! ```terminal
+//! Deploy and manage your apps from the terminal
+//!
+//! Usage: 01-orbit-disorganized <COMMAND>
+//!
+//! Commands:
+//!   deploy    Ship the current project
+//!   login     Sign in to your account
+//!   logs      Tail live logs
+//!   rollback  Roll back to a previous release
+//!   search    Search your deployment history
+//!   secrets   Manage environment secrets
+//!   status    Show recent activity
+//!   sync      Sync settings across machines
+//!   help      Print this message or the help of the given subcommand(s)
+//!
+//! Options:
+//!   -h, --help  Print help
 //! ```
 
 #![expect(clippy::print_stdout, reason = "a runnable demo prints its result")]
 
 use clap::{Parser, Subcommand};
 
+/// Deploy and manage your apps from the terminal.
 #[derive(Parser)]
-#[command(
-    name = "orbit",
-    bin_name = "orbit",
-    version,
-    about = "Deploy and manage your apps from the terminal.",
-    arg_required_else_help = true
-)]
 struct Cli {
     #[command(subcommand)]
     cmd: Cmd,

@@ -1,28 +1,20 @@
-# `orbit-deploy` answering each kind of prompt. `scripts/record-examples.sh` records it, with the
-# examples on PATH and the output paths and theme prepended.
+# `03-interactive.tape` for the inquire backend, whose confirm needs Enter. See `scripts/record-examples.py`.
 
-Set Shell bash
-Set FontFamily "JetBrains Mono"
-Set FontSize 18
-Set Width 1000
 Set Height 640
-Set Padding 30
-Set WindowBar Colorful
-Set TypingSpeed 75ms
 
 Hide
 Type "alias orbit-deploy=03-interactive && clear" Enter
 Show
 
 Type "orbit-deploy" Sleep 400ms Enter
-Wait+Screen /Which app\?/
+Wait+Screen /Application name/
 Sleep 600ms
 Type "web" Sleep 400ms Enter
 
 Wait+Screen /Tail the logs/
 Sleep 800ms
-# cliclack's confirm takes `y` as the answer, without Enter.
-Type "y"
+# inquire's confirm is a text field: `y`, then Enter.
+Type "y" Sleep 400ms Enter
 
 Wait+Screen /Which region\?/
 Sleep 800ms

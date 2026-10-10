@@ -37,13 +37,7 @@ With `clap-couture`, you can create categories:
 
 ```rust
 #[derive(Subcommand, Couture)]
-#[couture(categories = {
-    "everyday" = { title = "Everyday:",
-                   description = "The commands you'll reach for daily" },
-    "deploy"   = { title = "Deploy:",
-                   description = "Ship code to production" },
-    "account"  = { title = "Account & sync:" },
-})]
+#[couture(categories = { "everyday" = {}, "deploy" = {}, "account" = {} })]
 enum Cmd {
     #[category("deploy")] Deploy,
     #[category("account")] Login,
@@ -73,7 +67,7 @@ which will generate beautiful `--help`:
     <td valign="top">
       <picture>
         <source media="(prefers-color-scheme: light)" srcset="assets/01-orbit-organized-light.svg">
-        <img src="assets/01-orbit-organized-dark.svg" alt="the same CLI with clap-couture: commands grouped into titled categories with descriptions" width="430">
+        <img src="assets/01-orbit-organized-dark.svg" alt="the same CLI with clap-couture: commands grouped into categories" width="430">
       </picture>
     </td>
   </tr>

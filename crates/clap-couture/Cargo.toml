@@ -37,6 +37,8 @@ full = ["derive", "markdown", "interactive-cliclack"]
 # Document every backend, not only the default one.
 [package.metadata.docs.rs]
 all-features = true
+# Lightens the logo on the dark themes.
+rustdoc-args = ["--html-in-header", "docs-header.html"]
 
 [[example]]
 name = "01-orbit-disorganized"
@@ -51,7 +53,11 @@ required-features = ["derive", "markdown"]
 
 [[example]]
 name = "03-interactive"
-required-features = ["interactive-cliclack"]
+required-features = ["interactive"]
+
+[[example]]
+name = "09-advanced"
+required-features = ["derive"]
 
 [dev-dependencies]
 clap = { workspace = true, features = ["derive", "env"] }

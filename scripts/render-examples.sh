@@ -42,8 +42,6 @@ else
   for path in crates/clap-couture/examples/*.rs; do
     name=${path##*/}
     name=${name%.rs}
-    # An interactive example is recorded from its tape by `record-examples.sh` instead.
-    [[ -e scripts/tapes/$name.tape ]] && continue
     examples+=("$name")
   done
 fi
@@ -52,7 +50,10 @@ cargo build -q -p clap-couture --all-features "${examples[@]/#/--example=}"
 
 for example in "${examples[@]}"; do
   ansi="assets/$example.ansi"
-  CLICOLOR_FORCE=1 "./target/debug/examples/$example" --help >"$ansi"
+  # Run it as its CLI, e.g. `orbit` for `01-orbit-organized`, since clap's usage line shows argv[0].
+  display=${example#*-}
+  display=${display%%-*}
+  CLICOLOR_FORCE=1 bash -c 'exec -a "$0" "$1" --help' "$display" "./target/debug/examples/$example" >"$ansi"
   echo "wrote $ansi"
   if $ansi_only; then
     continue

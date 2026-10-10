@@ -38,8 +38,8 @@
 //!       <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/01-orbit-disorganized-light.svg" alt="clap's default --help: one long, flat list of commands" width="430">
 //!     </td>
 //!     <td valign="top">
-//!       <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/01-orbit-organized-dark.svg" alt="the same CLI with clap-couture: commands grouped into titled categories with descriptions" width="430">
-//!       <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/01-orbit-organized-light.svg" alt="the same CLI with clap-couture: commands grouped into titled categories with descriptions" width="430">
+//!       <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/01-orbit-organized-dark.svg" alt="the same CLI with clap-couture: commands grouped into categories" width="430">
+//!       <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/01-orbit-organized-light.svg" alt="the same CLI with clap-couture: commands grouped into categories" width="430">
 //!     </td>
 //!   </tr>
 //! </table>
@@ -88,11 +88,7 @@
 //! }
 //!
 //! #[derive(Subcommand, Couture)]
-//! #[couture(categories = {
-//!     "everyday" = { title = "Everyday:", description = "The commands you'll reach for daily" },
-//!     "deploy"   = { title = "Deploy:",  description = "Ship code to production" },
-//!     "account"  = { title = "Account & sync:" },
-//! })]
+//! #[couture(categories = { "everyday" = {}, "deploy" = {}, "account" = {} })]
 //! enum Cmd {
 //!     /// Ship the current project.
 //!     #[category("deploy")]
@@ -253,6 +249,11 @@
 //!
 //! There is also a mechanism to implement a custom backend, but this is intentionally not
 //! documented until it reaches stability.
+
+#![doc(
+    html_logo_url = "https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/logo.svg",
+    html_favicon_url = "https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/logo.svg"
+)]
 
 extern crate alloc;
 
@@ -602,7 +603,7 @@ impl CommandExt for Command {
         let (header, usage) = (styles.get_header(), styles.get_usage());
         let (options_heading, usage_heading) = (T::MESSAGES.options.get(), T::MESSAGES.usage.get());
         let template = format!(
-            "{{name}} {{version}}\n{{author}}\n{{about}}\n\n{usage}{usage_heading}{usage:#}\n  \
+            "{{about-with-newline}}\n{usage}{usage_heading}{usage:#}\n  \
              {{usage}}\n\n{{before-help}}{header}{options_heading}{header:#}\n{{options}}"
         );
 

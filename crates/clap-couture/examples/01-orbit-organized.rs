@@ -1,8 +1,32 @@
-//! The `orbit` demo CLI with couture: subcommands grouped into titled categories.
-//! `01-orbit-disorganized` is the same CLI on plain clap.
+//! Demo of clap-couture's categories.
 //!
-//! ```sh
-//! cargo run -p clap-couture --example 01-orbit-organized -- --help
+//! clap-couture enables you to organize your subcommands in categories.
+//!
+//! # Example Output
+//!
+//! `cargo run -p clap-couture --example 01-orbit-organized -- --help` outputs:
+//!
+//! ```terminal
+//! Deploy and manage your apps from the terminal
+//!
+//! Usage:
+//!   01-orbit-organized <COMMAND>
+//!
+//!   logs      Tail live logs
+//!   search    Search your deployment history
+//!   status    Show recent activity
+//!
+//! deploy:
+//!   deploy    Ship the current project
+//!   rollback  Roll back to a previous release
+//!   secrets   Manage environment secrets
+//!
+//! Account & sync:  Who you are, on every machine
+//!   login     Sign in to your account
+//!   sync      Sync settings across machines
+//!
+//! Options:
+//!   -h, --help  Print help
 //! ```
 
 #![expect(clippy::print_stdout, reason = "a runnable demo prints its result")]
@@ -10,24 +34,21 @@
 use clap::{Parser, Subcommand};
 use clap_couture::{Couture, CoutureParser as _};
 
+// You need to decorate your top-level CLI entrypoint with `#[derive(Couture)]`.
+// Couture will preserve all of what clap does, including rsdoc!
+/// Deploy and manage your apps from the terminal.
 #[derive(Parser, Couture)]
-#[command(
-    name = "orbit",
-    bin_name = "orbit",
-    version,
-    about = "Deploy and manage your apps from the terminal.",
-    arg_required_else_help = true
-)]
 struct Cli {
     #[command(subcommand)]
     cmd: Cmd,
 }
 
+// You also need to decorate all your subcommands with `#[derive(Couture)]`.
 #[derive(Subcommand, Couture)]
 #[couture(categories = {
-    "everyday" = { title = "Everyday:", description = "The commands you'll reach for daily" },
-    "deploy"   = { title = "Deploy:",  description = "Ship code to production" },
-    "account"  = { title = "Account & sync:" },
+    "deploy" = {},
+    // `title` replaces the `account:` heading, and `description` goes beside it.
+    "account" = { title = "Account & sync:", description = "Who you are, on every machine" }
 })]
 enum Cmd {
     /// Ship the current project.
@@ -36,20 +57,19 @@ enum Cmd {
     /// Sign in to your account.
     #[category("account")]
     Login,
+    // Uncategorized entries go into an uncategorized section at the top. In this example, that's
+    // Logs, Search, and Status.
     /// Tail live logs.
-    #[category("everyday")]
     Logs,
     /// Roll back to a previous release.
     #[category("deploy")]
     Rollback,
     /// Search your deployment history.
-    #[category("everyday")]
     Search,
     /// Manage environment secrets.
     #[category("deploy")]
     Secrets,
     /// Show recent activity.
-    #[category("everyday")]
     Status,
     /// Sync settings across machines.
     #[category("account")]
@@ -57,7 +77,9 @@ enum Cmd {
 }
 
 fn main() {
+    // You need to change the `Cli::parse` call to `Cli::couture_parse()`.
     let cli = Cli::couture_parse();
+
     let ran = match cli.cmd {
         Cmd::Search => "search",
         Cmd::Status => "status",

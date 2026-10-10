@@ -1,16 +1,9 @@
-# Configuration for cargo-deny (https://embarkstudios.github.io/cargo-deny/).
-# Run locally with: cargo install cargo-deny && cargo deny check
-
 [advisories]
 version = 2
-# Add RUSTSEC IDs here to temporarily accept a known advisory, e.g.:
-# ignore = ["RUSTSEC-0000-0000"]
-ignore = []
 
 [licenses]
 version = 2
-# Permissive licenses compatible with this crate's MIT license. Extend this
-# list if cargo-deny reports a dependency using a license not covered here.
+# Permissive licenses compatible with this crate's MIT license.
 allow = [
   "MIT",
   "Apache-2.0",
@@ -25,8 +18,7 @@ allow = [
 confidence-threshold = 0.8
 
 [bans]
-# Duplicate versions are common in transitive trees and usually not
-# actionable, so warn rather than fail.
+# Transitive duplicates are rarely actionable.
 multiple-versions = "warn"
 wildcards = "deny"
 

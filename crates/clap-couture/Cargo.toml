@@ -2,7 +2,7 @@
 name = "clap-couture"
 version = "0.1.0"
 edition = "2024"
-description = "Beautiful, categorized --help for clap CLIs — group subcommands into titled, styled sections."
+description = "Beautiful, categorized --help for clap CLIs: group subcommands into titled, styled sections."
 keywords = ["clap", "cli", "help", "terminal", "derive"]
 categories = ["command-line-interface", "development-tools"]
 readme = "../../README.md"
@@ -15,12 +15,26 @@ clap-couture-derive = { path = "../clap-couture-derive", version = "0.1.0" }
 clap = { workspace = true }
 pulldown-cmark = { workspace = true, optional = true }
 unicode-width = { workspace = true }
+thiserror = { workspace = true, optional = true }
+cliclack = { workspace = true, optional = true }
+console = { workspace = true, optional = true }
+dialoguer = { workspace = true, optional = true }
+inquire = { workspace = true, optional = true }
 
 [features]
 markdown = ["dep:pulldown-cmark"]
+interactive = ["clap/string", "clap-couture-derive/interactive", "dep:thiserror"]
+interactive-cliclack = ["interactive", "dep:cliclack", "dep:console"]
+interactive-dialoguer = ["interactive", "dep:dialoguer", "dep:console"]
+interactive-inquire = ["interactive", "dep:inquire"]
+
+[[example]]
+name = "deploy"
+required-features = ["interactive"]
 
 [dev-dependencies]
-clap = { workspace = true, features = ["derive"] }
+clap = { workspace = true, features = ["derive", "env"] }
+rstest = { workspace = true }
 
 [lints]
 workspace = true

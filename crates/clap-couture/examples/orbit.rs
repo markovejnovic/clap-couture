@@ -1,11 +1,8 @@
-//! A runnable showcase of clap-couture's categorized help.
+//! The demo CLI behind the README images.
 //!
 //! ```sh
 //! cargo run -p clap-couture --example orbit --features markdown -- --help
 //! ```
-//!
-//! Or just `cargo run -p clap-couture --example orbit` — with no subcommand it
-//! prints the couture help. This is also what `assets/demo.tape` records.
 
 #![allow(
     clippy::expect_used,
@@ -17,11 +14,9 @@ use clap::{
     CommandFactory as _, Parser, Subcommand,
     builder::styling::{Color, RgbColor, Style, Styles},
 };
-use clap_couture::Couture;
+use clap_couture::{Couture, CoutureParser as _};
 
-// clap-couture inherits whatever `Styles` your command already uses, so a few
-// colors here flow straight into the categorized help — category titles pick up
-// the header style, command names pick up the literal style.
+// Couture reuses the command's `Styles`: headings take `header`, command names take `literal`.
 const PINK: Color = Color::Rgb(RgbColor(0xf5, 0xc2, 0xe7));
 const BLUE: Color = Color::Rgb(RgbColor(0x89, 0xb4, 0xfa));
 const GREY: Color = Color::Rgb(RgbColor(0x93, 0x99, 0xb2));
@@ -79,15 +74,13 @@ enum Cmd {
 }
 
 fn main() {
-    // Demo affordance: `ORBIT_PLAIN=1` prints clap's default (ungrouped) help, so
-    // `assets/render.sh` can capture the "before" image from this same definition.
+    // `ORBIT_PLAIN=1` prints plain clap help, for the "before" image in `assets/render.sh`.
     if std::env::var_os("ORBIT_PLAIN").is_some() {
         Cli::command().print_help().expect("write help");
         return;
     }
 
     let cli = Cli::couture_parse();
-    // A real CLI would dispatch here; the demo just reports what it parsed.
     let ran = match cli.cmd {
         Cmd::Search => "search",
         Cmd::Status => "status",

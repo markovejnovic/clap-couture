@@ -1,6 +1,5 @@
 version: 2
 updates:
-  # Rust dependencies (Cargo.toml / Cargo.lock across the workspace).
   - package-ecosystem: cargo
     directory: "/"
     schedule:
@@ -13,7 +12,6 @@ updates:
           - minor
           - patch
 
-  # Versions of the actions used in the workflows above.
   - package-ecosystem: github-actions
     directory: "/"
     schedule:

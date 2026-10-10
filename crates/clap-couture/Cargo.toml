@@ -104,6 +104,10 @@ name = "06-interactive-editor"
 required-features = ["interactive-editor"]
 
 [[example]]
+name = "07-interactive-secret"
+required-features = ["interactive"]
+
+[[example]]
 name = "09-interactive-custom-backend"
 required-features = ["derive", "markdown", "interactive"]
 

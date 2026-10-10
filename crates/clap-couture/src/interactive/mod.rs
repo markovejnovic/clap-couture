@@ -104,7 +104,9 @@
 //!
 //! Add `secret` to ask for a [`secrecy::SecretString`] without echoing it. The answer never
 //! reaches clap as plaintext, and the arg refuses a value from the command line, where `ps` and
-//! shell history would see it; `secret(allow_argv)` allows it.
+//! shell history would see it; `secret(allow_argv)` allows it. A value from its env var is used
+//! without asking, and `--help` doesn't show it.
+//!
 //! ```
 //! use clap::Parser;
 //! use clap_couture::{Couture, interactive::secrecy::SecretString};

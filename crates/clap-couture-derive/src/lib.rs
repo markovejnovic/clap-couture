@@ -32,6 +32,9 @@ use crate::{couture_impl::CoutureImpl, input::CoutureInput};
 /// - With the `interactive` feature, `#[couture(confirm)]` or `#[couture(confirm = "...")]` on a
 ///   `bool` flag asks to go ahead after every prompt, unless the flag is passed. A no, or no
 ///   terminal to ask on, fails the parse. `{arg}` in the question stands for that arg's value.
+/// - Add `secret` beside it, `#[couture(prompt, secret)]`, to ask for a `SecretString` without
+///   echoing it. The arg then refuses a value from the command line; `secret(allow_argv)` allows
+///   it.
 /// - `#[couture(messages = { usage = ..., options = ..., none = ... })]` replaces the text couture
 ///   prints itself, eg. to localize it; see `clap_couture::Messages` for every key. Any of them may
 ///   be left out. It applies on the type you parse, or the one you pass to `with_couture`.

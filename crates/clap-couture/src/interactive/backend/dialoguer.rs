@@ -22,7 +22,8 @@ struct DialoguerError(dialoguer::Error);
 /// Prompts drawn by dialoguer's colorful theme.
 ///
 /// At a secret prompt, Ctrl-C interrupts the process rather than returning
-/// [`PromptError::Cancelled`]: dialoguer reads the secret as a plain line, with only echo off.
+/// [`PromptError::Cancelled`]: dialoguer reads the secret as a plain line, with only echo off. Esc
+/// is taken as part of the answer, and the interrupted process may leave the terminal's echo off.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Dialoguer;
 

@@ -24,5 +24,9 @@ syn = { workspace = true }
 serde = { workspace = true }
 serde_tokenstream = { workspace = true }
 
+[dev-dependencies]
+clap = { workspace = true, features = ["derive"] }
+clap-couture = { path = "../clap-couture", features = ["interactive"] }
+
 [lints]
 workspace = true

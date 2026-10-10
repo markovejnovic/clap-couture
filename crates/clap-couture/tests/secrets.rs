@@ -29,6 +29,23 @@ struct Deploy {
     replicas: u8,
 }
 
+/// A root secret every subcommand takes, so the subcommand's parse carries the placeholder.
+/// Optional, as clap refuses a required global arg.
+#[derive(Parser, Couture)]
+struct GlobalLogin {
+    #[command(subcommand)]
+    cmd: GlobalLoginCmd,
+
+    #[arg(long, global = true)]
+    #[couture(prompt = "Which token?", secret)]
+    token: Option<SecretString>,
+}
+
+#[derive(Subcommand, Couture)]
+enum GlobalLoginCmd {
+    Push,
+}
+
 #[derive(Parser, Couture)]
 struct Login {
     #[arg(long)]
@@ -65,7 +82,7 @@ struct ScriptedLogin {
     token: SecretString,
 }
 
-fn asked_secret() -> Asked {
+fn token_asked_masked() -> Asked {
     Asked {
         defaults: Vec::new(),
         error: None,
@@ -139,7 +156,7 @@ fn a_missing_secret_is_asked_masked() {
     let login = Login::couture_try_parse_from_with(&backend, ["app"]);
     let token = login.map(|login| login.token.expose_secret().to_owned());
     assert_eq!(token.ok().as_deref(), Some("hunter2"));
-    assert_eq!(backend.asked(), [asked_secret()]);
+    assert_eq!(backend.asked(), [token_asked_masked()]);
 }
 
 #[rstest]
@@ -159,7 +176,7 @@ fn answers_after_a_secret_still_parse() {
 }
 
 #[rstest]
-fn a_rejected_answer_after_a_secret_is_reported_without_it() {
+fn a_rejected_answer_after_a_secret_is_asked_again_and_reported_without_its_placeholder() {
     let backend = ScriptedBackend::new([
         Reply::Secret(Some("hunter2")),
         Reply::Text(Some("lots")),
@@ -170,7 +187,10 @@ fn a_rejected_answer_after_a_secret_is_reported_without_it() {
     let reported: Vec<String> =
         backend.asked().into_iter().filter_map(|asked| asked.error).collect();
     assert_eq!(reported.len(), 1, "{reported:?}");
-    assert!(reported.iter().all(|error| !error.contains("hunter2")), "{reported:?}");
+    assert!(
+        reported.iter().all(|error| !error.contains("couture-secret") && !error.contains('\0')),
+        "{reported:?}"
+    );
 }
 
 #[rstest]
@@ -188,7 +208,7 @@ fn a_secret_on_a_subcommand_is_asked_masked() {
         RegistryCmd::Login { token } => token.expose_secret().to_owned(),
     });
     assert_eq!(token.ok().as_deref(), Some("hunter2"));
-    assert_eq!(backend.asked(), [asked_secret()]);
+    assert_eq!(backend.asked(), [token_asked_masked()]);
 }
 
 #[rstest]
@@ -201,4 +221,15 @@ fn a_secret_on_a_subcommand_is_refused_on_the_command_line() {
         Some(ErrorKind::ValueValidation)
     );
     assert_eq!(backend.asked(), []);
+}
+
+#[rstest]
+fn a_global_secret_is_asked_through_a_subcommand() {
+    let backend = ScriptedBackend::new([Reply::Secret(Some("hunter2"))]);
+    let login = GlobalLogin::couture_try_parse_from_with(&backend, ["app", "push"]);
+    let token = login.map(|login| match login.cmd {
+        GlobalLoginCmd::Push => login.token.map(|token| token.expose_secret().to_owned()),
+    });
+    assert_eq!(token.ok().flatten().as_deref(), Some("hunter2"));
+    assert_eq!(backend.asked(), [token_asked_masked()]);
 }

@@ -10,7 +10,8 @@
 //! parse; without a terminal to ask on, one left unanswered fails it as a missing required arg.
 //!
 //! A secret's answer goes into a vault instead, and clap gets a placeholder that the secret's
-//! value parser swaps back. It skips the trial parse, so no clap message can echo it.
+//! value parser swaps back. It skips the trial parse: that parser takes any string, so there is
+//! nothing to ask again.
 
 use core::iter;
 use std::ffi::OsString;
@@ -39,9 +40,10 @@ use crate::{
 
 /// A prompted arg's accepted answer.
 struct Answer<'prompted_arg> {
+    /// What clap gets as the arg's defaults: the answer itself, or a secret's placeholder. One
+    /// value, or any number for an arg that takes many.
+    injected_values: Vec<String>,
     prompted_arg: &'prompted_arg PromptedArg,
-    /// One value, or any number for an arg that takes many.
-    values: Vec<String>,
 }
 
 /// A prompted arg about to be asked in the editor, and what is known about it.
@@ -77,7 +79,8 @@ struct Session<'run> {
 impl Session<'_> {
     /// Ask for `prompted_arg` until clap accepts the answer; `None` when an optional single-value
     /// one is left empty. `current` is the arg's default, split into its values. `later` are the
-    /// prompted args still to be asked after it.
+    /// prompted args still to be asked after it. A secret is asked once and comes back as its vault
+    /// placeholder.
     fn answer(
         &self,
         prompted_arg: &PromptedArg,
@@ -93,7 +96,8 @@ impl Session<'_> {
         let question = self.question(prompted_arg);
         if prompted_arg.attr.secret.is_some() {
             // clap has nothing to reject in a string, so a secret skips the trial parse; the vault
-            // keeps it and clap gets a placeholder.
+            // keeps it and clap gets a placeholder. `current` goes unused: the derive refuses a
+            // default on a secret, and showing one would echo it.
             let secret = self.backend.secret(&SecretPrompt {
                 optional,
                 question: &question,
@@ -228,7 +232,7 @@ impl Session<'_> {
         let question = self.question(prompted_arg);
         let answered = inject(
             relax(self.cmd.clone(), self.prompted_args),
-            answers.iter().map(|answer| (answer.prompted_arg, answer.values.as_slice())),
+            answers.iter().map(|answer| (answer.prompted_arg, answer.injected_values.as_slice())),
         )
         .try_get_matches_from(self.argv);
         let question = match answered
@@ -325,7 +329,8 @@ impl Session<'_> {
     /// in, and only the args still to be asked, `later`, stay relaxed, so a group another of them
     /// can still satisfy doesn't make this one required.
     fn required(&self, answers: &[Answer<'_>], later: &[&PromptedArg]) -> bool {
-        let accepted = answers.iter().map(|answer| (answer.prompted_arg, answer.values.as_slice()));
+        let accepted =
+            answers.iter().map(|answer| (answer.prompted_arg, answer.injected_values.as_slice()));
         let cmd = inject(relax(self.cmd.clone(), later.iter().copied()), accepted);
         cmd.try_get_matches_from(self.argv)
             .is_err_and(|err| err.kind() == ErrorKind::MissingRequiredArgument)
@@ -338,7 +343,8 @@ impl Session<'_> {
         prompted_arg: &PromptedArg,
         candidate: &[String],
     ) -> Result<(), clap::Error> {
-        let accepted = answers.iter().map(|answer| (answer.prompted_arg, answer.values.as_slice()));
+        let accepted =
+            answers.iter().map(|answer| (answer.prompted_arg, answer.injected_values.as_slice()));
         let cmd = inject(
             relax(self.cmd.clone(), self.prompted_args.iter()),
             accepted.chain(iter::once((prompted_arg, candidate))),
@@ -417,7 +423,7 @@ where
             PromptPurpose::Value => session.answer(prompted_arg, current, &answers, &later),
         };
         match answer {
-            Ok(Some(values)) => answers.push(Answer { prompted_arg, values }),
+            Ok(Some(injected_values)) => answers.push(Answer { injected_values, prompted_arg }),
             Ok(None) => {}
             // Backing out counts as Ctrl-C.
             Err(PromptError::Cancelled) => return Err(Failure::Cancelled(Signal::Interrupt)),
@@ -426,8 +432,10 @@ where
             Err(PromptError::NotATerminal) => return parse_unprompted(cmd, &prompted_args, argv),
         }
     }
-    let cmd_with_answers =
-        inject(cmd, answers.iter().map(|answer| (answer.prompted_arg, answer.values.as_slice())));
+    let cmd_with_answers = inject(
+        cmd,
+        answers.iter().map(|answer| (answer.prompted_arg, answer.injected_values.as_slice())),
+    );
     super::parse(cmd_with_answers, argv)
 }
 

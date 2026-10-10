@@ -6,6 +6,7 @@ mod cliclack;
 mod dialoguer;
 #[cfg(feature = "interactive-inquire")]
 mod inquire;
+mod non_interactive;
 
 use std::io::{self, IsTerminal as _, Write as _};
 
@@ -18,6 +19,7 @@ pub use cliclack::Cliclack;
 pub use dialoguer::Dialoguer;
 #[cfg(feature = "interactive-inquire")]
 pub use inquire::Inquire;
+pub use non_interactive::NonInteractive;
 
 use super::{ConfirmPrompt, PromptError, SelectPrompt, TextPrompt};
 
@@ -107,20 +109,28 @@ impl From<ClapStyle<'_>> for console::Style {
 }
 
 /// The backend [`CoutureParser`](crate::CoutureParser)'s entry points ask through: the first
-/// enabled of cliclack, dialoguer and inquire.
+/// enabled of cliclack, dialoguer and inquire, or [`NonInteractive`] when none is.
 #[cfg(feature = "interactive-cliclack")]
 pub type DefaultBackend = Cliclack;
 /// The backend [`CoutureParser`](crate::CoutureParser)'s entry points ask through: the first
-/// enabled of cliclack, dialoguer and inquire.
+/// enabled of cliclack, dialoguer and inquire, or [`NonInteractive`] when none is.
 #[cfg(all(feature = "interactive-dialoguer", not(feature = "interactive-cliclack")))]
 pub type DefaultBackend = Dialoguer;
 /// The backend [`CoutureParser`](crate::CoutureParser)'s entry points ask through: the first
-/// enabled of cliclack, dialoguer and inquire.
+/// enabled of cliclack, dialoguer and inquire, or [`NonInteractive`] when none is.
 #[cfg(all(
     feature = "interactive-inquire",
     not(any(feature = "interactive-cliclack", feature = "interactive-dialoguer"))
 ))]
 pub type DefaultBackend = Inquire;
+/// The backend [`CoutureParser`](crate::CoutureParser)'s entry points ask through: the first
+/// enabled of cliclack, dialoguer and inquire, or [`NonInteractive`] when none is.
+#[cfg(not(any(
+    feature = "interactive-cliclack",
+    feature = "interactive-dialoguer",
+    feature = "interactive-inquire"
+)))]
+pub type DefaultBackend = NonInteractive;
 
 /// A terminal UI that can ask for one arg's value.
 ///

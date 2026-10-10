@@ -1,8 +1,11 @@
 //! Parse entry points with couture installed.
 
+#[cfg(feature = "interactive")]
+mod prompting;
+
 use std::ffi::OsString;
 
-use clap::{Command, Parser};
+use clap::{Command, FromArgMatches, Parser};
 
 #[cfg(feature = "interactive")]
 use crate::interactive::Backend;
@@ -11,8 +14,7 @@ use crate::{CommandExt as _, Couture};
 /// clap's [`Parser`] entry points, with couture's help installed.
 ///
 /// Implemented for every [`Parser`] that also implements [`Couture`]. With an `interactive-*`
-/// backend feature on, every entry point asks for prompted args the user left out; see
-/// [`interactive`](crate::interactive).
+/// backend feature on, every entry point asks for prompted args the user left out.
 pub trait CoutureParser: Parser + Couture {
     /// The clap [`Command`] with couture's help installed.
     #[must_use]
@@ -29,28 +31,14 @@ pub trait CoutureParser: Parser + Couture {
     }
 
     /// Equivalent to [`Parser::parse_from`], with couture's help.
-    ///
-    /// Exits with status 130 when the user cancels a prompt.
     #[must_use]
     fn couture_parse_from<I, T>(itr: I) -> Self
     where
         I: IntoIterator<Item = T>,
         T: Into<OsString> + Clone,
     {
-        exit_on_failure(parse_default(&collect(itr)))
-    }
-
-    /// Equivalent to [`couture_parse`](Self::couture_parse), asking `backend` for prompted args.
-    #[cfg(feature = "interactive")]
-    #[must_use]
-    fn couture_parse_with(backend: &dyn Backend) -> Self {
-        let argv = collect(std::env::args_os());
-        exit_on_failure(crate::interactive::parse(
-            Self::couture_command(),
-            &Self::PROMPTED_ARGS,
-            &argv,
-            backend,
-        ))
+        parse_default(&itr.into_iter().map(Into::into).collect::<Vec<OsString>>())
+            .unwrap_or_else(|failure| failure.exit())
     }
 
     /// Equivalent to [`Parser::try_parse`], with couture's help.
@@ -72,7 +60,8 @@ pub trait CoutureParser: Parser + Couture {
         I: IntoIterator<Item = T>,
         T: Into<OsString> + Clone,
     {
-        parse_default(&collect(itr)).map_err(Failure::into_clap)
+        parse_default(&itr.into_iter().map(Into::into).collect::<Vec<OsString>>())
+            .map_err(Failure::into_clap)
     }
 
     /// Equivalent to [`couture_try_parse_from`](Self::couture_try_parse_from), asking `backend`
@@ -86,10 +75,10 @@ pub trait CoutureParser: Parser + Couture {
         I: IntoIterator<Item = T>,
         T: Into<OsString> + Clone,
     {
-        crate::interactive::parse(
+        prompting::parse(
             Self::couture_command(),
             &Self::PROMPTED_ARGS,
-            &collect(itr),
+            &itr.into_iter().map(Into::into).collect::<Vec<OsString>>(),
             backend,
         )
         .map_err(Failure::into_clap)
@@ -108,6 +97,16 @@ pub(crate) enum Failure {
 }
 
 impl Failure {
+    /// Exit the process the way clap would for this failure; 130 for a cancelled prompt.
+    fn exit(self) -> ! {
+        match self {
+            // 130 is the conventional status for an interrupted command.
+            #[cfg(feature = "interactive")]
+            Self::Cancelled => std::process::exit(130),
+            Self::Clap(err) => err.exit(),
+        }
+    }
+
     fn into_clap(self) -> clap::Error {
         match self {
             #[cfg(feature = "interactive")]
@@ -117,52 +116,28 @@ impl Failure {
     }
 }
 
-fn collect<I, T>(itr: I) -> Vec<OsString>
+/// Parse through [`DefaultBackend`](crate::interactive::DefaultBackend), or without prompting
+/// when the `interactive` feature is off.
+fn parse_default<T>(argv: &[OsString]) -> Result<T, Failure>
 where
-    I: IntoIterator<Item = T>,
-    T: Into<OsString>,
+    T: CoutureParser,
 {
-    itr.into_iter().map(Into::into).collect()
-}
-
-fn exit_on_failure<T>(result: Result<T, Failure>) -> T {
-    match result {
-        Ok(value) => value,
-        #[cfg(feature = "interactive")]
-        #[expect(
-            clippy::exit,
-            reason = "130 is the conventional status for an interrupted command"
-        )]
-        Err(Failure::Cancelled) => std::process::exit(130),
-        Err(Failure::Clap(err)) => err.exit(),
+    #[cfg(feature = "interactive")]
+    {
+        let backend = crate::interactive::DefaultBackend::default();
+        prompting::parse(T::couture_command(), &T::PROMPTED_ARGS, argv, &backend)
+    }
+    #[cfg(not(feature = "interactive"))]
+    {
+        parse(T::couture_command(), argv)
     }
 }
 
-/// Parse through [`DefaultBackend`](crate::interactive::DefaultBackend).
-#[cfg(any(
-    feature = "interactive-cliclack",
-    feature = "interactive-dialoguer",
-    feature = "interactive-inquire"
-))]
-fn parse_default<T>(argv: &[OsString]) -> Result<T, Failure>
+/// Parse `argv` against `cmd` as clap would, then build `T`. The prompting parse ends here too.
+fn parse<T>(mut cmd: Command, argv: &[OsString]) -> Result<T, Failure>
 where
-    T: CoutureParser,
+    T: FromArgMatches,
 {
-    let backend = crate::interactive::DefaultBackend::default();
-    crate::interactive::parse(T::couture_command(), &T::PROMPTED_ARGS, argv, &backend)
-}
-
-/// Parse without prompting: no backend is enabled.
-#[cfg(not(any(
-    feature = "interactive-cliclack",
-    feature = "interactive-dialoguer",
-    feature = "interactive-inquire"
-)))]
-fn parse_default<T>(argv: &[OsString]) -> Result<T, Failure>
-where
-    T: CoutureParser,
-{
-    let mut cmd = T::couture_command();
     let mut matches = cmd.try_get_matches_from_mut(argv).map_err(Failure::Clap)?;
     T::from_arg_matches_mut(&mut matches).map_err(|err| Failure::Clap(err.format(&mut cmd)))
 }

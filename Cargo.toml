@@ -62,4 +62,5 @@ absolute_paths = "allow"                    # fully-qualified paths in macro out
 field_scoped_visibility_modifiers = "allow" # `pub(crate)` fields are fine
 redundant_pub_crate = "allow"               # `pub(crate)` in a private module is harmless
 definition_in_module_root = "allow"         # conflicts with mod_module_files: mod.rs holds its module's code
+module_name_repetitions = "allow"           # a name should read whole on its own, e.g. `NonInteractive`
 tests_outside_test_module = "allow"         # integration tests under tests/ have no test module

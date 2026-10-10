@@ -27,26 +27,18 @@
 //! not re-checked against `requires`, `required_if_eq` and similar rules between args.
 
 mod backend;
-mod parse;
 mod prompted_args;
 
 use std::io;
 
 #[cfg(feature = "interactive-cliclack")]
 pub use backend::Cliclack;
-#[cfg(any(
-    feature = "interactive-cliclack",
-    feature = "interactive-dialoguer",
-    feature = "interactive-inquire"
-))]
-pub use backend::DefaultBackend;
 #[cfg(feature = "interactive-dialoguer")]
 pub use backend::Dialoguer;
 #[cfg(feature = "interactive-inquire")]
 pub use backend::Inquire;
-pub use backend::{Backend, CommandStyles};
+pub use backend::{Backend, CommandStyles, DefaultBackend, NonInteractive};
 use clap::builder::PossibleValue;
-pub(crate) use parse::parse;
 #[doc(hidden)]
 pub use prompted_args::{
     MaybeCouture, NotCouture, PromptAttr, PromptedArg, PromptedArgBranch, PromptedArgTree,

@@ -13,11 +13,11 @@ use clap::{
     error::ErrorKind, parser::ValueSource,
 };
 
-use super::{
+use super::Failure;
+use crate::interactive::{
     Backend, CommandStyles, ConfirmPrompt, PromptError, PromptedArg, PromptedArgTree, SelectPrompt,
     TextPrompt,
 };
-use crate::parser::Failure;
 
 /// A prompted arg's accepted answer.
 struct Answer<'prompted_arg> {
@@ -117,7 +117,7 @@ impl Session<'_> {
 
 /// Parse `argv` against `cmd`, asking `backend` for the prompted args in `prompted_arg_tree` that
 /// got no value.
-pub(crate) fn parse<T>(
+pub(super) fn parse<T>(
     cmd: Command,
     prompted_arg_tree: &'static PromptedArgTree,
     argv: &[OsString],
@@ -128,11 +128,11 @@ where
 {
     let prompted_args = prompted_arg_tree.prompted_args();
     if prompted_args.is_empty() || !backend.is_available() {
-        return finish(cmd, argv, &[]);
+        return super::parse(cmd, argv);
     }
     // Help, usage and errors come from the command the user sees, not the relaxed one.
     let Ok(matches) = relax(cmd.clone(), &prompted_args).try_get_matches_from(argv) else {
-        return finish(cmd, argv, &[]);
+        return super::parse(cmd, argv);
     };
 
     let session = Session { argv, backend, cmd: &cmd, prompted_args: &prompted_args };
@@ -148,10 +148,12 @@ where
             Err(PromptError::Io(err)) => {
                 return Err(Failure::Clap(clap::Error::raw(ErrorKind::Io, err)));
             }
-            Err(PromptError::NotATerminal) => return finish(cmd, argv, &[]),
+            Err(PromptError::NotATerminal) => return super::parse(cmd, argv),
         }
     }
-    finish(cmd, argv, &answers)
+    let cmd_with_answers =
+        inject(cmd, answers.iter().map(|answer| (answer.prompted_arg, answer.value.as_str())));
+    super::parse(cmd_with_answers, argv)
 }
 
 fn arg_at<'cmd>(cmd: &'cmd Command, path: &[&str], id: &str) -> Option<&'cmd Arg> {
@@ -207,17 +209,6 @@ fn explicit(matches: &ArgMatches, id: &Id) -> bool {
         matches.value_source(id.as_str()),
         Some(ValueSource::CommandLine | ValueSource::EnvVariable)
     )
-}
-
-/// Parse `argv` against `cmd` with `answers` injected, then build `T`.
-fn finish<T>(cmd: Command, argv: &[OsString], answers: &[Answer<'_>]) -> Result<T, Failure>
-where
-    T: FromArgMatches,
-{
-    let mut cmd =
-        inject(cmd, answers.iter().map(|answer| (answer.prompted_arg, answer.value.as_str())));
-    let mut matches = cmd.try_get_matches_from_mut(argv).map_err(Failure::Clap)?;
-    T::from_arg_matches_mut(&mut matches).map_err(|err| Failure::Clap(err.format(&mut cmd)))
 }
 
 /// The args sharing an exclusive `ArgGroup` with `arg`.

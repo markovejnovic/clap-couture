@@ -51,11 +51,12 @@
 //! dumb), then `$EDITOR`, then `vi`, and `:` takes the file as written. Its string is split into
 //! words like a shell would, so `EDITOR="code --wait"` works, but `~` and variables in it are not
 //! expanded. An editor that returns right away without touching the file, like `code` without
-//! `--wait`, is asked about before its answer is taken. The file opens with the arg's default, or the answer clap just
-//! turned down, above a header asking the question. The header's lines start with an invisible
-//! U+2063 before their `#`, so it comes back out while the user's own `#` lines stay. An empty
-//! file leaves an optional arg unset and aborts for a required one, like an empty commit
-//! message.
+//! `--wait`, is asked about before its answer is taken.
+//!
+//! The file opens with the arg's default, or the answer clap just turned down, above a header
+//! asking the question. The header's lines start with `#|`, so it comes back out while the
+//! user's own `#` lines, like markdown headings, stay. An empty file leaves an optional arg unset
+//! and aborts for a required one, like an empty commit message.
 //!
 //! `editor` needs `prompt` beside it:
 #![cfg_attr(feature = "interactive-editor", doc = "```compile_fail")]

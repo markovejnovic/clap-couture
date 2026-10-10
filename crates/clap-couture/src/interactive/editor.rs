@@ -1,8 +1,8 @@
 //! Answer a prompted arg in the user's editor, found the way git finds its own.
 //!
 //! The file holds the answer, then a header asking the question. Every header line starts with
-//! [`HEADER`], an invisible separator before the `#`, so stripping the header leaves the user's
-//! own `#` lines alone.
+//! [`HEADER`], `#|`, so stripping the header leaves the user's own `#` lines alone. It is plain
+//! ASCII, so it survives an editor that saves in another encoding.
 //!
 //! The editor is spawned directly, not through `sh`: its exit status is its own, so Ctrl-C and a
 //! missing program read plainly, and nothing in `$EDITOR` gets expanded behind the user's back.
@@ -29,8 +29,9 @@ use windows_sys::{
 
 use super::{EditorPrompt, PromptError};
 
-/// What every header line starts with: U+2063 INVISIBLE SEPARATOR, then `#`.
-const HEADER: &str = "\u{2063}#";
+/// What every header line starts with. Markdown headings take `# ` and shell comments `# `, so
+/// a user's own line almost never starts with `#|`.
+const HEADER: &str = "#|";
 
 /// An editor that exits sooner than this and leaves the file as it was most likely handed the
 /// file to a running instance, like `code` without `--wait`, rather than being done with it.
@@ -613,17 +614,13 @@ mod tests {
     #[test]
     fn render_puts_the_answer_before_the_header() {
         let file = render(&prompt(Some("Fixed it."), None));
-        assert_eq!(
-            file,
-            "Fixed it.\n\n\u{2063}# Release notes\n\u{2063}#\n\u{2063}# Leave the file empty to \
-             cancel.\n"
-        );
+        assert_eq!(file, "Fixed it.\n\n#| Release notes\n#|\n#| Leave the file empty to cancel.\n");
     }
 
     #[test]
     fn render_shows_the_rejected_answers_error() {
         let file = render(&prompt(Some("oops"), Some("invalid value 'oops'")));
-        assert!(file.contains("\u{2063}# error: invalid value 'oops'\n"));
+        assert!(file.contains("#| error: invalid value 'oops'\n"));
     }
 
     #[test]
@@ -639,8 +636,12 @@ mod tests {
     #[case::blank_lines_around("\n\nhello\n\n", Some("hello"))]
     #[case::users_hash_lines_stay("# not a header\nbody\n", Some("# not a header\nbody"))]
     #[case::byte_order_mark("\u{FEFF}hello\n", Some("hello"))]
-    #[case::byte_order_mark_alone("\u{FEFF}\n\u{2063}# Question\n", None)]
-    #[case::edited_header_line_goes("body\n\u{2063}# I changed this\n", Some("body"))]
+    #[case::byte_order_mark_alone("\u{FEFF}\n#| Question\n", None)]
+    #[case::edited_header_line_goes("body\n#| I changed this\n", Some("body"))]
+    #[case::markdown_and_shell_comments_stay(
+        "## Notes\n#!/bin/sh\n#|x\n",
+        Some("## Notes\n#!/bin/sh")
+    )]
     fn strip_drops_only_header_and_surrounding_blanks(
         #[case] file: &str,
         #[case] expected: Option<&str>,

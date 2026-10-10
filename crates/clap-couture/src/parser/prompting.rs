@@ -701,7 +701,7 @@ fn unrequire(cmd: Command, prompted_arg: &PromptedArg) -> Command {
 }
 
 /// Apply `edit` to the arg `id` of the command at `path`; unchanged when either is missing.
-fn with_arg_at<F>(cmd: Command, path: &[&str], id: &str, edit: F) -> Command
+pub(super) fn with_arg_at<F>(cmd: Command, path: &[&str], id: &str, edit: F) -> Command
 where
     F: FnOnce(Arg) -> Arg,
 {

@@ -96,7 +96,7 @@ impl Session<'_> {
         }
         self.backend.select(&SelectPrompt {
             default: current,
-            none_option: &self.messages.none_option.get(),
+            none_option: &self.messages.none.get(),
             optional: !arg.is_required_set(),
             options: &options,
             question: &question,

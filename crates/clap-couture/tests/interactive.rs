@@ -214,7 +214,7 @@ struct Piped {
 }
 
 #[derive(Parser, Couture, Debug)]
-#[couture(messages = { none_option = "(keine)" })]
+#[couture(messages = { none = "(keine)" })]
 struct NoneOption {
     #[arg(long, value_enum)]
     #[couture(prompt = "Which color?")]
@@ -502,7 +502,7 @@ fn a_prompt_expression_is_evaluated_when_asked() {
 }
 
 #[rstest]
-fn an_optional_select_lists_the_none_option_message() {
+fn an_optional_select_lists_the_none_message() {
     let backend = ScriptedBackend::new([Reply::Select(None)]);
     let cli = NoneOption::couture_try_parse_from_with(&backend, ["paint"]);
     assert_eq!(cli.map(|cli| cli.color).ok(), Some(None));

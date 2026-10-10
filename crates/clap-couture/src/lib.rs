@@ -134,9 +134,9 @@ impl CommandName {
 /// #[derive(Parser, Couture)]
 /// #[command(name = "tool")]
 /// #[couture(messages = {
-///     none_option = "无",
-///     options_heading = "选项：",
-///     usage_heading = "用法：",
+///     none = "无",
+///     options = "选项：",
+///     usage = "用法：",
 /// })]
 /// struct Cli {
 ///     /// 部署区域
@@ -179,7 +179,7 @@ impl CommandName {
 /// ```
 /// 
 /// and `tool ship`, run on a terminal without `--region`, asks for the optional region with
-/// `none_option` as its last choice. Picking it leaves `region` unset. With the
+/// `none` as its last choice. Picking it leaves `region` unset. With the
 /// `interactive-cliclack` backend:
 /// ```text
 /// ◆  部署区域
@@ -194,19 +194,19 @@ impl CommandName {
 #[derive(Clone, Copy, Debug)]
 pub struct Messages {
     /// The select option that leaves an optional prompted arg unset. The default is `"(none)"`.
-    pub none_option: Text,
+    pub none: Text,
     /// The heading above the options in `--help`. The default is `"Options:"`.
-    pub options_heading: Text,
+    pub options: Text,
     /// The heading above the usage in `--help`. The default is `"Usage:"`.
-    pub usage_heading: Text,
+    pub usage: Text,
 }
 
 impl Messages {
     /// clap's English wording.
     pub const DEFAULT: Self = Self {
-        none_option: Text::Literal("(none)"),
-        options_heading: Text::Literal("Options:"),
-        usage_heading: Text::Literal("Usage:"),
+        none: Text::Literal("(none)"),
+        options: Text::Literal("Options:"),
+        usage: Text::Literal("Usage:"),
     };
 }
 
@@ -428,8 +428,7 @@ impl CommandExt for Command {
         // `{all-args}` and the menu goes in `{before-help}`. The headings are written out rather
         // than clap's `{usage-heading}`, which is always English.
         let (header, usage) = (styles.get_header(), styles.get_usage());
-        let (options_heading, usage_heading) =
-            (T::MESSAGES.options_heading.get(), T::MESSAGES.usage_heading.get());
+        let (options_heading, usage_heading) = (T::MESSAGES.options.get(), T::MESSAGES.usage.get());
         let template = format!(
             "{{name}} {{version}}\n{{author}}\n{{about}}\n\n{usage}{usage_heading}{usage:#}\n  \
              {{usage}}\n\n{{before-help}}{header}{options_heading}{header:#}\n{{options}}"

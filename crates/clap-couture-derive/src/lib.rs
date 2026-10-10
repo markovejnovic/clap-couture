@@ -27,9 +27,9 @@ use crate::{couture_impl::CoutureImpl, input::CoutureInput};
 ///   subcommand enum must derive `Couture` too; a flattened `Args` type need not.
 /// - With the `interactive` feature, `#[couture(prompt)]` or `#[couture(prompt = "...")]` on a
 ///   field asks for that arg when the user leaves it out.
-/// - `#[couture(messages = { usage_heading = ..., options_heading = ..., none_option = ... })]`
-///   replaces the text couture prints itself, eg. to localize it. Any of the three may be left out.
-///   It applies on the type you parse, or the one you pass to `with_couture`.
+/// - `#[couture(messages = { usage = ..., options = ..., none = ... })]` replaces the text couture
+///   prints itself, eg. to localize it. Any of the three may be left out. It applies on the type
+///   you parse, or the one you pass to `with_couture`.
 ///
 /// # Examples
 ///
@@ -110,7 +110,7 @@ use crate::{couture_impl::CoutureImpl, input::CoutureInput};
 /// use clap_couture::{Couture, CoutureParser as _};
 ///
 /// #[derive(Parser, Couture)]
-/// #[couture(messages = { usage_heading = "Verwendung:", options_heading = "Optionen:" })]
+/// #[couture(messages = { usage = "Verwendung:", options = "Optionen:" })]
 /// struct Cli {
 ///     #[arg(long)]
 ///     verbose: bool,
@@ -118,17 +118,6 @@ use crate::{couture_impl::CoutureImpl, input::CoutureInput};
 ///
 /// let help = Cli::couture_command().render_help().to_string();
 /// assert!(help.contains("Verwendung:"));
-/// ```
-///
-/// A message couture doesn't print fails to compile:
-///
-/// ```compile_fail
-/// use clap::Parser;
-/// use clap_couture::Couture;
-///
-/// #[derive(Parser, Couture)]
-/// #[couture(messages = { usage = "Verwendung:" })]
-/// struct Cli {}
 /// ```
 ///
 /// With the interactive mode, you can add a couture prompt to ask the user for input interactively.

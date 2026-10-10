@@ -11,7 +11,7 @@ struct Default {
 }
 
 #[derive(Parser, Couture)]
-#[couture(messages = { usage_heading = "Verwendung:", options_heading = "Optionen:" })]
+#[couture(messages = { usage = "Verwendung:", options = "Optionen:" })]
 struct German {
     #[command(subcommand)]
     cmd: Cmd,
@@ -19,7 +19,7 @@ struct German {
 
 /// A heading message carries its own colon, spaced the French way here.
 #[derive(Parser, Couture)]
-#[couture(messages = { usage_heading = "Utilisation :", options_heading = "Options :" })]
+#[couture(messages = { usage = "Utilisation :", options = "Options :" })]
 struct French {
     #[command(subcommand)]
     cmd: Cmd,
@@ -27,8 +27,8 @@ struct French {
 
 /// The last `messages = { ... }` replaces earlier ones outright.
 #[derive(Parser, Couture)]
-#[couture(messages = { usage_heading = "Verwendung:", options_heading = "Optionen:" })]
-#[couture(messages = { options_heading = String::from("Einstellungen:") })]
+#[couture(messages = { usage = "Verwendung:", options = "Optionen:" })]
+#[couture(messages = { options = String::from("Einstellungen:") })]
 struct Overridden {
     #[command(subcommand)]
     cmd: Cmd,
@@ -37,7 +37,7 @@ struct Overridden {
 #[derive(Subcommand, Couture)]
 #[couture(
     categories = { "everyday" = { title = "Alltag:" } },
-    messages = { options_heading = "Optionen:" },
+    messages = { options = "Optionen:" },
 )]
 enum Cmd {
     /// Tail live logs.

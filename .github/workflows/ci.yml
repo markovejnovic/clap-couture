@@ -57,6 +57,16 @@ jobs:
       # `--all-features` never builds `render/plain.rs`.
       - run: cargo build -p clap-couture
 
+  test-windows:
+    name: test (windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # The editor runs without `sh` there: PATHEXT lookup, word splitting, the console's Ctrl+C.
+      - run: cargo test -p clap-couture --features interactive-editor
+
   msrv:
     name: msrv (1.88)
     runs-on: ubuntu-latest

@@ -5,17 +5,21 @@
 //! own `#` lines alone.
 
 use std::{
-    ffi::OsString,
+    ffi::{OsStr, OsString},
     fs,
     io::{self, IsTerminal as _, Write as _},
-    path::Path,
+    path::{Path, PathBuf},
     process::{Command, ExitStatus},
 };
 
+use unicode_width::UnicodeWidthStr as _;
 #[cfg(windows)]
-use windows_sys::Win32::{
-    Foundation::{FALSE, STATUS_CONTROL_C_EXIT, TRUE},
-    System::Console::SetConsoleCtrlHandler,
+use windows_sys::{
+    Win32::{
+        Foundation::{FALSE, STATUS_CONTROL_C_EXIT, TRUE},
+        System::Console::{CTRL_BREAK_EVENT, CTRL_C_EVENT, SetConsoleCtrlHandler},
+    },
+    core::BOOL,
 };
 
 use super::{EditorPrompt, PromptError};
@@ -27,7 +31,7 @@ const HEADER: &str = "\u{2063}#";
 #[derive(Debug)]
 struct Editor {
     command: OsString,
-    /// `TERM` is unset or `dumb`, so the waiting hint is not erased afterwards.
+    /// `TERM` says the terminal is dumb, so the waiting hint is not erased afterwards.
     dumb_terminal: bool,
 }
 
@@ -49,19 +53,31 @@ impl Editor {
     fn command(&self, path: &Path) -> Command {
         let command_line = self.command.to_string_lossy();
         let mut words = split_windows(&command_line).into_iter();
-        let mut command = Command::new(words.next().unwrap_or_default());
+        let program = resolve_windows(
+            &words.next().unwrap_or_default(),
+            std::env::var_os("PATH").as_deref(),
+            std::env::var_os("PATHEXT").as_deref(),
+            Path::is_file,
+        );
+        let mut command = Command::new(program);
         command.args(words).arg(path);
         command
     }
 
     /// Look the editor up as git does: `$VISUAL` unless the terminal is dumb, then `$EDITOR`,
-    /// then `vi`. An empty variable counts as unset.
+    /// then `vi` (`notepad` on Windows). An empty variable counts as unset.
+    ///
+    /// The terminal is dumb when `TERM` is `dumb`, or unset outside Windows. Windows terminals
+    /// don't set `TERM`; git for Windows sets it itself before looking.
     ///
     /// # Errors
     /// - [`PromptError::Io`] on a dumb terminal with no `$EDITOR`.
-    fn from_env(var: impl Fn(&str) -> Option<OsString>) -> Result<Self, PromptError> {
+    fn from_env(
+        var: impl Fn(&str) -> Option<OsString>,
+        windows: bool,
+    ) -> Result<Self, PromptError> {
         let set = |name: &str| var(name).filter(|value| !value.is_empty());
-        let dumb_terminal = set("TERM").is_none_or(|term| term == "dumb");
+        let dumb_terminal = set("TERM").map_or(!windows, |term| term == "dumb");
         let visual = if dumb_terminal { None } else { set("VISUAL") };
         let command = match visual.or_else(|| set("EDITOR")) {
             Some(command) => command,
@@ -70,7 +86,7 @@ impl Editor {
                     "Terminal is dumb, but EDITOR unset",
                 )));
             }
-            None => OsString::from(if cfg!(windows) { "notepad" } else { "vi" }),
+            None => OsString::from(if windows { "notepad" } else { "vi" }),
         };
         Ok(Self { command, dumb_terminal })
     }
@@ -92,8 +108,13 @@ impl Editor {
         let status = self.wait(path);
         let succeeded = status.as_ref().is_ok_and(ExitStatus::success);
         if hinted && !self.dumb_terminal {
-            // Erase the hint after a clean exit; otherwise keep it, ending its line.
-            let tail = if succeeded { "\r\x1b[K" } else { "\n" };
+            // Erase the hint after a clean exit; otherwise keep it, ending its line. Spaces erase
+            // it on every console, where `\x1b[K` needs VT processing on Windows.
+            let tail = if succeeded {
+                format!("\r{}\r", " ".repeat(waiting.width().saturating_add(1)))
+            } else {
+                "\n".to_owned()
+            };
             write!(io::stderr(), "{tail}").map_err(PromptError::Io)?;
         }
         match status {
@@ -165,30 +186,38 @@ impl Drop for IgnoredInterrupts {
     }
 }
 
-/// Ctrl-C ignored in this process while alive; see the Unix version. Spawned before, the editor
-/// does not inherit the flag.
+/// Ctrl+C and Ctrl+Break ignored in this process while alive; see the Unix version.
+///
+/// A handler of our own, removed on drop, rather than the process-wide ignore flag: clearing the
+/// flag would also clear it for an app that had set it. Handlers aren't inherited, so the editor
+/// keeps the default handling.
 #[cfg(windows)]
 struct IgnoredInterrupts {
-    /// The flag was set, so dropping clears it.
-    ignoring: bool,
+    /// The handler was added, so dropping removes it.
+    registered: bool,
 }
 
 #[cfg(windows)]
 impl IgnoredInterrupts {
+    /// Swallow Ctrl+C and Ctrl+Break; leave closing, logoff and shutdown to the next handler.
+    const extern "system" fn ignore(ctrl_type: u32) -> BOOL {
+        if matches!(ctrl_type, CTRL_C_EVENT | CTRL_BREAK_EVENT) { TRUE } else { FALSE }
+    }
+
     fn new() -> Self {
-        // SAFETY: with no handler, `TRUE` only sets this process's ignore-Ctrl+C flag.
-        let ignoring = unsafe { SetConsoleCtrlHandler(None, TRUE) } != FALSE;
-        Self { ignoring }
+        // SAFETY: `ignore` is a valid handler for the whole program, as a plain function.
+        let registered = unsafe { SetConsoleCtrlHandler(Some(Self::ignore), TRUE) } != FALSE;
+        Self { registered }
     }
 }
 
 #[cfg(windows)]
 impl Drop for IgnoredInterrupts {
     fn drop(&mut self) {
-        if self.ignoring {
-            // SAFETY: with no handler, `FALSE` only clears the flag `new` set.
+        if self.registered {
+            // SAFETY: removes only the handler `new` added.
             unsafe {
-                SetConsoleCtrlHandler(None, FALSE);
+                SetConsoleCtrlHandler(Some(Self::ignore), FALSE);
             }
         }
     }
@@ -241,7 +270,7 @@ const fn interrupted(_status: ExitStatus) -> bool {
 /// - [`PromptError::Io`] when the temp file cannot be written or read, or the editor cannot start
 ///   or exits unsuccessfully.
 pub fn edit(prompt: &EditorPrompt<'_>) -> Result<Option<String>, PromptError> {
-    let editor = Editor::from_env(|name| std::env::var_os(name))?;
+    let editor = Editor::from_env(|name| std::env::var_os(name), cfg!(windows))?;
     let mut file = tempfile::Builder::new()
         .prefix(&format!("{}-", file_safe(prompt.file_stem)))
         .suffix(&format!(".{}", prompt.extension))
@@ -258,6 +287,29 @@ fn file_safe(stem: &str) -> String {
     stem.chars()
         .map(|char| if char.is_alphanumeric() || char == '-' || char == '_' { char } else { '-' })
         .collect()
+}
+
+/// `program` as found on `path` with one of `pathext`'s extensions, as `cmd` finds it, or
+/// unchanged when it has a directory or an extension or isn't found.
+///
+/// Rust's own `PATH` search only tries `.exe`, and `code` is `code.cmd`.
+#[cfg_attr(not(any(windows, test)), expect(dead_code, reason = "elsewhere `sh` finds the editor"))]
+fn resolve_windows(
+    program: &str,
+    path: Option<&OsStr>,
+    pathext: Option<&OsStr>,
+    is_file: impl Fn(&Path) -> bool,
+) -> PathBuf {
+    if program.contains(['/', '\\']) || Path::new(program).extension().is_some() {
+        return PathBuf::from(program);
+    }
+    let pathext = pathext.map_or_else(|| ".COM;.EXE;.BAT;.CMD".into(), OsStr::to_string_lossy);
+    let extensions: Vec<&str> = pathext.split(';').filter(|ext| !ext.is_empty()).collect();
+    path.into_iter()
+        .flat_map(std::env::split_paths)
+        .flat_map(|dir| extensions.iter().map(move |ext| dir.join(format!("{program}{ext}"))))
+        .find(|candidate| is_file(candidate))
+        .unwrap_or_else(|| PathBuf::from(program))
 }
 
 /// `command_line` split on whitespace outside double quotes, the quotes dropped.
@@ -311,9 +363,11 @@ fn render(prompt: &EditorPrompt<'_>) -> String {
     file
 }
 
-/// The answer in `file`: the header lines and the blank lines around the rest dropped. `None`
-/// when nothing is left.
+/// The answer in `file`: any byte order mark, the header lines and the blank lines around the
+/// rest dropped. `None` when nothing is left.
 fn strip(file: &str) -> Option<String> {
+    // A byte order mark some Windows editors save is no part of the answer.
+    let file = file.strip_prefix('\u{FEFF}').unwrap_or(file);
     let is_blank = |line: &&str| line.trim().is_empty();
     let mut kept: Vec<&str> =
         file.lines().filter(|line| !line.starts_with(HEADER)).skip_while(is_blank).collect();
@@ -375,13 +429,67 @@ mod tests {
     #[case::dumb_skips_visual(&[("TERM", "dumb"), ("VISUAL", "code"), ("EDITOR", "ed")], Some("ed"))]
     #[case::no_term_skips_visual(&[("VISUAL", "code"), ("EDITOR", "ed")], Some("ed"))]
     #[case::dumb_without_editor(&[("TERM", "dumb"), ("VISUAL", "code")], None)]
-    #[cfg_attr(windows, ignore = "the fallback is notepad")]
     fn lookup_follows_git(#[case] env: &[(&str, &str)], #[case] expected: Option<&str>) {
-        let editor = Editor::from_env(|name| {
-            env.iter().find(|(key, _)| *key == name).map(|(_, value)| OsString::from(value))
-        });
+        let editor = Editor::from_env(
+            |name| env.iter().find(|(key, _)| *key == name).map(|(_, value)| OsString::from(value)),
+            false,
+        );
         let command = editor.ok().map(|editor| editor.command);
         assert_eq!(command.as_deref(), expected.map(OsStr::new));
+    }
+
+    /// Windows terminals don't set `TERM`, so its absence isn't a dumb terminal there.
+    #[rstest]
+    #[case::nothing_set(&[], Some("notepad"))]
+    #[case::visual_without_term(&[("VISUAL", "code --wait"), ("EDITOR", "vim")], Some("code --wait"))]
+    #[case::editor_without_term(&[("EDITOR", "vim")], Some("vim"))]
+    #[case::dumb_skips_visual(&[("TERM", "dumb"), ("VISUAL", "code"), ("EDITOR", "ed")], Some("ed"))]
+    #[case::dumb_without_editor(&[("TERM", "dumb")], None)]
+    fn lookup_on_windows_follows_git_for_windows(
+        #[case] env: &[(&str, &str)],
+        #[case] expected: Option<&str>,
+    ) {
+        let editor = Editor::from_env(
+            |name| env.iter().find(|(key, _)| *key == name).map(|(_, value)| OsString::from(value)),
+            true,
+        );
+        let command = editor.ok().map(|editor| editor.command);
+        assert_eq!(command.as_deref(), expected.map(OsStr::new));
+    }
+
+    #[rstest]
+    #[case::cmd_on_path("code", Some(("bin2", "code.CMD")))]
+    #[case::first_extension_wins("vim", Some(("bin1", "vim.EXE")))]
+    #[case::first_dir_wins("both", Some(("bin1", "both.EXE")))]
+    #[case::not_found("nano", None)]
+    fn resolve_windows_follows_pathext(
+        #[case] program: &str,
+        #[case] expected: Option<(&str, &str)>,
+    ) {
+        let (bin1, bin2) = (Path::new("bin1"), Path::new("bin2"));
+        let files = [
+            bin2.join("code.CMD"),
+            bin1.join("vim.EXE"),
+            bin1.join("vim.CMD"),
+            bin1.join("both.EXE"),
+            bin2.join("both.EXE"),
+        ];
+        let path = std::env::join_paths([bin1, bin2]).ok();
+        let resolved =
+            resolve_windows(program, path.as_deref(), Some(OsStr::new(".EXE;.CMD")), |candidate| {
+                files.iter().any(|file| file == candidate)
+            });
+        let expected = expected
+            .map_or_else(|| PathBuf::from(program), |(dir, file)| Path::new(dir).join(file));
+        assert_eq!(resolved, expected);
+    }
+
+    #[rstest]
+    #[case::directory(r"C:\Tools\vim")]
+    #[case::extension("code.cmd")]
+    fn resolve_windows_keeps_a_named_file(#[case] program: &str) {
+        let resolved = resolve_windows(program, Some(OsStr::new("bin")), None, |_| true);
+        assert_eq!(resolved, PathBuf::from(program));
     }
 
     #[test]
@@ -412,6 +520,8 @@ mod tests {
     #[case::whitespace(" \n\t\n", None)]
     #[case::blank_lines_around("\n\nhello\n\n", Some("hello"))]
     #[case::users_hash_lines_stay("# not a header\nbody\n", Some("# not a header\nbody"))]
+    #[case::byte_order_mark("\u{FEFF}hello\n", Some("hello"))]
+    #[case::byte_order_mark_alone("\u{FEFF}\n\u{2063}# Question\n", None)]
     #[case::edited_header_line_goes("body\n\u{2063}# I changed this\n", Some("body"))]
     fn strip_drops_only_header_and_surrounding_blanks(
         #[case] file: &str,

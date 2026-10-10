@@ -415,7 +415,9 @@ fn without_a_terminal_argv_is_parsed_once() {
 
 #[rstest]
 #[case::declared_by_the_passed_arg(&["connect", "--local", "--socket", "s", "--zone", "z"])]
-#[case::declared_by_the_prompted_arg_and_an_exclusive_group(&["connect", "--region", "eu", "--host", "h"])]
+#[case::declared_by_the_prompted_arg_and_an_exclusive_group(
+    &["connect", "--region", "eu", "--host", "h"]
+)]
 fn never_asks_for_a_prompted_arg_that_conflicts_with_a_passed_arg(#[case] argv: &[&str]) {
     let backend = ScriptedBackend::new([]);
     let connect = Connect::couture_try_parse_from_with(&backend, argv);

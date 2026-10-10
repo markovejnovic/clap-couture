@@ -27,8 +27,8 @@
 //! not re-checked against `requires`, `required_if_eq` and similar rules between args.
 
 mod backend;
-mod flow;
-mod tree;
+mod parse;
+mod prompted_args;
 
 use std::io;
 
@@ -46,9 +46,11 @@ pub use backend::Dialoguer;
 pub use backend::Inquire;
 pub use backend::{Backend, CommandStyles};
 use clap::builder::PossibleValue;
-pub(crate) use flow::run;
+pub(crate) use parse::parse;
 #[doc(hidden)]
-pub use tree::{Probe, ProbeFallback, PromptChild, PromptNode, PromptSpec, PromptedArg};
+pub use prompted_args::{
+    MaybeCouture, NotCouture, PromptAttr, PromptedArg, PromptedArgBranch, PromptedArgTree,
+};
 
 /// Why a prompt produced no answer.
 #[derive(Debug, thiserror::Error)]

@@ -45,9 +45,9 @@ pub trait CoutureParser: Parser + Couture {
     #[must_use]
     fn couture_parse_with(backend: &dyn Backend) -> Self {
         let argv = collect(std::env::args_os());
-        exit_on_failure(crate::interactive::run(
+        exit_on_failure(crate::interactive::parse(
             Self::couture_command(),
-            &Self::PROMPTS,
+            &Self::PROMPTED_ARGS,
             &argv,
             backend,
         ))
@@ -86,8 +86,13 @@ pub trait CoutureParser: Parser + Couture {
         I: IntoIterator<Item = T>,
         T: Into<OsString> + Clone,
     {
-        crate::interactive::run(Self::couture_command(), &Self::PROMPTS, &collect(itr), backend)
-            .map_err(Failure::into_clap)
+        crate::interactive::parse(
+            Self::couture_command(),
+            &Self::PROMPTED_ARGS,
+            &collect(itr),
+            backend,
+        )
+        .map_err(Failure::into_clap)
     }
 }
 
@@ -124,15 +129,13 @@ fn exit_on_failure<T>(result: Result<T, Failure>) -> T {
     match result {
         Ok(value) => value,
         #[cfg(feature = "interactive")]
-        Err(Failure::Cancelled) => exit_cancelled(),
+        #[expect(
+            clippy::exit,
+            reason = "130 is the conventional status for an interrupted command"
+        )]
+        Err(Failure::Cancelled) => std::process::exit(130),
         Err(Failure::Clap(err)) => err.exit(),
     }
-}
-
-#[cfg(feature = "interactive")]
-#[expect(clippy::exit, reason = "130 is the conventional status for an interrupted command")]
-fn exit_cancelled() -> ! {
-    std::process::exit(130)
 }
 
 /// Parse through [`DefaultBackend`](crate::interactive::DefaultBackend).
@@ -146,7 +149,7 @@ where
     T: CoutureParser,
 {
     let backend = crate::interactive::DefaultBackend::default();
-    crate::interactive::run(T::couture_command(), &T::PROMPTS, argv, &backend)
+    crate::interactive::parse(T::couture_command(), &T::PROMPTED_ARGS, argv, &backend)
 }
 
 /// Parse without prompting: no backend is enabled.

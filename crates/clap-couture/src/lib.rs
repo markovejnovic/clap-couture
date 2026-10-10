@@ -166,7 +166,7 @@ pub trait Couture {
     /// The args marked `#[couture(prompt)]`, and where they sit.
     #[cfg(feature = "interactive")]
     #[doc(hidden)]
-    const PROMPTS: interactive::PromptNode = interactive::PromptNode::EMPTY;
+    const PROMPTED_ARGS: interactive::PromptedArgTree = interactive::PromptedArgTree::EMPTY;
 }
 
 /// Extension trait adding categorized help to a [`clap::Command`].

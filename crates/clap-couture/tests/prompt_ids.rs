@@ -1,5 +1,5 @@
 //! Every `#[couture(prompt)]` must name an arg clap defines at the same subcommand path, or the
-//! prompt flow can never find it. clap is the reference.
+//! interactive parse can never find it. clap is the reference.
 #![cfg(feature = "interactive")]
 
 use clap::{Args, Command, CommandFactory as _, Parser, Subcommand};
@@ -67,10 +67,10 @@ fn arg_at<'cmd>(cmd: &'cmd Command, path: &[&str], id: &str) -> Option<&'cmd cla
 
 #[rstest]
 fn prompted_args_follow_the_command_tree() {
-    let prompted_args: Vec<_> = Cli::PROMPTS
+    let prompted_args: Vec<_> = Cli::PROMPTED_ARGS
         .prompted_args()
         .into_iter()
-        .map(|prompted_arg| (prompted_arg.subcommand_path.join(" "), prompted_arg.prompt.id))
+        .map(|prompted_arg| (prompted_arg.subcommand_path.join(" "), prompted_arg.attr.arg_id))
         .collect();
     let expected = [
         (String::new(), "zone"),
@@ -86,11 +86,11 @@ fn prompted_args_follow_the_command_tree() {
 #[rstest]
 fn every_prompted_arg_is_an_arg_clap_defines() {
     let cmd = Cli::command();
-    let missing: Vec<_> = Cli::PROMPTS
+    let missing: Vec<_> = Cli::PROMPTED_ARGS
         .prompted_args()
         .into_iter()
         .filter(|prompted_arg| {
-            arg_at(&cmd, &prompted_arg.subcommand_path, prompted_arg.prompt.id).is_none()
+            arg_at(&cmd, &prompted_arg.subcommand_path, prompted_arg.attr.arg_id).is_none()
         })
         .collect();
     assert!(missing.is_empty(), "clap defines no arg for {missing:?}");

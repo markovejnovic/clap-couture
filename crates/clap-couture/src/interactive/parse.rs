@@ -14,7 +14,7 @@ use clap::{
 };
 
 use super::{
-    Backend, CommandStyles, ConfirmPrompt, PromptError, PromptNode, PromptedArg, SelectPrompt,
+    Backend, CommandStyles, ConfirmPrompt, PromptError, PromptedArg, PromptedArgTree, SelectPrompt,
     TextPrompt,
 };
 use crate::parser::Failure;
@@ -42,7 +42,7 @@ impl Session<'_> {
         current: Option<&str>,
         answers: &[Answer<'_>],
     ) -> Result<Option<String>, PromptError> {
-        let Some(arg) = arg_at(self.cmd, &prompted_arg.subcommand_path, prompted_arg.prompt.id)
+        let Some(arg) = arg_at(self.cmd, &prompted_arg.subcommand_path, prompted_arg.attr.arg_id)
         else {
             return Ok(None);
         };
@@ -63,10 +63,10 @@ impl Session<'_> {
         prompted_arg: &PromptedArg,
         current: Option<&str>,
     ) -> Result<Option<String>, PromptError> {
-        let question = prompted_arg.prompt.question.map_or_else(
+        let question = prompted_arg.attr.question.map_or_else(
             || {
                 arg.get_help()
-                    .map_or_else(|| prompted_arg.prompt.id.to_owned(), ToString::to_string)
+                    .map_or_else(|| prompted_arg.attr.arg_id.to_owned(), ToString::to_string)
             },
             str::to_owned,
         );
@@ -115,18 +115,18 @@ impl Session<'_> {
     }
 }
 
-/// Parse `argv` against `cmd`, asking `backend` for the prompted args in `tree` that got no
-/// value.
-pub(crate) fn run<T>(
+/// Parse `argv` against `cmd`, asking `backend` for the prompted args in `prompted_arg_tree` that
+/// got no value.
+pub(crate) fn parse<T>(
     cmd: Command,
-    tree: &'static PromptNode,
+    prompted_arg_tree: &'static PromptedArgTree,
     argv: &[OsString],
     backend: &dyn Backend,
 ) -> Result<T, Failure>
 where
     T: FromArgMatches,
 {
-    let prompted_args = tree.prompted_args();
+    let prompted_args = prompted_arg_tree.prompted_args();
     if prompted_args.is_empty() || !backend.is_available() {
         return finish(cmd, argv, &[]);
     }
@@ -174,13 +174,14 @@ fn blocked(
     ) else {
         return false;
     };
-    let Some(arg) = level.get_arguments().find(|arg| arg.get_id() == prompted_arg.prompt.id) else {
+    let Some(arg) = level.get_arguments().find(|arg| arg.get_id() == prompted_arg.attr.arg_id)
+    else {
         return false;
     };
     let answered = |id: &Id| {
         answers.iter().any(|answer| {
             answer.prompted_arg.subcommand_path == prompted_arg.subcommand_path
-                && answer.prompted_arg.prompt.id == id
+                && answer.prompted_arg.attr.arg_id == id
         })
     };
     let conflicts = level.get_arg_conflicts_with(arg);
@@ -249,7 +250,7 @@ fn inject<'prompted_arg>(
 ) -> Command {
     answers.into_iter().fold(cmd, |cmd, (prompted_arg, value)| {
         let value = value.to_owned();
-        with_arg_at(cmd, &prompted_arg.subcommand_path, prompted_arg.prompt.id, |arg| {
+        with_arg_at(cmd, &prompted_arg.subcommand_path, prompted_arg.attr.arg_id, |arg| {
             arg.required(false).default_value(value)
         })
     })
@@ -278,9 +279,9 @@ fn pending<'prompted_arg>(
     prompted_args
         .iter()
         .filter_map(|prompted_arg| {
-            let arg = arg_at(&built, &prompted_arg.subcommand_path, prompted_arg.prompt.id)?;
+            let arg = arg_at(&built, &prompted_arg.subcommand_path, prompted_arg.attr.arg_id)?;
             let level = matches_at(matches, &prompted_arg.subcommand_path)?;
-            let id = prompted_arg.prompt.id;
+            let id = prompted_arg.attr.arg_id;
             let default =
                 arg.get_default_values().first().map(|value| value.to_string_lossy().into_owned());
             match level.value_source(id) {
@@ -303,7 +304,7 @@ fn raw_value(matches: &ArgMatches, id: &str) -> Option<String> {
 /// Make every prompted arg optional, so a missing one does not stop the first parse.
 fn relax(cmd: Command, prompted_args: &[PromptedArg]) -> Command {
     prompted_args.iter().fold(cmd, |cmd, prompted_arg| {
-        with_arg_at(cmd, &prompted_arg.subcommand_path, prompted_arg.prompt.id, |arg| {
+        with_arg_at(cmd, &prompted_arg.subcommand_path, prompted_arg.attr.arg_id, |arg| {
             arg.required(false)
         })
     })

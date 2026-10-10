@@ -1,4 +1,4 @@
-//! `PROMPTS`: the args `#[couture(prompt)]` marks, and the command path to each.
+//! `PROMPTED_ARGS`: the args `#[couture(prompt)]` marks, and the command path to each.
 
 use darling::{
     Error,
@@ -16,25 +16,27 @@ use crate::{
 };
 
 /// The prompted args of one command level, and the tree below it.
-pub(crate) struct PromptNode {
-    args: Vec<PromptSpec>,
-    children: Vec<PromptChild>,
+pub(crate) struct PromptedArgTree {
+    /// Merged trees and subcommands.
+    branches: Vec<PromptedArgBranch>,
+    /// The args prompted for at this level.
+    own_args: Vec<PromptAttr>,
 }
 
 /// What hangs off one command level besides its own prompted args.
-enum PromptChild {
+enum PromptedArgBranch {
     /// A type merged into this level: a flattened `Args` type, or the subcommand enum.
-    Flatten(Type),
+    Flattened(Type),
     /// A struct variant: a subcommand whose args are its own fields.
-    Inline(String, PromptNode),
+    Inline(String, PromptedArgTree),
     /// A tuple variant: a subcommand whose args are another type's.
     Subcommand(String, Type),
 }
 
-/// One `#[couture(prompt)]`.
-struct PromptSpec {
-    /// The clap id of the prompted arg.
-    id: String,
+/// One `#[couture(prompt)]` or `#[couture(prompt = "...")]`.
+struct PromptAttr {
+    /// The clap id of the arg it is on.
+    arg_id: String,
     /// The `prompt = "..."` override; `None` asks the arg's help text.
     question: Option<String>,
 }
@@ -47,8 +49,8 @@ enum FieldKind {
     Subcommand,
 }
 
-impl PromptNode {
-    /// The node for one command level's fields: its prompted args, plus its flattened and
+impl PromptedArgTree {
+    /// The tree for one command level's fields: its prompted args, plus its flattened and
     /// subcommand types.
     ///
     /// # Errors
@@ -56,15 +58,15 @@ impl PromptNode {
     /// - A `#[couture(prompt)]` on a field that is not a single named arg.
     pub(crate) fn of_fields(fields: &[FieldInput]) -> darling::Result<Self> {
         let mut errors = Error::accumulator();
-        let args = fields
+        let own_args = fields
             .iter()
-            .filter_map(|field| errors.handle(PromptSpec::of_field(field)).flatten())
+            .filter_map(|field| errors.handle(PromptAttr::of_field(field)).flatten())
             .collect();
-        let children = fields.iter().filter_map(PromptChild::of_field).collect();
-        errors.finish_with(Self { args, children })
+        let branches = fields.iter().filter_map(PromptedArgBranch::of_field).collect();
+        errors.finish_with(Self { branches, own_args })
     }
 
-    /// The node for a subcommand enum: one child per variant that can hold prompts.
+    /// The tree for a subcommand enum: one branch per variant that can hold prompted args.
     ///
     /// # Errors
     /// As [`Self::of_fields`], for a struct variant's fields.
@@ -73,25 +75,27 @@ impl PromptNode {
         naming: &SubcommandNaming,
     ) -> darling::Result<Self> {
         let mut errors = Error::accumulator();
-        let children = variants
+        let branches = variants
             .iter()
-            .filter_map(|variant| errors.handle(PromptChild::of_variant(variant, naming)).flatten())
+            .filter_map(|variant| {
+                errors.handle(PromptedArgBranch::of_variant(variant, naming)).flatten()
+            })
             .collect();
-        errors.finish_with(Self { args: Vec::new(), children })
+        errors.finish_with(Self { branches, own_args: Vec::new() })
     }
 }
 
-impl PromptChild {
+impl PromptedArgBranch {
     /// A flattened or subcommand field's type, merged into its level.
     fn of_field(field: &FieldInput) -> Option<Self> {
         matches!(
             FieldKind::from(field.attrs.as_slice()),
             FieldKind::Flatten | FieldKind::Subcommand
         )
-        .then(|| Self::Flatten(field.ty.peel_option().clone()))
+        .then(|| Self::Flattened(field.ty.peel_option().clone()))
     }
 
-    /// The child a variant hangs off its enum's node, if it can hold prompts.
+    /// The branch a variant hangs off its enum's tree, if it can hold prompted args.
     fn of_variant(
         variant: &VariantInput,
         naming: &SubcommandNaming,
@@ -101,11 +105,11 @@ impl PromptChild {
             return Ok(None);
         }
         match variant.fields.style {
-            Style::Struct => PromptNode::of_fields(&variant.fields.fields)
-                .map(|node| Some(Self::Inline(naming.name_of(variant), node))),
+            Style::Struct => PromptedArgTree::of_fields(&variant.fields.fields)
+                .map(|tree| Some(Self::Inline(naming.name_of(variant), tree))),
             Style::Tuple => Ok(variant.fields.fields.first().map(|field| {
                 if attrs.has_clap_key("flatten") {
-                    Self::Flatten(field.ty.clone())
+                    Self::Flattened(field.ty.clone())
                 } else {
                     Self::Subcommand(naming.name_of(variant), field.ty.clone())
                 }
@@ -115,7 +119,7 @@ impl PromptChild {
     }
 }
 
-impl PromptSpec {
+impl PromptAttr {
     fn new(field: &FieldInput, prompt: &SpannedValue<Override<String>>) -> darling::Result<Self> {
         let span = prompt.span();
         if !cfg!(feature = "interactive") {
@@ -132,14 +136,14 @@ impl PromptSpec {
             )
             .with_span(&span));
         }
-        let Some(id) = field.clap_arg_id() else {
+        let Some(arg_id) = field.clap_arg_id() else {
             return Err(Error::custom("`#[couture(prompt)]` needs a named field").with_span(&span));
         };
         let question = match &**prompt {
             Override::Inherit => None,
             Override::Explicit(question) => Some(question.clone()),
         };
-        Ok(Self { id, question })
+        Ok(Self { arg_id, question })
     }
 
     /// The field's `#[couture(prompt)]`, if it has one.
@@ -178,43 +182,51 @@ impl From<&[Attribute]> for FieldKind {
     }
 }
 
-impl ToTokens for PromptNode {
+impl ToTokens for PromptedArgTree {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
-        let (args, children) = (&self.args, &self.children);
+        let (branches, own_args) = (&self.branches, &self.own_args);
         tokens.extend(quote! {
-            ::clap_couture::interactive::PromptNode {
-                args: &[#(#args),*],
-                children: &[#(#children),*],
+            ::clap_couture::interactive::PromptedArgTree {
+                branches: &[#(#branches),*],
+                own_args: &[#(#own_args),*],
             }
         });
     }
 }
 
-impl ToTokens for PromptChild {
+impl ToTokens for PromptedArgBranch {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         tokens.extend(match self {
-            Self::Flatten(ty) => {
-                let node = probe(ty);
-                quote!(::clap_couture::interactive::PromptChild::Flatten(#node))
+            Self::Flattened(flattened_type) => {
+                let tree = maybe_couture_prompted_args(flattened_type);
+                quote!(::clap_couture::interactive::PromptedArgBranch::Flattened(#tree))
             }
-            Self::Inline(name, node) => {
-                quote!(::clap_couture::interactive::PromptChild::Subcommand(#name, &#node))
-            }
-            Self::Subcommand(name, ty) => {
-                let node = probe(ty);
-                quote!(::clap_couture::interactive::PromptChild::Subcommand(#name, #node))
+            Self::Inline(subcommand_name, tree) => quote! {
+                ::clap_couture::interactive::PromptedArgBranch::Subcommand(
+                    #subcommand_name,
+                    &#tree,
+                )
+            },
+            Self::Subcommand(subcommand_name, subcommand_type) => {
+                let tree = maybe_couture_prompted_args(subcommand_type);
+                quote! {
+                    ::clap_couture::interactive::PromptedArgBranch::Subcommand(
+                        #subcommand_name,
+                        #tree,
+                    )
+                }
             }
         });
     }
 }
 
-impl ToTokens for PromptSpec {
+impl ToTokens for PromptAttr {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
-        let id = &self.id;
+        let arg_id = &self.arg_id;
         let question = OptionStrLiteral::from(&self.question);
-        tokens.extend(
-            quote!(::clap_couture::interactive::PromptSpec { id: #id, question: #question }),
-        );
+        tokens.extend(quote! {
+            ::clap_couture::interactive::PromptAttr { arg_id: #arg_id, question: #question }
+        });
     }
 }
 
@@ -223,7 +235,7 @@ fn misplaced(span: Span, instead: &str) -> Error {
         .with_span(&span)
 }
 
-/// `ty`'s prompted args, or none when `ty` does not implement `Couture`.
-fn probe(ty: &Type) -> TokenStream2 {
-    quote!(<::clap_couture::interactive::Probe<#ty>>::PROMPTS)
+/// `field_type`'s prompted args, or none when `field_type` does not implement `Couture`.
+fn maybe_couture_prompted_args(field_type: &Type) -> TokenStream2 {
+    quote!(<::clap_couture::interactive::MaybeCouture<#field_type>>::PROMPTED_ARGS)
 }

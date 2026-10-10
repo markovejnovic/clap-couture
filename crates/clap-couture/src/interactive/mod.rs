@@ -47,9 +47,11 @@
 //! let cli = Cli::couture_parse();
 //! ```
 //! 
-//! The editor is found and run as git runs its own: `$VISUAL` (unless `TERM` is unset or
-//! `dumb`), then `$EDITOR`, then `vi`, through `sh` so that `EDITOR="code --wait"` works, and
-//! `:` takes the file as written. The file opens with the arg's default, or the answer clap just
+//! The editor is found as git finds its own: `$VISUAL` (unless `TERM` says the terminal is
+//! dumb), then `$EDITOR`, then `vi`, and `:` takes the file as written. Its string is split into
+//! words like a shell would, so `EDITOR="code --wait"` works, but `~` and variables in it are not
+//! expanded. An editor that returns right away without touching the file, like `code` without
+//! `--wait`, is asked about before its answer is taken. The file opens with the arg's default, or the answer clap just
 //! turned down, above a header asking the question. The header's lines start with an invisible
 //! U+2063 before their `#`, so it comes back out while the user's own `#` lines stay. An empty
 //! file leaves an optional arg unset and aborts for a required one, like an empty commit
@@ -159,8 +161,12 @@ pub struct EditorPrompt<'prompt> {
     pub optional: bool,
     /// What to ask.
     pub question: &'prompt str,
+    /// Asked when the editor returned at once and left the file as it was: done editing?
+    pub returned_early: &'prompt str,
     /// The command's styles, for backends that theme themselves.
     pub styles: CommandStyles<'prompt>,
+    /// Put before the setting that makes an editor known to return at once wait.
+    pub wait_hint: &'prompt str,
     /// The hint shown while the editor is open.
     pub waiting: &'prompt str,
 }

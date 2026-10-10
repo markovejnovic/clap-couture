@@ -160,7 +160,9 @@ impl Session<'_> {
             instructions: &instructions,
             optional,
             question,
+            returned_early: &self.messages.editor_returned_early.get(),
             styles,
+            wait_hint: &self.messages.editor_wait_hint.get(),
             waiting: &self.messages.editor_waiting.get(),
         })?;
         if answer.is_none() && !optional {

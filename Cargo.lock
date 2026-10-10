@@ -102,6 +102,7 @@ dependencies = [
  "libc",
  "pulldown-cmark",
  "rstest",
+ "shell-words",
  "tempfile",
  "thiserror",
  "unicode-width",

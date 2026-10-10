@@ -1,15 +1,20 @@
-//! Answer a prompted arg in the user's editor, found and run the way git runs its own.
+//! Answer a prompted arg in the user's editor, found the way git finds its own.
 //!
 //! The file holds the answer, then a header asking the question. Every header line starts with
 //! [`HEADER`], an invisible separator before the `#`, so stripping the header leaves the user's
 //! own `#` lines alone.
+//!
+//! The editor is spawned directly, not through `sh`: its exit status is its own, so Ctrl-C and a
+//! missing program read plainly, and nothing in `$EDITOR` gets expanded behind the user's back.
 
+use core::time::Duration;
 use std::{
     ffi::{OsStr, OsString},
     fs,
     io::{self, IsTerminal as _, Write as _},
     path::{Path, PathBuf},
     process::{Command, ExitStatus},
+    time::Instant,
 };
 
 use unicode_width::UnicodeWidthStr as _;
@@ -27,41 +32,57 @@ use super::{EditorPrompt, PromptError};
 /// What every header line starts with: U+2063 INVISIBLE SEPARATOR, then `#`.
 const HEADER: &str = "\u{2063}#";
 
+/// An editor that exits sooner than this and leaves the file as it was most likely handed the
+/// file to a running instance, like `code` without `--wait`, rather than being done with it.
+const RETURNED_EARLY: Duration = Duration::from_secs(2);
+
+/// Editors known to hand the file off and return at once, with the flag that makes them wait.
+const WAIT_FLAGS: &[(&str, &str)] = &[
+    ("atom", "--wait"),
+    ("code", "--wait"),
+    ("code-insiders", "--wait"),
+    ("codium", "--wait"),
+    ("cursor", "--wait"),
+    ("gedit", "--wait"),
+    ("gvim", "-f"),
+    ("kate", "--block"),
+    ("mate", "-w"),
+    ("mvim", "-f"),
+    ("open", "-W"),
+    ("subl", "-w"),
+    ("windsurf", "--wait"),
+    ("zed", "--wait"),
+];
+
 /// The editor git would pick, from `$VISUAL` and `$EDITOR`.
 #[derive(Debug)]
 struct Editor {
     command: OsString,
     /// `TERM` says the terminal is dumb, so the waiting hint is not erased afterwards.
     dumb_terminal: bool,
+    /// Where `command` came from, `VISUAL` or `EDITOR`; `None` for the `vi` or `notepad` fallback.
+    variable: Option<&'static str>,
 }
 
 impl Editor {
-    /// `sh` expands the editor string as git's `run_command` does: quotes, `~`, env vars and
-    /// args like `code --wait` all work.
-    #[cfg(not(windows))]
-    fn command(&self, path: &Path) -> Command {
-        let mut script = self.command.clone();
-        script.push(" \"$@\"");
-        let mut command = Command::new("sh");
-        command.arg("-c").arg(script).arg(&self.command).arg(path);
-        command
-    }
-
-    /// Windows has no `sh` to rely on, so the editor string is split on spaces outside double
-    /// quotes. Backslashes are kept: they separate a Windows path, they don't escape.
-    #[cfg(windows)]
-    fn command(&self, path: &Path) -> Command {
-        let command_line = self.command.to_string_lossy();
-        let mut words = split_windows(&command_line).into_iter();
+    /// The editor's process for `path`: its words, then the file.
+    ///
+    /// # Errors
+    /// - [`PromptError::Io`] when the command can't be split into words.
+    fn command(&self, path: &Path) -> Result<Command, PromptError> {
+        let mut words = self.words()?.into_iter();
+        let program = words.next().unwrap_or_default();
+        // Rust's own `PATH` search only tries `.exe`, and `code` is `code.cmd`.
+        #[cfg(windows)]
         let program = resolve_windows(
-            &words.next().unwrap_or_default(),
+            &program.to_string_lossy(),
             std::env::var_os("PATH").as_deref(),
             std::env::var_os("PATHEXT").as_deref(),
             Path::is_file,
         );
         let mut command = Command::new(program);
         command.args(words).arg(path);
-        command
+        Ok(command)
     }
 
     /// Look the editor up as git does: `$VISUAL` unless the terminal is dumb, then `$EDITOR`,
@@ -79,33 +100,39 @@ impl Editor {
         let set = |name: &str| var(name).filter(|value| !value.is_empty());
         let dumb_terminal = set("TERM").map_or(!windows, |term| term == "dumb");
         let visual = if dumb_terminal { None } else { set("VISUAL") };
-        let command = match visual.or_else(|| set("EDITOR")) {
-            Some(command) => command,
+        let (command, variable) = match visual
+            .map(|command| (command, "VISUAL"))
+            .or_else(|| set("EDITOR").map(|command| (command, "EDITOR")))
+        {
+            Some((command, variable)) => (command, Some(variable)),
             None if dumb_terminal => {
                 return Err(PromptError::Io(io::Error::other(
                     "Terminal is dumb, but EDITOR unset",
                 )));
             }
-            None => OsString::from(if windows { "notepad" } else { "vi" }),
+            None => (OsString::from(if windows { "notepad" } else { "vi" }), None),
         };
-        Ok(Self { command, dumb_terminal })
+        Ok(Self { command, dumb_terminal, variable })
     }
 
-    /// Open `path` and wait for the editor to exit; `:` is git's no-op editor and is not run.
+    /// Open `path` and wait for the editor to exit, returning whether it ran: `:` is git's no-op
+    /// editor and is not run.
     ///
     /// # Errors
-    /// - [`PromptError::Io`] when the editor cannot start or exits unsuccessfully.
-    fn run(&self, path: &Path, waiting: &str) -> Result<(), PromptError> {
+    /// - [`PromptError::Cancelled`] when the editor dies of Ctrl-C.
+    /// - [`PromptError::Io`] when the editor cannot be found or started, or exits unsuccessfully.
+    fn run(&self, path: &Path, waiting: &str) -> Result<bool, PromptError> {
         if self.command == ":" {
-            return Ok(());
+            return Ok(false);
         }
+        let mut command = self.command(path)?;
         let hinted = io::stderr().is_terminal();
         if hinted {
             // On a smart terminal the hint stays on its line, to be erased once the editor exits.
             let end = if self.dumb_terminal { '\n' } else { ' ' };
             write!(io::stderr(), "{waiting}{end}").map_err(PromptError::Io)?;
         }
-        let status = self.wait(path);
+        let status = wait(&mut command);
         let succeeded = status.as_ref().is_ok_and(ExitStatus::success);
         if hinted && !self.dumb_terminal {
             // Erase the hint after a clean exit; otherwise keep it, ending its line. Spaces erase
@@ -117,24 +144,59 @@ impl Editor {
             };
             write!(io::stderr(), "{tail}").map_err(PromptError::Io)?;
         }
+        let editor = self.command.to_string_lossy();
         match status {
-            Ok(status) if status.success() => Ok(()),
+            Ok(status) if status.success() => Ok(true),
             // The user pressed Ctrl-C in the editor: back out like any cancelled prompt.
             Ok(status) if interrupted(status) => Err(PromptError::Cancelled),
+            Err(err) if err.kind() == io::ErrorKind::NotFound => Err(PromptError::Io(
+                io::Error::new(err.kind(), format!("Could not find the editor '{editor}'.")),
+            )),
             Ok(_) | Err(_) => Err(PromptError::Io(io::Error::other(format!(
-                "There was a problem with the editor '{}'.",
-                self.command.to_string_lossy()
+                "There was a problem with the editor '{editor}'."
             )))),
         }
     }
 
-    /// Run the editor on `path`, ignoring Ctrl-C until it exits, as git does: the editor gets
-    /// Ctrl-C too, and decides what it means.
-    fn wait(&self, path: &Path) -> io::Result<ExitStatus> {
-        let mut child = self.command(path).spawn()?;
-        // Ignored only once the editor is spawned, so it starts with the default Ctrl-C handling.
-        let _interrupts_ignored = IgnoredInterrupts::new();
-        child.wait()
+    /// The setting that would make an editor known to return at once wait, like
+    /// `EDITOR="code --wait"`; `None` for any other editor, or one already given its flag.
+    fn wait_fix(&self) -> Option<String> {
+        let words = self.words().ok()?;
+        let program = Path::new(words.first()?).file_stem()?.to_string_lossy().to_lowercase();
+        let (_, flag) = WAIT_FLAGS.iter().find(|(name, _)| *name == program)?;
+        let given = words.iter().skip(1).any(|word| word == *flag || word == "--wait");
+        (!given).then(|| {
+            let variable = self.variable.unwrap_or("EDITOR");
+            format!("{variable}=\"{} {flag}\"", self.command.to_string_lossy())
+        })
+    }
+
+    /// The editor string split into words the way a shell splits them, without expanding
+    /// anything. A string that isn't Unicode is a single word.
+    ///
+    /// # Errors
+    /// - [`PromptError::Io`] on unbalanced quotes.
+    #[cfg(not(windows))]
+    fn words(&self) -> Result<Vec<OsString>, PromptError> {
+        let Some(command) = self.command.to_str() else { return Ok(vec![self.command.clone()]) };
+        let words = shell_words::split(command).map_err(|_unclosed_quote| {
+            PromptError::Io(io::Error::other(format!(
+                "Could not split the editor '{command}' into words: a quote is not closed."
+            )))
+        })?;
+        Ok(words.into_iter().map(OsString::from).collect())
+    }
+
+    /// The editor string split on spaces outside double quotes. Backslashes are kept: they
+    /// separate a Windows path, they don't escape.
+    #[cfg(windows)]
+    #[expect(
+        clippy::unnecessary_wraps,
+        reason = "the same signature as the Unix version, whose quotes can be unbalanced"
+    )]
+    fn words(&self) -> Result<Vec<OsString>, PromptError> {
+        let words = split_windows(&self.command.to_string_lossy());
+        Ok(words.into_iter().map(OsString::from).collect())
     }
 }
 
@@ -234,17 +296,13 @@ impl IgnoredInterrupts {
     }
 }
 
-/// Check whether the editor died of Ctrl-C (or Ctrl-\\): by the signal itself, or by `sh`
-/// reporting it as `128 + signal`, the way git reads it.
+/// Check whether the editor died of Ctrl-C (or Ctrl-\\). It is our own child, so its status
+/// carries the signal itself.
 #[cfg(unix)]
 fn interrupted(status: ExitStatus) -> bool {
     use std::os::unix::process::ExitStatusExt as _;
 
-    const INTERRUPTS: [libc::c_int; 2] = [libc::SIGINT, libc::SIGQUIT];
-    status.signal().is_some_and(|signal| INTERRUPTS.contains(&signal))
-        || status.code().is_some_and(|code| {
-            code.checked_sub(128).is_some_and(|signal| INTERRUPTS.contains(&signal))
-        })
+    status.signal().is_some_and(|signal| [libc::SIGINT, libc::SIGQUIT].contains(&signal))
 }
 
 /// Check whether the editor died of Ctrl-C.
@@ -261,25 +319,69 @@ const fn interrupted(_status: ExitStatus) -> bool {
 /// Ask `prompt` in the user's editor, as [`Backend::editor`](super::Backend::editor) does by
 /// default, returning `None` for an empty answer.
 ///
-/// The editor is `$VISUAL`, then `$EDITOR`, then `vi` (`notepad` on Windows), run through `sh`
-/// like git runs it; on Windows, split on spaces outside double quotes and run directly. The answer
-/// is what the user saved, minus the header and any blank lines around it. Whether an empty answer
-/// is allowed is the caller's call.
+/// The editor is `$VISUAL`, then `$EDITOR`, then `vi` (`notepad` on Windows). Its string is split
+/// into words like a shell would, without expanding `~` or variables, and the program is spawned
+/// directly with the file as its last argument. On Windows the split honors double quotes only,
+/// so backslashed paths survive, and the program is looked up with `PATHEXT`, so `code` finds
+/// `code.cmd`. The answer is what the user saved, minus the header and any blank lines around
+/// it. Whether an empty answer is allowed is the caller's call.
+///
+/// An editor that returns within two seconds and leaves the file as it was probably handed it to
+/// a running instance and isn't done; `confirm_done` is asked
+/// [`prompt.returned_early`](EditorPrompt::returned_early), with a hint at the editor's wait flag
+/// when it is a known one. A yes reads the file, a no reopens the editor.
 ///
 /// # Errors
-/// - [`PromptError::Io`] when the temp file cannot be written or read, or the editor cannot start
-///   or exits unsuccessfully.
-pub fn edit(prompt: &EditorPrompt<'_>) -> Result<Option<String>, PromptError> {
+/// - [`PromptError::Cancelled`] when the editor dies of Ctrl-C, or `confirm_done` is cancelled.
+/// - [`PromptError::Io`] when the temp file cannot be written or read, or the editor cannot be
+///   found or started, or exits unsuccessfully.
+pub fn edit<F>(
+    prompt: &EditorPrompt<'_>,
+    mut confirm_done: F,
+) -> Result<Option<String>, PromptError>
+where
+    F: FnMut(&str) -> Result<bool, PromptError>,
+{
     let editor = Editor::from_env(|name| std::env::var_os(name), cfg!(windows))?;
+    let rendered = render(prompt);
     let mut file = tempfile::Builder::new()
         .prefix(&format!("{}-", file_safe(prompt.file_stem)))
         .suffix(&format!(".{}", prompt.extension))
         .tempfile()?;
-    file.write_all(render(prompt).as_bytes())?;
+    file.write_all(rendered.as_bytes())?;
     // Closed but kept until dropped, so the editor may replace the file and we read the new one.
     let path = file.into_temp_path();
-    editor.run(&path, prompt.waiting)?;
-    Ok(strip(&fs::read_to_string(&path)?))
+    loop {
+        let started = Instant::now();
+        let ran = editor.run(&path, prompt.waiting)?;
+        let saved = fs::read_to_string(&path)?;
+        if !ran || !returned_early(started.elapsed(), &rendered, &saved) {
+            return Ok(strip(&saved));
+        }
+        let question = editor.wait_fix().map_or_else(
+            || prompt.returned_early.to_owned(),
+            |fix| format!("{}\n{} {fix}", prompt.returned_early, prompt.wait_hint),
+        );
+        if confirm_done(&question)? {
+            // The user may have saved in the running instance meanwhile.
+            return Ok(strip(&fs::read_to_string(&path)?));
+        }
+    }
+}
+
+/// Check whether the editor came back too soon to have been used: within [`RETURNED_EARLY`], with
+/// the file exactly as it was written.
+fn returned_early(elapsed: Duration, rendered: &str, saved: &str) -> bool {
+    elapsed < RETURNED_EARLY && saved == rendered
+}
+
+/// Run `command`, ignoring Ctrl-C until it exits, as git does: the editor gets Ctrl-C too, and
+/// decides what it means.
+fn wait(command: &mut Command) -> io::Result<ExitStatus> {
+    let mut child = command.spawn()?;
+    // Ignored only once the editor is spawned, so it starts with the default Ctrl-C handling.
+    let _interrupts_ignored = IgnoredInterrupts::new();
+    child.wait()
 }
 
 /// `stem` with anything but letters, digits, `-` and `_` replaced, to name a file with.
@@ -293,7 +395,10 @@ fn file_safe(stem: &str) -> String {
 /// unchanged when it has a directory or an extension or isn't found.
 ///
 /// Rust's own `PATH` search only tries `.exe`, and `code` is `code.cmd`.
-#[cfg_attr(not(any(windows, test)), expect(dead_code, reason = "elsewhere `sh` finds the editor"))]
+#[cfg_attr(
+    not(any(windows, test)),
+    expect(dead_code, reason = "elsewhere `Command` finds the editor on `PATH` itself")
+)]
 fn resolve_windows(
     program: &str,
     path: Option<&OsStr>,
@@ -315,7 +420,7 @@ fn resolve_windows(
 /// `command_line` split on whitespace outside double quotes, the quotes dropped.
 #[cfg_attr(
     not(any(windows, test)),
-    expect(dead_code, reason = "elsewhere `sh` splits the editor string")
+    expect(dead_code, reason = "elsewhere `shell_words` splits the editor string")
 )]
 fn split_windows(command_line: &str) -> Vec<String> {
     let mut words = Vec::new();
@@ -399,9 +504,8 @@ mod tests {
         SIGNAL_HANDLING.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
-    #[cfg(unix)]
     fn editor(command: &str) -> Editor {
-        Editor { command: OsString::from(command), dumb_terminal: false }
+        Editor { command: OsString::from(command), dumb_terminal: false, variable: Some("EDITOR") }
     }
 
     fn prompt<'prompt>(
@@ -416,7 +520,9 @@ mod tests {
             instructions: "Leave the file empty to cancel.",
             optional: false,
             question: "Release notes",
+            returned_early: "Your editor returned right away. Done editing the file?",
             styles: CommandStyles(&STYLES),
+            wait_hint: "To make it wait, set",
             waiting: "hint: Waiting for your editor to close the file...",
         }
     }
@@ -436,6 +542,18 @@ mod tests {
         );
         let command = editor.ok().map(|editor| editor.command);
         assert_eq!(command.as_deref(), expected.map(OsStr::new));
+    }
+
+    #[rstest]
+    #[case::visual(&[("TERM", "xterm"), ("VISUAL", "zed"), ("EDITOR", "vim")], Some("VISUAL"))]
+    #[case::editor(&[("TERM", "xterm"), ("EDITOR", "vim")], Some("EDITOR"))]
+    #[case::fallback(&[("TERM", "xterm")], None)]
+    fn lookup_remembers_the_variable(#[case] env: &[(&str, &str)], #[case] expected: Option<&str>) {
+        let editor = Editor::from_env(
+            |name| env.iter().find(|(key, _)| *key == name).map(|(_, value)| OsString::from(value)),
+            false,
+        );
+        assert_eq!(editor.ok().and_then(|editor| editor.variable), expected);
     }
 
     /// Windows terminals don't set `TERM`, so its absence isn't a dumb terminal there.
@@ -549,16 +667,62 @@ mod tests {
 
     #[cfg(unix)]
     #[rstest]
-    #[case::args_and_quotes("printf 'from \"%s\"' 'the editor' >")]
-    #[case::env_var("EDITOR_TEST_WORD=editor; printf 'from \"the %s\"' \"$EDITOR_TEST_WORD\" >")]
-    fn run_goes_through_sh(#[case] command: &str) {
-        let _signal_handling = lock_signal_handling();
-        let file = tempfile::NamedTempFile::new();
-        let path = file.as_ref().map(tempfile::NamedTempFile::path).ok();
-        let ran = path.map(|path| {
-            editor(command).run(path, "").and_then(|()| Ok(fs::read_to_string(path)?)).ok()
-        });
-        assert_eq!(ran.flatten().as_deref(), Some("from \"the editor\""));
+    #[case::bare("vim", &["vim"])]
+    #[case::args("code --wait", &["code", "--wait"])]
+    #[case::single_quotes("'/opt/my editor/bin/ed' -s", &["/opt/my editor/bin/ed", "-s"])]
+    #[case::escaped_space(r"/opt/my\ editor/ed", &["/opt/my editor/ed"])]
+    #[case::nothing_expanded("~/bin/ed $HOME", &["~/bin/ed", "$HOME"])]
+    fn words_split_like_a_shell_without_expanding(
+        #[case] command: &str,
+        #[case] expected: &[&str],
+    ) {
+        let words = editor(command).words().ok();
+        let expected: Vec<OsString> = expected.iter().map(OsString::from).collect();
+        assert_eq!(words, Some(expected));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn words_reject_an_unclosed_quote() {
+        let words = editor("vim 'oops").words();
+        let message = words.err().map(|err| err.to_string());
+        assert_eq!(
+            message.as_deref(),
+            Some("Could not split the editor 'vim 'oops' into words: a quote is not closed.")
+        );
+    }
+
+    #[rstest]
+    #[case::code("code", Some("EDITOR=\"code --wait\""))]
+    #[case::code_with_args("code -n", Some("EDITOR=\"code -n --wait\""))]
+    #[case::code_cmd_path(r"C:\Tools\Code.cmd", None)]
+    #[case::subl_path("/usr/local/bin/subl", Some("EDITOR=\"/usr/local/bin/subl -w\""))]
+    #[case::already_waits("code --wait", None)]
+    #[case::subl_long_flag("subl --wait", None)]
+    #[case::terminal_editor("vim", None)]
+    fn wait_fix_names_the_flag_for_known_editors(
+        #[case] command: &str,
+        #[case] expected: Option<&str>,
+    ) {
+        assert_eq!(editor(command).wait_fix().as_deref(), expected);
+    }
+
+    #[test]
+    fn wait_fix_names_the_variable_the_editor_came_from() {
+        let visual = Editor { variable: Some("VISUAL"), ..editor("zed") };
+        assert_eq!(visual.wait_fix().as_deref(), Some("VISUAL=\"zed --wait\""));
+    }
+
+    #[rstest]
+    #[case::fast_and_unchanged(Duration::from_millis(300), "file", true)]
+    #[case::fast_but_edited(Duration::from_millis(300), "edited", false)]
+    #[case::slow_and_unchanged(Duration::from_secs(5), "file", false)]
+    fn returned_early_needs_fast_and_unchanged(
+        #[case] elapsed: Duration,
+        #[case] saved: &str,
+        #[case] expected: bool,
+    ) {
+        assert_eq!(returned_early(elapsed, "file", saved), expected);
     }
 
     /// The action `signal` has now.
@@ -589,21 +753,12 @@ mod tests {
     #[case::killed_by_sigint(libc::SIGINT, true)]
     #[case::killed_by_sigquit(libc::SIGQUIT, true)]
     #[case::killed_by_sigterm(libc::SIGTERM, false)]
-    #[case::sh_reports_sigint(130i32 << 8i32, true)]
-    #[case::sh_reports_sigquit(131i32 << 8i32, true)]
+    #[case::exits_130(130i32 << 8i32, false)]
     #[case::exits_1(1i32 << 8i32, false)]
-    fn interrupted_reads_the_signal_or_shs_report(#[case] raw: i32, #[case] expected: bool) {
+    fn interrupted_reads_the_signal(#[case] raw: i32, #[case] expected: bool) {
         use std::os::unix::process::ExitStatusExt as _;
 
         assert_eq!(interrupted(ExitStatus::from_raw(raw)), expected);
-    }
-
-    #[cfg(unix)]
-    #[test]
-    fn run_cancels_when_the_editor_dies_of_ctrl_c() {
-        let _signal_handling = lock_signal_handling();
-        let ran = editor("kill -INT $$; :").run(Path::new("/dev/null"), "");
-        assert!(matches!(ran, Err(PromptError::Cancelled)), "{ran:?}");
     }
 
     #[cfg(unix)]
@@ -613,5 +768,17 @@ mod tests {
         let ran = editor("false").run(Path::new("/dev/null"), "");
         let message = ran.err().map(|err| err.to_string());
         assert_eq!(message.as_deref(), Some("There was a problem with the editor 'false'."));
+    }
+
+    #[test]
+    fn run_reports_a_missing_editor() {
+        #[cfg(unix)]
+        let _signal_handling = lock_signal_handling();
+        let ran = editor("clap-couture-no-such-editor").run(Path::new("missing.txt"), "");
+        let message = ran.err().map(|err| err.to_string());
+        assert_eq!(
+            message.as_deref(),
+            Some("Could not find the editor 'clap-couture-no-such-editor'.")
+        );
     }
 }

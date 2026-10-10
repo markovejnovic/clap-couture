@@ -202,6 +202,13 @@ pub struct Messages {
     /// The last header line of an optional `#[couture(prompt, editor)]` arg's file. The default
     /// is `"These lines are removed. Leave the file empty to leave it unset."`.
     pub editor_instructions_optional: Text,
+    /// Asked when the editor returned right away and left the file as it was, as `code` does
+    /// without `--wait`. The default is `"Your editor returned right away. Done editing the
+    /// file?"`.
+    pub editor_returned_early: Text,
+    /// Put before the setting that makes a known editor wait, on a line after
+    /// `editor_returned_early`. The default is `"To make it wait, set"`.
+    pub editor_wait_hint: Text,
     /// Shown while the editor is open. The default is
     /// `"hint: Waiting for your editor to close the file..."`.
     pub editor_waiting: Text,
@@ -223,6 +230,10 @@ impl Messages {
         editor_instructions_optional: Text::Literal(
             "These lines are removed. Leave the file empty to leave it unset.",
         ),
+        editor_returned_early: Text::Literal(
+            "Your editor returned right away. Done editing the file?",
+        ),
+        editor_wait_hint: Text::Literal("To make it wait, set"),
         editor_waiting: Text::Literal("hint: Waiting for your editor to close the file..."),
         none: Text::Literal("(none)"),
         options: Text::Literal("Options:"),

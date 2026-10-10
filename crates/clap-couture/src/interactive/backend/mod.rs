@@ -72,14 +72,18 @@ pub trait Backend {
     /// Ask in the user's editor, returning `None` for an empty answer. Whether an empty answer is
     /// allowed is decided by the caller, from `prompt.optional`.
     ///
-    /// The default opens the editor through [`edit`](crate::interactive::edit); override it to
-    /// draw something around the editor, and call `edit` from the override.
+    /// The default opens the editor through [`edit`](crate::interactive::edit), asking with
+    /// [`Backend::confirm`] whether the user is done when the editor returns right away. Override
+    /// it to draw something around the editor, and call `edit` from the override.
     ///
     /// # Errors
-    /// - [`PromptError::Io`] when the editor cannot start or exits unsuccessfully.
+    /// - [`PromptError::Cancelled`] when the editor dies of Ctrl-C.
+    /// - [`PromptError::Io`] when the editor cannot be found or started, or exits unsuccessfully.
     #[cfg(feature = "interactive-editor")]
     fn editor(&self, prompt: &EditorPrompt<'_>) -> Result<Option<String>, PromptError> {
-        super::edit(prompt)
+        super::edit(prompt, |question| {
+            self.confirm(&ConfirmPrompt { default: true, question, styles: prompt.styles })
+        })
     }
 
     /// Check whether there is a terminal to ask on: stdin and stderr must both be one.

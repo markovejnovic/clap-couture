@@ -8,6 +8,9 @@
 //!
 //! Confirmations come last, so their questions can name the answers. A declined one fails the
 //! parse; without a terminal to ask on, one left unanswered fails it as a missing required arg.
+//!
+//! A secret's answer goes into a vault instead, and clap gets a placeholder that the secret's
+//! value parser swaps back. It skips the trial parse, so no clap message can echo it.
 
 use core::iter;
 use std::ffi::OsString;
@@ -19,14 +22,17 @@ use clap::{
     parser::ValueSource,
 };
 
-use super::Failure;
+use super::{
+    Failure,
+    secrets::{self, Vault},
+};
 #[cfg(feature = "interactive-editor")]
 use crate::interactive::{EditorAttr, EditorPrompt};
 use crate::{
     Messages,
     interactive::{
         Backend, CommandStyles, ConfirmPrompt, MultiSelectPrompt, PromptError, PromptPurpose,
-        PromptedArg, PromptedArgTree, SelectPrompt, TextPrompt,
+        PromptedArg, PromptedArgTree, SecretPrompt, SelectPrompt, TextPrompt,
     },
     os::signal::Signal,
 };
@@ -57,13 +63,15 @@ struct Rejected {
     value: String,
 }
 
-/// One parse: the command, its argv, its prompted args and who to ask.
+/// One parse: the command, its argv, its prompted args, who to ask and where secrets go.
 struct Session<'run> {
     argv: &'run [OsString],
     backend: &'run dyn Backend,
     cmd: &'run Command,
     messages: &'run Messages,
     prompted_args: &'run [PromptedArg],
+    /// Holds the secret answers; `cmd` resolves their placeholders from it.
+    vault: &'run Vault,
 }
 
 impl Session<'_> {
@@ -83,6 +91,16 @@ impl Session<'_> {
         };
         let optional = !self.required(answers, later);
         let question = self.question(prompted_arg);
+        if prompted_arg.attr.secret.is_some() {
+            // clap has nothing to reject in a string, so a secret skips the trial parse; the vault
+            // keeps it and clap gets a placeholder.
+            let secret = self.backend.secret(&SecretPrompt {
+                optional,
+                question: &question,
+                styles: CommandStyles(self.cmd.get_styles()),
+            })?;
+            return Ok(secret.map(|secret| vec![self.vault.store(secret)]));
+        }
         // A flag has nothing to edit, so one that slipped past the derive asks as a flag.
         #[cfg(feature = "interactive-editor")]
         if let Some(editor) = prompted_arg
@@ -364,12 +382,22 @@ where
     if prompted_args.is_empty() || !backend.is_available() {
         return parse_unprompted(cmd, &prompted_args, argv);
     }
+    // Re-guarded with the vault this parse's answers go into; trial and final parses share it.
+    let vault = Vault::default();
+    let cmd = secrets::guard(cmd, &prompted_args, &vault);
     // Help, usage and errors come from the command the user sees, not the relaxed one.
     let Ok(matches) = relax(cmd.clone(), prompted_args.iter()).try_get_matches_from(argv) else {
         return super::parse(cmd, argv);
     };
 
-    let session = Session { argv, backend, cmd: &cmd, messages, prompted_args: &prompted_args };
+    let session = Session {
+        argv,
+        backend,
+        cmd: &cmd,
+        messages,
+        prompted_args: &prompted_args,
+        vault: &vault,
+    };
     let mut answers = Vec::new();
     let mut unanswered = pending(&cmd, &matches, &prompted_args);
     // Stable, so values and confirmations each keep declaration order.

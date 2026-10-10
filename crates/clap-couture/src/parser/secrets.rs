@@ -41,13 +41,6 @@ impl Vault {
     }
 
     /// Keep `secret`, returning the placeholder clap gets in its place.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "only the tests store answers until the prompting parse asks for secrets"
-        )
-    )]
     pub(crate) fn store(&self, secret: SecretString) -> String {
         let mut secrets = self.secrets();
         let placeholder = format!("{PLACEHOLDER_PREFIX}{}", secrets.len());

@@ -5,7 +5,7 @@
 #[expect(dead_code, reason = "only tests/interactive.rs scripts confirm, select and text replies")]
 mod common;
 
-use clap::{Parser, error::ErrorKind};
+use clap::{Parser, Subcommand, error::ErrorKind};
 use clap_couture::{
     Couture, CoutureParser as _,
     interactive::{
@@ -13,8 +13,21 @@ use clap_couture::{
         secrecy::{ExposeSecret as _, SecretString},
     },
 };
-use common::ScriptedBackend;
+use common::{Asked, Kind, Reply, ScriptedBackend};
 use rstest::rstest;
+
+/// The secret is asked first, so the replicas' trial parse carries the secret's placeholder.
+#[derive(Parser, Couture)]
+struct Deploy {
+    #[arg(long)]
+    #[couture(prompt = "Which token?", secret)]
+    api_token: SecretString,
+
+    /// How many replicas to run.
+    #[arg(long)]
+    #[couture(prompt)]
+    replicas: u8,
+}
 
 #[derive(Parser, Couture)]
 struct Login {
@@ -31,10 +44,38 @@ struct OptionalLogin {
 }
 
 #[derive(Parser, Couture)]
+struct Registry {
+    #[command(subcommand)]
+    cmd: RegistryCmd,
+}
+
+#[derive(Subcommand, Couture)]
+enum RegistryCmd {
+    Login {
+        #[arg(long)]
+        #[couture(prompt = "Which token?", secret)]
+        token: SecretString,
+    },
+}
+
+#[derive(Parser, Couture)]
 struct ScriptedLogin {
     #[arg(long)]
     #[couture(prompt = "Which token?", secret(allow_argv))]
     token: SecretString,
+}
+
+fn asked_secret() -> Asked {
+    Asked {
+        defaults: Vec::new(),
+        error: None,
+        hint: None,
+        initial: None,
+        kind: Kind::Secret,
+        options: Vec::new(),
+        question: "Which token?".to_owned(),
+        selection_required: None,
+    }
 }
 
 #[rstest]
@@ -90,4 +131,74 @@ fn allow_argv_takes_the_command_line() {
         ScriptedLogin::couture_try_parse_from_with(&NonInteractive, ["app", "--token", "x"]);
     let token = login.map(|login| login.token.expose_secret().to_owned());
     assert_eq!(token.ok().as_deref(), Some("x"));
+}
+
+#[rstest]
+fn a_missing_secret_is_asked_masked() {
+    let backend = ScriptedBackend::new([Reply::Secret(Some("hunter2"))]);
+    let login = Login::couture_try_parse_from_with(&backend, ["app"]);
+    let token = login.map(|login| login.token.expose_secret().to_owned());
+    assert_eq!(token.ok().as_deref(), Some("hunter2"));
+    assert_eq!(backend.asked(), [asked_secret()]);
+}
+
+#[rstest]
+fn an_optional_secret_answered_with_nothing_is_none() {
+    let backend = ScriptedBackend::new([Reply::Secret(None)]);
+    let login = OptionalLogin::couture_try_parse_from_with(&backend, ["app"]);
+    assert_eq!(login.map(|login| login.token.is_none()).ok(), Some(true));
+}
+
+#[rstest]
+fn answers_after_a_secret_still_parse() {
+    let backend = ScriptedBackend::new([Reply::Secret(Some("hunter2")), Reply::Text(Some("3"))]);
+    let deploy = Deploy::couture_try_parse_from_with(&backend, ["app"]);
+    let deploy =
+        deploy.map(|deploy| (deploy.api_token.expose_secret().to_owned(), deploy.replicas));
+    assert_eq!(deploy.ok(), Some(("hunter2".to_owned(), 3)));
+}
+
+#[rstest]
+fn a_rejected_answer_after_a_secret_is_reported_without_it() {
+    let backend = ScriptedBackend::new([
+        Reply::Secret(Some("hunter2")),
+        Reply::Text(Some("lots")),
+        Reply::Text(Some("3")),
+    ]);
+    let deploy = Deploy::couture_try_parse_from_with(&backend, ["app"]);
+    assert_eq!(deploy.map(|deploy| deploy.replicas).ok(), Some(3));
+    let reported: Vec<String> =
+        backend.asked().into_iter().filter_map(|asked| asked.error).collect();
+    assert_eq!(reported.len(), 1, "{reported:?}");
+    assert!(reported.iter().all(|error| !error.contains("hunter2")), "{reported:?}");
+}
+
+#[rstest]
+fn a_cancelled_secret_is_an_io_error() {
+    let backend = ScriptedBackend::new([Reply::Cancel]);
+    let login = Login::couture_try_parse_from_with(&backend, ["app"]);
+    assert_eq!(login.map(drop).map_err(|err| err.kind()).err(), Some(ErrorKind::Io));
+}
+
+#[rstest]
+fn a_secret_on_a_subcommand_is_asked_masked() {
+    let backend = ScriptedBackend::new([Reply::Secret(Some("hunter2"))]);
+    let registry = Registry::couture_try_parse_from_with(&backend, ["app", "login"]);
+    let token = registry.map(|registry| match registry.cmd {
+        RegistryCmd::Login { token } => token.expose_secret().to_owned(),
+    });
+    assert_eq!(token.ok().as_deref(), Some("hunter2"));
+    assert_eq!(backend.asked(), [asked_secret()]);
+}
+
+#[rstest]
+fn a_secret_on_a_subcommand_is_refused_on_the_command_line() {
+    let backend = ScriptedBackend::new([]);
+    let registry =
+        Registry::couture_try_parse_from_with(&backend, ["app", "login", "--token", "x"]);
+    assert_eq!(
+        registry.map(drop).map_err(|err| err.kind()).err(),
+        Some(ErrorKind::ValueValidation)
+    );
+    assert_eq!(backend.asked(), []);
 }

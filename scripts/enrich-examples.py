@@ -13,7 +13,7 @@ The fence gets what that run printed, recorded by `record-examples.py` with the
 features the caption picks, e.g. another prompt backend. The caption is rewritten to
 the real command, with the args the tape typed; `cargo run ...` stands for the example
 with its default features. The output is plain text, without color, so it reads well
-in an editor.
+in an editor. Afterwards `cargo fmt --all` runs, so the docs are wrapped as CI checks.
 
     scripts/enrich-examples.py [EXAMPLE]...
 """
@@ -107,7 +107,8 @@ def enrich(example: Example, docs: ModuleDocs) -> ModuleDocs:
 def main(names: tuple[str, ...]) -> None:
     """Record the examples named on the command line, or all, and fill their docs."""
     with Cargo() as cargo:
-        package = cargo.workspace(ROOT).package(PACKAGE)
+        workspace = cargo.workspace(ROOT)
+        package = workspace.package(PACKAGE)
 
     unknown = [name for name in names if name not in package.examples]
     if unknown:
@@ -131,14 +132,22 @@ def main(names: tuple[str, ...]) -> None:
     record = [*(example.name for example in examples), *dict.fromkeys(variants)]
     _ = subprocess.run([sys.executable, RECORD, *record], check=True)
 
-    for example, docs in documented.items():
-        if not runs(example, docs):
-            continue
+    originals = {
+        example: example.source.source()
+        for example, docs in documented.items()
+        if runs(example, docs)
+    }
+    for example, source in originals.items():
+        example.source.write(
+            source.module_docs().write(enrich(example, documented[example]))
+        )
 
-        source = example.source.source()
-        enriched = source.module_docs().write(enrich(example, docs))
-        if enriched != source:
-            example.source.write(enriched)
+    # A filled caption is one line, however long; rustfmt wraps doc comments the way
+    # CI checks they're wrapped.
+    _ = workspace.run("fmt", "--all").check()
+
+    for example, source in originals.items():
+        if example.source.source() != source:
             click.echo(f"enriched {example.source.path.relative_to(ROOT)}")
 
 

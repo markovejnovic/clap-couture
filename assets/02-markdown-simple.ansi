@@ -1,0 +1,12 @@
+clap-couture 
+
+
+
+[1m[4mUsage:[0m
+  [1m02-markdown-simple[0m <COMMAND>
+
+  [1mdeploy[0m  Ship the [3mcurrent project[0m
+  [1mlogin[0m   Sign in to [3myour[0m account
+
+[1m[4mOptions:[0m
+  [1m-h[0m, [1m--help[0m  Print help

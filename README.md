@@ -64,8 +64,18 @@ which will generate beautiful `--help`:
     <td align="center"><b>With Clap-Couture</b></td>
   </tr>
   <tr>
-    <td valign="top"><img src="assets/before.svg" alt="clap's default --help: one long, flat list of commands" width="430"></td>
-    <td valign="top"><img src="assets/after.svg" alt="the same CLI with clap-couture: commands grouped into titled categories with descriptions" width="430"></td>
+    <td valign="top">
+      <picture>
+        <source media="(prefers-color-scheme: light)" srcset="assets/01-orbit-disorganized-light.svg">
+        <img src="assets/01-orbit-disorganized-dark.svg" alt="clap's default --help: one long, flat list of commands" width="430">
+      </picture>
+    </td>
+    <td valign="top">
+      <picture>
+        <source media="(prefers-color-scheme: light)" srcset="assets/01-orbit-organized-light.svg">
+        <img src="assets/01-orbit-organized-dark.svg" alt="the same CLI with clap-couture: commands grouped into titled categories with descriptions" width="430">
+      </picture>
+    </td>
   </tr>
 </table>
 

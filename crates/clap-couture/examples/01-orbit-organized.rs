@@ -1,38 +1,21 @@
-//! The demo CLI behind the README images.
+//! The `orbit` demo CLI with couture: subcommands grouped into titled categories.
+//! `01-orbit-disorganized` is the same CLI on plain clap.
 //!
 //! ```sh
-//! cargo run -p clap-couture --example orbit --features markdown -- --help
+//! cargo run -p clap-couture --example 01-orbit-organized -- --help
 //! ```
 
-#![allow(
-    clippy::expect_used,
-    clippy::print_stdout,
-    reason = "a runnable demo prints its result and uses `expect` for brevity"
-)]
+#![expect(clippy::print_stdout, reason = "a runnable demo prints its result")]
 
-use clap::{
-    CommandFactory as _, Parser, Subcommand,
-    builder::styling::{Color, RgbColor, Style, Styles},
-};
+use clap::{Parser, Subcommand};
 use clap_couture::{Couture, CoutureParser as _};
-
-// Couture reuses the command's `Styles`: headings take `header`, command names take `literal`.
-const PINK: Color = Color::Rgb(RgbColor(0xf5, 0xc2, 0xe7));
-const BLUE: Color = Color::Rgb(RgbColor(0x89, 0xb4, 0xfa));
-const GREY: Color = Color::Rgb(RgbColor(0x93, 0x99, 0xb2));
-
-const STYLES: Styles = Styles::styled()
-    .header(Style::new().fg_color(Some(PINK)).bold())
-    .usage(Style::new().fg_color(Some(PINK)).bold())
-    .literal(Style::new().fg_color(Some(BLUE)).bold())
-    .placeholder(Style::new().fg_color(Some(GREY)));
 
 #[derive(Parser, Couture)]
 #[command(
     name = "orbit",
+    bin_name = "orbit",
     version,
     about = "Deploy and manage your apps from the terminal.",
-    styles = STYLES,
     arg_required_else_help = true
 )]
 struct Cli {
@@ -74,12 +57,6 @@ enum Cmd {
 }
 
 fn main() {
-    // `ORBIT_PLAIN=1` prints plain clap help, for the "before" image in `assets/render.sh`.
-    if std::env::var_os("ORBIT_PLAIN").is_some() {
-        Cli::command().print_help().expect("write help");
-        return;
-    }
-
     let cli = Cli::couture_parse();
     let ran = match cli.cmd {
         Cmd::Search => "search",

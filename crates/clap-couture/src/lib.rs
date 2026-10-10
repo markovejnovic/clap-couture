@@ -1,11 +1,86 @@
-//! Beautiful, categorized `--help` for [`clap`] CLIs.
+//! **Haute couture for your command line.**
 //!
-//! # Example
+//! [`clap_couture`](self) is a semi-opinionated extension set for
+//! [`clap`](https://crates.io/crates/clap) that:
+//!
+//!   - Organizes CLI subcommands in **categories**, improving readability and making your CLIs less
+//!     intimidating.
+//!   - **Interactive input** for flags.
+//!   - **Markdown** support.
+//!
+//! # Getting Started
+//!
+//! This section will provide you with a tour guide through [`clap_couture`](self)'s features. For
+//! some more in-depth examples, please have a look at the
+//! [examples](https://github.com/markovejnovic/clap-couture/tree/main/crates/clap-couture/examples)
+//! directory. I've put some good love into making those examples as helpful as I can.
+//!
+//! ## Categories
+//!
+//! As CLIs grow, the total set of subcommands grows very quickly, and a first-time user running
+//! your application `foobar --help`, sees a massive wall of text. Making your application less
+//! intimidating makes it more accessible to the beginner user, which makes it more inviting and
+//! friendly.
+//!
+//! <style>
+//!   .couture-light { display: none; }
+//!   :root[data-theme="light"] .couture-light { display: revert; }
+//!   :root[data-theme="light"] .couture-dark { display: none; }
+//! </style>
+//! <table>
+//!   <tr>
+//!     <th>Clap</th>
+//!     <th>With Clap-Couture</th>
+//!   </tr>
+//!   <tr>
+//!     <td valign="top">
+//!       <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/01-orbit-disorganized-dark.svg" alt="clap's default --help: one long, flat list of commands" width="430">
+//!       <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/01-orbit-disorganized-light.svg" alt="clap's default --help: one long, flat list of commands" width="430">
+//!     </td>
+//!     <td valign="top">
+//!       <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/01-orbit-organized-dark.svg" alt="the same CLI with clap-couture: commands grouped into titled categories with descriptions" width="430">
+//!       <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/01-orbit-organized-light.svg" alt="the same CLI with clap-couture: commands grouped into titled categories with descriptions" width="430">
+//!     </td>
+//!   </tr>
+//! </table>
+//!
+//! To get started with this feature, take your existing code:
 //!
 //! ```
-//! use clap::{Parser, Subcommand};
-//! use clap_couture::{Couture, CoutureParser};
+//! # use clap::{Parser, Subcommand};
+//! #[derive(Parser)]
+//! struct Cli {
+//!     #[command(subcommand)]
+//!     cmd: Cmd,
+//! }
 //!
+//! #[derive(Subcommand)]
+//! enum Cmd {
+//!     /// Ship the current project.
+//!     Deploy,
+//!     /// Sign in to your account.
+//!     Login,
+//!     /// Tail live logs.
+//!     Logs,
+//!     /// Roll back to a previous release.
+//!     Rollback,
+//!     /// Search your deployment history.
+//!     Search,
+//!     /// Manage environment secrets.
+//!     Secrets,
+//!     /// Show recent activity.
+//!     Status,
+//!     /// Sync settings across machines.
+//!     Sync,
+//! }
+//! ```
+//!
+//! Derive [`Couture`](derive@Couture) on your command and organize your commands in different
+//! categories.
+//!
+//! ```
+//! # use clap::{Parser, Subcommand};
+//! # use clap_couture::Couture;
 //! #[derive(Parser, Couture)]
 //! struct Cli {
 //!     #[command(subcommand)]
@@ -14,74 +89,170 @@
 //!
 //! #[derive(Subcommand, Couture)]
 //! #[couture(categories = {
-//!     "everyday" = { description = "what you'll reach for daily" },
-//!     "admin" = {},
+//!     "everyday" = { title = "Everyday:", description = "The commands you'll reach for daily" },
+//!     "deploy"   = { title = "Deploy:",  description = "Ship code to production" },
+//!     "account"  = { title = "Account & sync:" },
 //! })]
 //! enum Cmd {
-//!     /// Search your deployment history
+//!     /// Ship the current project.
+//!     #[category("deploy")]
+//!     Deploy,
+//!     /// Sign in to your account.
+//!     #[category("account")]
+//!     Login,
+//!     /// Tail live logs.
+//!     #[category("everyday")]
+//!     Logs,
+//!     /// Roll back to a previous release.
+//!     #[category("deploy")]
+//!     Rollback,
+//!     /// Search your deployment history.
 //!     #[category("everyday")]
 //!     Search,
-//!     /// Configure the tool
-//!     #[category("admin")]
-//!     Config,
-//! }
-//!
-//! let cli = Cli::couture_parse_from(["app", "search"]);
-//! assert!(matches!(cli.cmd, Cmd::Search));
-//! ```
-//!
-//! A `#[category("...")]` that isn't declared in the enum's `#[couture(...)]`
-//! fails to compile:
-//!
-//! ```compile_fail
-//! use clap::Subcommand;
-//! use clap_couture::Couture;
-//!
-//! #[derive(Subcommand, Couture)]
-//! #[couture(categories = { "everyday" = {} })]
-//! enum Cmd {
-//!     #[category("typo")]
-//!     Search,
-//! }
-//! ```
-//!
-//! The same holds for a category an enum only inherits from a parent command:
-//!
-//! ```compile_fail
-//! use clap::Subcommand;
-//! use clap_couture::Couture;
-//!
-//! #[derive(Subcommand, Couture)]
-//! #[couture(inherit = ["sync"])]
-//! enum Cmd {
-//!     #[category("snyc")]
-//!     Login,
-//! }
-//! ```
-//!
-//! A `#[command(flatten)]` variant is no subcommand itself, so it takes no `#[category("...")]`;
-//! file the flattened enum's variants instead:
-//!
-//! ```compile_fail
-//! use clap::Subcommand;
-//! use clap_couture::Couture;
-//!
-//! #[derive(Subcommand, Couture)]
-//! #[couture(categories = { "account" = {} })]
-//! enum Cmd {
+//!     /// Manage environment secrets.
+//!     #[category("deploy")]
+//!     Secrets,
+//!     /// Show recent activity.
+//!     #[category("everyday")]
+//!     Status,
+//!     /// Sync settings across machines.
 //!     #[category("account")]
-//!     #[command(flatten)]
-//!     Account(Account),
-//! }
-//!
-//! #[derive(Subcommand, Couture)]
-//! enum Account {
-//!     Login,
+//!     Sync,
 //! }
 //! ```
 //!
-//! The subcommands stay visible to clap, so shell completions and
-//! `tool <cmd> --help` are unaffected -- only the help *listing* changes.
+//! You need to call [`CoutureParser::couture_parse`] instead of
+//! [`Parser::parse`](clap::Parser::parse), and you'll get the organized `--help` menu.
+//!
+//! ## Markdown Support
+//!
+//! [`clap_couture`](self) also has support for markdown with the `markdown` feature flag.
+//!
+//! ```
+//! use clap::{Parser, Subcommand};
+//! use clap_couture::Couture;
+//! # use clap_couture::CoutureParser as _;
+//!
+//! #[derive(Parser, Couture)]
+//! struct Cli {
+//!     #[command(subcommand)]
+//!     cmd: Cmd,
+//! }
+//!
+//! #[derive(Subcommand, Couture)]
+//! enum Cmd {
+//!     /// Ship the **current** project.
+//!     Deploy,
+//!     /// Sign in to *your* account.
+//!     Login,
+//! }
+//! # let help = Cli::couture_command().render_help().to_string();
+//! # assert!(help.contains("Ship the current project"));
+//! # assert!(help.contains("Sign in to your account"));
+//! ```
+//!
+//! This results in:
+//!
+//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/02-markdown-simple-dark.svg" alt="--help with the markdown rendered: current in bold, your in italics" width="430">
+//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/02-markdown-simple-light.svg" alt="--help with the markdown rendered: current in bold, your in italics" width="430">
+//!
+//! ## Interactive Input
+//!
+//! Finally, `clap-couture` lets you easily add interactive input, straight into your clap structs.
+//! Often enough, you might want to express the idea of "if the user doesn't provide a CLI argument,
+//! we should ask the user for input on stdin". With [`clap_couture`](self), that's just a tiny
+//! macro away.
+//!
+//! You can decorate your argument flag fields:
+//!
+//! ```
+//! use clap::{Parser, ValueEnum};
+//! use clap_couture::{Couture, CoutureParser as _};
+//! # use clap_couture::CoutureParser;
+//!
+//! #[derive(Parser, Couture)]
+//! struct Cli {
+//!     #[arg(long)]
+//!     #[couture(prompt = "Which app?")]
+//!     app: String,
+//!
+//!     #[arg(long)]
+//!     #[couture(prompt = "Tail the logs afterwards?")]
+//!     follow: bool,
+//!
+//!     #[arg(long, value_enum)]
+//!     #[couture(prompt = "Which region?")]
+//!     region: Region,
+//!
+//!     #[arg(long, default_value_t = 2)]
+//!     #[couture(prompt = "How many replicas?")]
+//!     replicas: u16,
+//! }
+//!
+//! #[derive(Clone, Debug, PartialEq, ValueEnum)]
+//! enum Region {
+//!     Apac,
+//!     Eu,
+//!     Us,
+//! }
+//!
+//! # // A doctest has no terminal to prompt on, so pass every arg instead.
+//! # impl Cli {
+//! #     fn couture_parse() -> Self {
+//! #         <Self as CoutureParser>::couture_parse_from([
+//! #             "orbit-deploy", "--app", "web", "--follow", "--region", "eu",
+//! #         ])
+//! #     }
+//! # }
+//! let cli = Cli::couture_parse();
+//! # assert_eq!(cli.app, "web");
+//! # assert!(cli.follow);
+//! # assert_eq!(cli.region, Region::Eu);
+//! # assert_eq!(cli.replicas, 2);
+//! ```
+//!
+//! This results in support for interactive input:
+//!
+//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/03-interactive-dark.gif" alt="running orbit-deploy with no flags: it asks for the app as text, whether to tail the logs as yes/no, and the region from a list, then asks for the replicas again after an answer that isn't a number" width="600">
+//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/03-interactive-light.gif" alt="running orbit-deploy with no flags: it asks for the app as text, whether to tail the logs as yes/no, and the region from a list, then asks for the replicas again after an answer that isn't a number" width="600">
+//!
+//! ### Neat features
+//!
+//! - `#[couture(prompt)]` asks the field's doc comment, and `#[couture(prompt = "...")]` asks
+//!   whatever you write instead.
+//! - `#[couture(prompt)]` on an arg with a `default_value` prompts the user, pre-filling the input
+//!   form.
+//! - Couture parses rich types the same way `clap` does in interactive mode. Types like `u16` (or
+//!   any [`FromStr`](core::str::FromStr) type, really) get correctly parsed, even in interactive mode.
+//! - `#[couture(prompt)]` will avoid inquiring about fields the user passed either through the CLI
+//!   flags or the environment.
+//! - `#[couture(prompt)]` only queries the input field if there's a PTY to query on. If the user is
+//!   not in a terminal (eg. scripts, CI), couture will skip interactive prompts.
+//!
+//! ### Input Types
+//!
+//! [`clap_couture`](self) has support for different types of fields:
+//!
+//! | Field Type      | Example                 | Prompt         | Example                                 |
+//! |-----------------|-------------------------|----------------|-----------------------------------------|
+//! | `bool`          | `force: bool`           | `[y/N]`        | Do you want to force input [y/N]: **y** |
+//! | Possible values | `region: RegionEnum`    | Picker         | Which region (eu)? **us**               |
+//! | Arbitrary types | `count: u16`            | Free text      | How many: **32**                        |
+//! | `Option<T>`     | `fruit: Option<String>` | Optional input | Which fruit (none): **`<enter>`**       |
+//!
+//! ### Backends
+//!
+//! You can pick from three interactive backends:
+//!
+//!   - [`interactive-cliclack`](interactive::Cliclack) uses the
+//!     [cliclack](https://docs.rs/cliclack/latest/cliclack/) crate to ask the user for input.
+//!   - [`interactive-inquire`](interactive::Inquire) uses the
+//!     [inquire](https://docs.rs/inquire/latest/inquire/) crate to ask the user for input.
+//!   - [`interactive-dialoguer`](interactive::Dialoguer) uses the
+//!     [dialoguer](https://docs.rs/dialoguer/latest/dialoguer/) crate to ask the user for input.
+//!
+//! There is also a mechanism to implement a custom backend, but this is intentionally not
+//! documented until it reaches stability.
 
 extern crate alloc;
 
@@ -95,6 +266,7 @@ mod text;
 use alloc::borrow::Cow;
 
 use clap::{Command, builder::StyledStr};
+#[cfg(feature = "derive")]
 pub use clap_couture_derive::Couture;
 #[doc(hidden)]
 pub use maybe_couture::{MaybeCouture, NotCouture};
@@ -164,7 +336,7 @@ impl CommandName {
 ///
 /// Cli::couture_command().print_help().unwrap();
 /// ```
-/// 
+///
 /// `tool --help` renders
 /// ```text
 /// 用法：
@@ -177,7 +349,7 @@ impl CommandName {
 ///       --region <REGION>  部署区域 [possible values: eu, us]
 ///   -h, --help             Print help
 /// ```
-/// 
+///
 /// and `tool ship`, run on a terminal without `--region`, asks for the optional region with
 /// `none` as its last choice. Picking it leaves `region` unset. With the
 /// `interactive-cliclack` backend:
@@ -188,7 +360,7 @@ impl CommandName {
 /// │  ○ 无
 /// └
 /// ```
-/// 
+///
 /// `Print help` and `[possible values: ...]` are clap's own text; for the help flag, disable
 /// clap's and add your own.
 #[derive(Clone, Copy, Debug)]

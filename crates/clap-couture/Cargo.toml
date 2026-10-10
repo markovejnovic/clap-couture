@@ -11,7 +11,7 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-clap-couture-derive = { path = "../clap-couture-derive", version = "0.1.0" }
+clap-couture-derive = { path = "../clap-couture-derive", version = "0.1.0", optional = true }
 clap = { workspace = true }
 pulldown-cmark = { workspace = true, optional = true }
 unicode-width = { workspace = true }
@@ -22,15 +22,36 @@ dialoguer = { workspace = true, optional = true }
 inquire = { workspace = true, optional = true }
 
 [features]
+default = ["full"]
+# `#[derive(Couture)]`. Without it, implement `Couture` by hand.
+derive = ["dep:clap-couture-derive"]
 markdown = ["dep:pulldown-cmark"]
-interactive = ["clap/string", "clap-couture-derive/interactive", "dep:thiserror"]
+# Prompts are declared with `#[couture(prompt)]`, so they need the derive.
+interactive = ["derive", "clap/string", "clap-couture-derive/interactive", "dep:thiserror"]
 interactive-cliclack = ["interactive", "dep:cliclack", "dep:console"]
 interactive-dialoguer = ["interactive", "dep:dialoguer", "dep:console"]
 interactive-inquire = ["interactive", "dep:inquire"]
+# Everything, with cliclack for prompts: it's the default backend whenever it's enabled.
+full = ["derive", "markdown", "interactive-cliclack"]
+
+# Document every backend, not only the default one.
+[package.metadata.docs.rs]
+all-features = true
 
 [[example]]
-name = "deploy"
-required-features = ["interactive"]
+name = "01-orbit-disorganized"
+
+[[example]]
+name = "01-orbit-organized"
+required-features = ["derive"]
+
+[[example]]
+name = "02-markdown-simple"
+required-features = ["derive", "markdown"]
+
+[[example]]
+name = "03-interactive"
+required-features = ["interactive-cliclack"]
 
 [dev-dependencies]
 clap = { workspace = true, features = ["derive", "env"] }

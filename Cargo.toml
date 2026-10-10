@@ -6,7 +6,7 @@ members = ["crates/*"]
 edition = "2024"
 rust-version = "1.88"
 license = "MIT"
-repository = "https://github.com/atuinsh/clap-couture"
+repository = "https://github.com/markovejnovic/clap-couture"
 
 [workspace.dependencies]
 heck = "0.5"

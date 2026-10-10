@@ -1,0 +1,1065 @@
+>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◆  Which app?
+│
+└
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◆  Which app?
+│
+└
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◆  Which app?
+│
+└
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◆  Which app?
+│  web
+└
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◆  Which app?
+│  web
+└
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◇  Which app?
+│  web
+│
+◆  Tail the logs afterwards?
+│  ○ Yes  / ● No
+└
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◇  Which app?
+│  web
+│
+◆  Tail the logs afterwards?
+│  ○ Yes  / ● No
+└
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◇  Which app?
+│  web
+│
+◆  Tail the logs afterwards?
+│  ○ Yes  / ● No
+└
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◇  Which app?
+│  web
+│
+◇  Tail the logs afterwards?
+│  Yes
+│
+◆  Which region?
+│  ● apac
+│  ○ eu
+│  ○ us
+└
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◇  Which app?
+│  web
+│
+◇  Tail the logs afterwards?
+│  Yes
+│
+◆  Which region?
+│  ● apac
+│  ○ eu
+│  ○ us
+└
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◇  Which app?
+│  web
+│
+◇  Tail the logs afterwards?
+│  Yes
+│
+◆  Which region?
+│  ● apac
+│  ○ eu
+│  ○ us
+└
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◇  Which app?
+│  web
+│
+◇  Tail the logs afterwards?
+│  Yes
+│
+◆  Which region?
+│  ○ apac
+│  ● eu
+│  ○ us
+└
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◇  Which app?
+│  web
+│
+◇  Tail the logs afterwards?
+│  Yes
+│
+◆  Which region?
+│  ○ apac
+│  ● eu
+│  ○ us
+└
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◇  Which app?
+│  web
+│
+◇  Tail the logs afterwards?
+│  Yes
+│
+◇  Which region?
+│  eu
+│
+◆  How many replicas?
+│  2 (default)
+└
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◇  Which app?
+│  web
+│
+◇  Tail the logs afterwards?
+│  Yes
+│
+◇  Which region?
+│  eu
+│
+◆  How many replicas?
+│  2 (default)
+└
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◇  Which app?
+│  web
+│
+◇  Tail the logs afterwards?
+│  Yes
+│
+◇  Which region?
+│  eu
+│
+◆  How many replicas?
+│  2 (default)
+└
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◇  Which app?
+│  web
+│
+◇  Tail the logs afterwards?
+│  Yes
+│
+◇  Which region?
+│  eu
+│
+◆  How many replicas?
+│  abc
+└
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◇  Which app?
+│  web
+│
+◇  Tail the logs afterwards?
+│  Yes
+│
+◇  Which region?
+│  eu
+│
+◆  How many replicas?
+│  abc
+└
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◇  Which app?
+│  web
+│
+◇  Tail the logs afterwards?
+│  Yes
+│
+◇  Which region?
+│  eu
+│
+◇  How many replicas?
+│  abc
+│
+■  invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+│
+◆  How many replicas?
+│  2 (default)
+└
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◇  Which app?
+│  web
+│
+◇  Tail the logs afterwards?
+│  Yes
+│
+◇  Which region?
+│  eu
+│
+◇  How many replicas?
+│  abc
+│
+■  invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+│
+◆  How many replicas?
+│  2 (default)
+└
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◇  Which app?
+│  web
+│
+◇  Tail the logs afterwards?
+│  Yes
+│
+◇  Which region?
+│  eu
+│
+◇  How many replicas?
+│  abc
+│
+■  invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+│
+◆  How many replicas?
+│  2 (default)
+└
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◇  Which app?
+│  web
+│
+◇  Tail the logs afterwards?
+│  Yes
+│
+◇  Which region?
+│  eu
+│
+◇  How many replicas?
+│  abc
+│
+■  invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+│
+◆  How many replicas?
+│  3
+└
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◇  Which app?
+│  web
+│
+◇  Tail the logs afterwards?
+│  Yes
+│
+◇  Which region?
+│  eu
+│
+◇  How many replicas?
+│  abc
+│
+■  invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+│
+◆  How many replicas?
+│  3
+└
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◇  Which app?
+│  web
+│
+◇  Tail the logs afterwards?
+│  Yes
+│
+◇  Which region?
+│  eu
+│
+◇  How many replicas?
+│  abc
+│
+■  invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+│
+◇  How many replicas?
+│  3
+│
+deploying web to eu with 3 replicas (follow: true)
+>
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◇  Which app?
+│  web
+│
+◇  Tail the logs afterwards?
+│  Yes
+│
+◇  Which region?
+│  eu
+│
+◇  How many replicas?
+│  abc
+│
+■  invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+│
+◇  How many replicas?
+│  3
+│
+deploying web to eu with 3 replicas (follow: true)
+>
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◇  Which app?
+│  web
+│
+◇  Tail the logs afterwards?
+│  Yes
+│
+◇  Which region?
+│  eu
+│
+◇  How many replicas?
+│  abc
+│
+■  invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+│
+◇  How many replicas?
+│  3
+│
+deploying web to eu with 3 replicas (follow: true)
+>
+
+
+
+────────────────────────────────────────────────────────────────────────────────

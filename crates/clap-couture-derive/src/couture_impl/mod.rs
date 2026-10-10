@@ -34,7 +34,7 @@ impl TryFrom<CoutureInput> for CoutureImpl {
                 (categories, PromptedArgTree::of_variants(variants, &naming)?)
             }
             ast::Data::Struct(fields) => {
-                (Categories::of_fields(&fields.fields), PromptedArgTree::of_fields(&fields.fields)?)
+                (Categories::of_args(&fields.fields), PromptedArgTree::of_fields(&fields.fields)?)
             }
         };
         Ok(Self {

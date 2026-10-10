@@ -124,6 +124,7 @@ impl SubcommandNaming {
 }
 
 /// How clap treats a struct field.
+#[derive(PartialEq, Eq)]
 pub(crate) enum FieldKind {
     Arg,
     Flatten,

@@ -54,14 +54,21 @@ fn the_derive_records_the_secret_and_its_argv_policy() {
 fn the_command_line_is_refused_before_anything_is_asked() {
     let backend = ScriptedBackend::new([]);
     let login = Login::couture_try_parse_from_with(&backend, ["app", "--token", "x"]);
-    assert_eq!(login.map(drop).map_err(|err| err.kind()).err(), Some(ErrorKind::ArgumentConflict));
+    assert_eq!(login.map(drop).map_err(|err| err.kind()).err(), Some(ErrorKind::ValueValidation));
     assert_eq!(backend.asked(), []);
 }
 
 #[rstest]
 fn the_command_line_is_refused_without_a_terminal() {
     let login = Login::couture_try_parse_from_with(&NonInteractive, ["app", "--token", "x"]);
-    assert_eq!(login.map(drop).map_err(|err| err.kind()).err(), Some(ErrorKind::ArgumentConflict));
+    assert_eq!(login.map(drop).map_err(|err| err.kind()).err(), Some(ErrorKind::ValueValidation));
+}
+
+#[rstest]
+fn an_optional_secret_is_refused_on_the_command_line() {
+    let login =
+        OptionalLogin::couture_try_parse_from_with(&NonInteractive, ["app", "--token", "x"]);
+    assert_eq!(login.map(drop).map_err(|err| err.kind()).err(), Some(ErrorKind::ValueValidation));
 }
 
 #[rstest]
@@ -74,10 +81,7 @@ fn the_refusal_names_the_arg() {
 #[rstest]
 fn couture_command_alone_refuses_the_command_line() {
     let matches = Login::couture_command().try_get_matches_from(["app", "--token", "x"]);
-    assert_eq!(
-        matches.map(drop).map_err(|err| err.kind()).err(),
-        Some(ErrorKind::ArgumentConflict)
-    );
+    assert_eq!(matches.map(drop).map_err(|err| err.kind()).err(), Some(ErrorKind::ValueValidation));
 }
 
 #[rstest]

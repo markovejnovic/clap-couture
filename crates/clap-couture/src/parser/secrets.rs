@@ -1,5 +1,6 @@
-//! Secret args: clap only ever sees a placeholder for a prompted answer, and never a value from
-//! the command line unless the arg allows it.
+//! Secret args: a prompted answer reaches clap only as a placeholder, and the command line is
+//! refused unless the arg allows it. A value from an env var or an allowed command line is clap's
+//! raw value, as for any arg.
 
 use alloc::sync::Arc;
 use std::{
@@ -25,7 +26,12 @@ pub(crate) struct Vault(Arc<Mutex<Vec<SecretString>>>);
 impl Vault {
     /// The answer `value` stands for, if it is one of this vault's placeholders.
     fn get(&self, value: &str) -> Option<SecretString> {
-        let index: usize = value.strip_prefix(PLACEHOLDER_PREFIX)?.parse().ok()?;
+        let digits = value.strip_prefix(PLACEHOLDER_PREFIX)?;
+        // `store` writes bare digits, but `usize::from_str` would also take a leading `+`.
+        if !digits.bytes().all(|byte| byte.is_ascii_digit()) {
+            return None;
+        }
+        let index: usize = digits.parse().ok()?;
         self.secrets().get(index).cloned()
     }
 
@@ -50,11 +56,11 @@ impl Vault {
     }
 }
 
-/// A secret arg's value parser: placeholders resolve from the vault, the command line is refused
-/// unless allowed, and anything else (an env var) is taken as is.
+/// A secret arg's value parser: an injected placeholder resolves from the vault, the command line
+/// is refused unless allowed, and anything else (an env var) is taken as is.
 #[derive(Clone)]
 struct SecretValueParser {
-    /// `secret(allow_argv)`.
+    /// The command line may carry this secret: `secret(allow_argv)`.
     allow_argv: bool,
     vault: Vault,
 }
@@ -80,39 +86,61 @@ impl TypedValueParser for SecretValueParser {
         source: ValueSource,
     ) -> Result<SecretString, clap::Error> {
         if source == ValueSource::CommandLine && !self.allow_argv {
-            return Err(on_command_line(cmd, arg));
+            return Err(command_line_refusal(cmd, arg));
         }
         let value =
             value.to_str().ok_or_else(|| clap::Error::new(ErrorKind::InvalidUtf8).with_cmd(cmd))?;
-        Ok(self.vault.get(value).unwrap_or_else(|| SecretString::from(value)))
+        if !value.starts_with(PLACEHOLDER_PREFIX) {
+            return Ok(SecretString::from(value));
+        }
+        // Only the prompting parse makes placeholders, and only as default values; one from
+        // anywhere else, or naming no answer, must not stand in for a secret.
+        let answer = (source == ValueSource::DefaultValue).then(|| self.vault.get(value)).flatten();
+        answer.ok_or_else(|| unresolved_placeholder(cmd, arg))
     }
 }
 
 /// Give each secret arg in `prompted_args` a [`SecretValueParser`] on `vault`, and keep its env
-/// var's value out of `--help`.
+/// var's value and any placeholder default out of `--help`.
 pub(crate) fn guard(cmd: Command, prompted_args: &[PromptedArg], vault: &Vault) -> Command {
     prompted_args.iter().fold(cmd, |cmd, prompted_arg| {
-        let Some(secret) = &prompted_arg.attr.secret else { return cmd };
-        let parser = SecretValueParser { allow_argv: secret.allow_argv, vault: vault.clone() };
+        let Some(secret_attr) = &prompted_arg.attr.secret else { return cmd };
+        let parser = SecretValueParser { allow_argv: secret_attr.allow_argv, vault: vault.clone() };
         with_arg_at(cmd, &prompted_arg.subcommand_path, prompted_arg.attr.arg_id, |arg| {
-            arg.value_parser(parser).hide_env_values(true)
+            arg.value_parser(parser).hide_default_value(true).hide_env_values(true)
         })
     })
 }
 
+/// How an error names the secret arg it is about.
+fn arg_name(arg: Option<&Arg>) -> String {
+    arg.map_or_else(|| "a secret".to_owned(), ToString::to_string)
+}
+
 /// The refusal of a secret passed on the command line, pointing at the ways it may come in.
-fn on_command_line(cmd: &Command, arg: Option<&Arg>) -> clap::Error {
-    let name = arg.map_or_else(|| "a secret".to_owned(), ToString::to_string);
+fn command_line_refusal(cmd: &Command, arg: Option<&Arg>) -> clap::Error {
     let env = arg.and_then(Arg::get_env).map(OsStr::to_string_lossy);
     let hint = env.map_or_else(
-        || "leave it out to be asked".to_owned(),
-        |env| format!("set {env} or leave it out to be asked"),
+        || "leave it out to be asked at a terminal".to_owned(),
+        |env| format!("set {env} or leave it out to be asked at a terminal"),
     );
-    clap::Error::raw(
-        ErrorKind::ArgumentConflict,
-        format!("{name} is a secret and can't be passed on the command line; {hint}\n"),
+    secret_error(
+        cmd,
+        &format!("{} is a secret and can't be passed on the command line; {hint}", arg_name(arg)),
     )
-    .with_cmd(cmd)
+}
+
+/// `message` with clap's usage and `--help` pointer, as clap formats its own errors.
+fn secret_error(cmd: &Command, message: &str) -> clap::Error {
+    clap::Error::raw(ErrorKind::ValueValidation, message).format(&mut cmd.clone())
+}
+
+/// The error for a placeholder this parse did not inject: stale, or typed in.
+fn unresolved_placeholder(cmd: &Command, arg: Option<&Arg>) -> clap::Error {
+    secret_error(
+        cmd,
+        &format!("{} got a secret placeholder with no answer behind it", arg_name(arg)),
+    )
 }
 
 #[cfg(test)]
@@ -120,7 +148,7 @@ mod tests {
     use clap::{Arg, Command, error::ErrorKind};
     use secrecy::{ExposeSecret, SecretString};
 
-    use super::{Vault, guard};
+    use super::{PLACEHOLDER_PREFIX, Vault, guard};
     use crate::interactive::{PromptAttr, PromptPurpose, PromptedArg, SecretAttr};
 
     static TOKEN: PromptAttr = PromptAttr {
@@ -144,6 +172,15 @@ mod tests {
         guard(cmd, &[PromptedArg { attr, subcommand_path: Vec::new() }], vault)
     }
 
+    /// The rendered error of parsing `argv`, empty when the parse succeeds.
+    fn error_message(cmd: Command, argv: &[&str]) -> String {
+        cmd.try_get_matches_from(argv)
+            .map(drop)
+            .map_err(|err| err.to_string())
+            .err()
+            .unwrap_or_default()
+    }
+
     fn token(cmd: Command, argv: &[&str]) -> Result<String, ErrorKind> {
         let matches = cmd.try_get_matches_from(argv).map_err(|err| err.kind())?;
         Ok(matches
@@ -165,9 +202,40 @@ mod tests {
     }
 
     #[test]
+    fn a_placeholder_stays_out_of_help() {
+        let vault = Vault::default();
+        let placeholder = vault.store(SecretString::from("hunter2"));
+        let mut cmd =
+            guarded(&TOKEN, &vault).mut_arg("token", |arg| arg.default_value(placeholder));
+        let help = cmd.render_help().to_string();
+        assert!(!help.contains("couture-secret"), "{help:?}");
+    }
+
+    #[test]
     fn the_command_line_is_refused() {
         let cmd = guarded(&TOKEN, &Vault::default());
-        assert_eq!(token(cmd, &["app", "--token", "x"]), Err(ErrorKind::ArgumentConflict));
+        assert_eq!(token(cmd, &["app", "--token", "x"]), Err(ErrorKind::ValueValidation));
+    }
+
+    #[test]
+    fn the_refusal_reads_like_a_clap_error() {
+        let message = error_message(guarded(&TOKEN, &Vault::default()), &["app", "--token", "x"]);
+        assert_eq!(
+            message,
+            "error: --token <token> is a secret and can't be passed on the command line; leave it \
+             out to be asked at a terminal\n\nUsage: app [OPTIONS]\n\nFor more information, try \
+             '--help'.\n"
+        );
+    }
+
+    #[test]
+    fn the_refusal_points_at_the_env_var() {
+        let cmd = guarded(&TOKEN, &Vault::default()).mut_arg("token", |arg| arg.env("APP_TOKEN"));
+        let message = error_message(cmd, &["app", "--token", "x"]);
+        assert!(
+            message.contains("; set APP_TOKEN or leave it out to be asked at a terminal"),
+            "{message}"
+        );
     }
 
     #[test]
@@ -177,9 +245,27 @@ mod tests {
     }
 
     #[test]
-    fn a_typed_placeholder_lookalike_is_still_refused() {
-        let cmd = guarded(&TOKEN, &Vault::default());
-        let lookalike = "\0couture-secret:0";
-        assert_eq!(token(cmd, &["app", "--token", lookalike]), Err(ErrorKind::ArgumentConflict));
+    fn a_placeholder_typed_on_the_command_line_resolves_to_nothing() {
+        let vault = Vault::default();
+        let placeholder = vault.store(SecretString::from("hunter2"));
+        let cmd = guarded(&SCRIPTED_TOKEN, &vault);
+        assert_eq!(token(cmd, &["app", "--token", &placeholder]), Err(ErrorKind::ValueValidation));
+    }
+
+    #[test]
+    fn a_placeholder_from_another_vault_is_an_error() {
+        let placeholder = Vault::default().store(SecretString::from("hunter2"));
+        let cmd = guarded(&TOKEN, &Vault::default())
+            .mut_arg("token", |arg| arg.default_value(placeholder));
+        assert_eq!(token(cmd, &["app"]), Err(ErrorKind::ValueValidation));
+    }
+
+    #[test]
+    fn a_placeholder_index_is_digits_only() {
+        let vault = Vault::default();
+        vault.store(SecretString::from("hunter2"));
+        let signed = format!("{PLACEHOLDER_PREFIX}+0");
+        let cmd = guarded(&TOKEN, &vault).mut_arg("token", |arg| arg.default_value(signed));
+        assert_eq!(token(cmd, &["app"]), Err(ErrorKind::ValueValidation));
     }
 }

@@ -12,7 +12,10 @@ use inquire::{
     validator::ValueRequiredValidator,
 };
 
-use super::{Backend, ClapColor, ClapStyle, CommandStyles, NONE_OPTION, NamedColor};
+use super::{
+    Backend, CommandStyles,
+    builtin::{ClapColor, ClapStyle, NONE_OPTION, NamedColor},
+};
 use crate::interactive::{ConfirmPrompt, PromptError, SelectPrompt, TextPrompt};
 
 struct InquireError(inquire::InquireError);

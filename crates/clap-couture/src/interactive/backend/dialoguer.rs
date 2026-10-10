@@ -3,7 +3,10 @@
 use clap::builder::PossibleValue;
 use dialoguer::{Confirm, Input, Select, theme::ColorfulTheme};
 
-use super::{Backend, ClapStyle, CommandStyles, NONE_OPTION};
+use super::{
+    Backend, CommandStyles,
+    builtin::{ClapStyle, NONE_OPTION},
+};
 use crate::interactive::{ConfirmPrompt, PromptError, SelectPrompt, TextPrompt};
 
 /// A dialoguer failure.

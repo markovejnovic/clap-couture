@@ -27,7 +27,7 @@ darling = { workspace = true }
 
 [dev-dependencies]
 clap = { workspace = true, features = ["derive"] }
-clap-couture = { path = "../clap-couture", features = ["interactive"] }
+clap-couture = { path = "../clap-couture", version = "0.1.0", features = ["interactive"] }
 
 [lints]
 workspace = true

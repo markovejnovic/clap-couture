@@ -348,7 +348,7 @@ fn asks_for_a_missing_positional() {
     let backend = ScriptedBackend::new([Reply::Text(Some("main"))]);
     let argv = ["repo", "--profile", "p", "push", "--offset", "1"];
     let target = Repo::couture_try_parse_from_with(&backend, argv).map(|repo| {
-        let RepoCmd::Push { target, .. } = repo.cmd;
+        let RepoCmd::Push { offset: _, target } = repo.cmd;
         target
     });
     assert_eq!(target.ok().as_deref(), Some("main"));
@@ -376,7 +376,7 @@ fn an_answer_may_start_with_a_dash() {
     let backend = ScriptedBackend::new([Reply::Text(Some("-5"))]);
     let argv = ["repo", "--profile", "p", "push", "x"];
     let offset = Repo::couture_try_parse_from_with(&backend, argv).map(|repo| {
-        let RepoCmd::Push { offset, .. } = repo.cmd;
+        let RepoCmd::Push { offset, target: _ } = repo.cmd;
         offset
     });
     assert_eq!(offset.ok(), Some(Some(-5i32)));

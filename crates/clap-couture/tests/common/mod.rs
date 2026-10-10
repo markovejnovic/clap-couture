@@ -36,10 +36,10 @@ pub(crate) enum Reply {
 pub(crate) struct ScriptedBackend {
     asked: RefCell<Vec<Asked>>,
     available: bool,
-    /// The last `report`ed error, not yet shown with a prompt.
-    reported: RefCell<Option<String>>,
     /// The script, last reply first, so the next one pops off the end.
     replies: RefCell<Vec<Reply>>,
+    /// The last `report`ed error, not yet shown with a prompt.
+    reported: RefCell<Option<String>>,
 }
 
 impl ScriptedBackend {

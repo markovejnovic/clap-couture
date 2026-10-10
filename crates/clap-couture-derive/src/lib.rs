@@ -18,8 +18,8 @@ use crate::{couture_impl::CoutureImpl, input::CoutureInput};
 ///   declares the categories in display order. `title` and `description` are optional. `title` is
 ///   the heading as printed, colon included (`"Deploy:"`, `"部署："`); without one, the heading is
 ///   the key and a colon.
-/// - Similar to [`clap`], you can pass arbitrary expressions to any field, eg. `title =
-///   t!("deploy")`, which can enable localized text.
+/// - Similar to [`clap`](https://docs.rs/clap), you can pass arbitrary expressions to any field,
+///   eg. `title = t!("deploy")`, which can enable localized text.
 /// - `#[category("key")]` on a variant files it under that category. Naming a category the enum
 ///   neither declares nor inherits is a compile error, unless it declares and inherits none.
 /// - A `#[command(flatten)]` variant or field brings its type's categories along, after the enum's

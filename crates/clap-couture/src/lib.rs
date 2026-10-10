@@ -219,7 +219,8 @@
 //! - `#[couture(prompt)]` on an arg with a `default_value` prompts the user, pre-filling the input
 //!   form.
 //! - Couture parses rich types the same way `clap` does in interactive mode. Types like `u16` (or
-//!   any [`FromStr`](core::str::FromStr) type, really) get correctly parsed, even in interactive mode.
+//!   any [`FromStr`](core::str::FromStr) type, really) get correctly parsed, even in interactive
+//!   mode.
 //! - `#[couture(prompt)]` will avoid inquiring about fields the user passed either through the CLI
 //!   flags or the environment.
 //! - `#[couture(prompt)]` only queries the input field if there's a PTY to query on. If the user is
@@ -240,12 +241,12 @@
 //!
 //! You can pick from three interactive backends:
 //!
-//!   - [`interactive-cliclack`](interactive::Cliclack) uses the
-//!     [cliclack](https://docs.rs/cliclack/latest/cliclack/) crate to ask the user for input.
-//!   - [`interactive-inquire`](interactive::Inquire) uses the
-//!     [inquire](https://docs.rs/inquire/latest/inquire/) crate to ask the user for input.
-//!   - [`interactive-dialoguer`](interactive::Dialoguer) uses the
-//!     [dialoguer](https://docs.rs/dialoguer/latest/dialoguer/) crate to ask the user for input.
+//!   - [`interactive-cliclack`](interactive::Cliclack) uses the [cliclack](https://docs.rs/cliclack/latest/cliclack/)
+//!     crate to ask the user for input.
+//!   - [`interactive-inquire`](interactive::Inquire) uses the [inquire](https://docs.rs/inquire/latest/inquire/)
+//!     crate to ask the user for input.
+//!   - [`interactive-dialoguer`](interactive::Dialoguer) uses the [dialoguer](https://docs.rs/dialoguer/latest/dialoguer/)
+//!     crate to ask the user for input.
 //!
 //! There is also a mechanism to implement a custom backend, but this is intentionally not
 //! documented until it reaches stability.
@@ -337,7 +338,7 @@ impl CommandName {
 ///
 /// Cli::couture_command().print_help().unwrap();
 /// ```
-///
+/// 
 /// `tool --help` renders
 /// ```text
 /// 用法：
@@ -350,7 +351,7 @@ impl CommandName {
 ///       --region <REGION>  部署区域 [possible values: eu, us]
 ///   -h, --help             Print help
 /// ```
-///
+/// 
 /// and `tool ship`, run on a terminal without `--region`, asks for the optional region with
 /// `none` as its last choice. Picking it leaves `region` unset. With the
 /// `interactive-cliclack` backend:
@@ -361,7 +362,7 @@ impl CommandName {
 /// │  ○ 无
 /// └
 /// ```
-///
+/// 
 /// `Print help` and `[possible values: ...]` are clap's own text; for the help flag, disable
 /// clap's and add your own.
 #[derive(Clone, Copy, Debug)]

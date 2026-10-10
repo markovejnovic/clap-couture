@@ -37,7 +37,8 @@
 //! By default, this renders with [cliclack]. You can also choose different interactive input
 //! backends, by passing one of `--feature ...`.
 //!
-//! `cargo run -p clap-couture --no-default-features --features interactive-inquire --example 03-interactive` outputs:
+//! `cargo run -p clap-couture --no-default-features --features interactive-inquire --example
+//! 03-interactive` outputs:
 //!
 //! ```terminal
 //! > Application name web
@@ -51,7 +52,8 @@
 //!
 //! `interactive-dialoguer` is the last option.
 //!
-//! `cargo run -p clap-couture --no-default-features --features interactive-dialoguer --example 03-interactive` outputs:
+//! `cargo run -p clap-couture --no-default-features --features interactive-dialoguer --example
+//! 03-interactive` outputs:
 //!
 //! ```terminal
 //! ✔ Application name · web

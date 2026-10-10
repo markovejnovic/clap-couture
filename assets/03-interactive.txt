@@ -1,36 +1,6 @@
 >
 ────────────────────────────────────────────────────────────────────────────────
->
-────────────────────────────────────────────────────────────────────────────────
->
-────────────────────────────────────────────────────────────────────────────────
->
-────────────────────────────────────────────────────────────────────────────────
->
-────────────────────────────────────────────────────────────────────────────────
->
-────────────────────────────────────────────────────────────────────────────────
->
-────────────────────────────────────────────────────────────────────────────────
->
-────────────────────────────────────────────────────────────────────────────────
->
-────────────────────────────────────────────────────────────────────────────────
->
-────────────────────────────────────────────────────────────────────────────────
 > orbit-deploy
-────────────────────────────────────────────────────────────────────────────────
-> orbit-deploy
-────────────────────────────────────────────────────────────────────────────────
-> orbit-deploy
-◆  Application name
-│
-└
-────────────────────────────────────────────────────────────────────────────────
-> orbit-deploy
-◆  Application name
-│
-└
 ────────────────────────────────────────────────────────────────────────────────
 > orbit-deploy
 ◆  Application name
@@ -40,27 +10,6 @@
 > orbit-deploy
 ◆  Application name
 │  web
-└
-────────────────────────────────────────────────────────────────────────────────
-> orbit-deploy
-◆  Application name
-│  web
-└
-────────────────────────────────────────────────────────────────────────────────
-> orbit-deploy
-◇  Application name
-│  web
-│
-◆  Tail the logs afterwards?
-│  ○ Yes  / ● No
-└
-────────────────────────────────────────────────────────────────────────────────
-> orbit-deploy
-◇  Application name
-│  web
-│
-◆  Tail the logs afterwards?
-│  ○ Yes  / ● No
 └
 ────────────────────────────────────────────────────────────────────────────────
 > orbit-deploy
@@ -81,45 +30,6 @@
 ◆  Which region?
 │  ● apac
 │  ○ eu
-│  ○ us
-└
-────────────────────────────────────────────────────────────────────────────────
-> orbit-deploy
-◇  Application name
-│  web
-│
-◇  Tail the logs afterwards?
-│  Yes
-│
-◆  Which region?
-│  ● apac
-│  ○ eu
-│  ○ us
-└
-────────────────────────────────────────────────────────────────────────────────
-> orbit-deploy
-◇  Application name
-│  web
-│
-◇  Tail the logs afterwards?
-│  Yes
-│
-◆  Which region?
-│  ● apac
-│  ○ eu
-│  ○ us
-└
-────────────────────────────────────────────────────────────────────────────────
-> orbit-deploy
-◇  Application name
-│  web
-│
-◇  Tail the logs afterwards?
-│  Yes
-│
-◆  Which region?
-│  ○ apac
-│  ● eu
 │  ○ us
 └
 ────────────────────────────────────────────────────────────────────────────────
@@ -161,87 +71,7 @@
 │  eu
 │
 ◆  How many replicas?
-│  2 (default)
-└
-────────────────────────────────────────────────────────────────────────────────
-> orbit-deploy
-◇  Application name
-│  web
-│
-◇  Tail the logs afterwards?
-│  Yes
-│
-◇  Which region?
-│  eu
-│
-◆  How many replicas?
-│  2 (default)
-└
-────────────────────────────────────────────────────────────────────────────────
-> orbit-deploy
-◇  Application name
-│  web
-│
-◇  Tail the logs afterwards?
-│  Yes
-│
-◇  Which region?
-│  eu
-│
-◆  How many replicas?
 │  abc
-└
-────────────────────────────────────────────────────────────────────────────────
-> orbit-deploy
-◇  Application name
-│  web
-│
-◇  Tail the logs afterwards?
-│  Yes
-│
-◇  Which region?
-│  eu
-│
-◆  How many replicas?
-│  abc
-└
-────────────────────────────────────────────────────────────────────────────────
-> orbit-deploy
-◇  Application name
-│  web
-│
-◇  Tail the logs afterwards?
-│  Yes
-│
-◇  Which region?
-│  eu
-│
-◇  How many replicas?
-│  abc
-│
-■  invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
-│
-◆  How many replicas?
-│  2 (default)
-└
-────────────────────────────────────────────────────────────────────────────────
-> orbit-deploy
-◇  Application name
-│  web
-│
-◇  Tail the logs afterwards?
-│  Yes
-│
-◇  Which region?
-│  eu
-│
-◇  How many replicas?
-│  abc
-│
-■  invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
-│
-◆  How many replicas?
-│  2 (default)
 └
 ────────────────────────────────────────────────────────────────────────────────
 > orbit-deploy
@@ -281,67 +111,6 @@
 ◆  How many replicas?
 │  3
 └
-────────────────────────────────────────────────────────────────────────────────
-> orbit-deploy
-◇  Application name
-│  web
-│
-◇  Tail the logs afterwards?
-│  Yes
-│
-◇  Which region?
-│  eu
-│
-◇  How many replicas?
-│  abc
-│
-■  invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
-│
-◆  How many replicas?
-│  3
-└
-────────────────────────────────────────────────────────────────────────────────
-> orbit-deploy
-◇  Application name
-│  web
-│
-◇  Tail the logs afterwards?
-│  Yes
-│
-◇  Which region?
-│  eu
-│
-◇  How many replicas?
-│  abc
-│
-■  invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
-│
-◇  How many replicas?
-│  3
-│
-deploying web to eu with 3 replicas (follow: true)
->
-────────────────────────────────────────────────────────────────────────────────
-> orbit-deploy
-◇  Application name
-│  web
-│
-◇  Tail the logs afterwards?
-│  Yes
-│
-◇  Which region?
-│  eu
-│
-◇  How many replicas?
-│  abc
-│
-■  invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
-│
-◇  How many replicas?
-│  3
-│
-deploying web to eu with 3 replicas (follow: true)
->
 ────────────────────────────────────────────────────────────────────────────────
 > orbit-deploy
 ◇  Application name

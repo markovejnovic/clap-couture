@@ -3,31 +3,12 @@
 > orbit-deploy
 ────────────────────────────────────────────────────────────────────────────────
 > orbit-deploy
-────────────────────────────────────────────────────────────────────────────────
-> orbit-deploy
-? Application name ›
-────────────────────────────────────────────────────────────────────────────────
-> orbit-deploy
-? Application name ›
-────────────────────────────────────────────────────────────────────────────────
-> orbit-deploy
 ? Application name ›
 ────────────────────────────────────────────────────────────────────────────────
 > orbit-deploy
 ? Application name › web
 ────────────────────────────────────────────────────────────────────────────────
 > orbit-deploy
-? Application name › web
-────────────────────────────────────────────────────────────────────────────────
-> orbit-deploy
-✔ Application name · web
-? Tail the logs afterwards? (y/n) › no
-────────────────────────────────────────────────────────────────────────────────
-> orbit-deploy
-✔ Application name · web
-? Tail the logs afterwards? (y/n) › no
-────────────────────────────────────────────────────────────────────────────────
-> orbit-deploy
 ✔ Application name · web
 ? Tail the logs afterwards? (y/n) › no
 ────────────────────────────────────────────────────────────────────────────────
@@ -36,30 +17,6 @@
 ✔ Tail the logs afterwards? · yes
 ? Which region? ›
   apac
-  eu
-  us
-────────────────────────────────────────────────────────────────────────────────
-> orbit-deploy
-✔ Application name · web
-✔ Tail the logs afterwards? · yes
-? Which region? ›
-  apac
-  eu
-  us
-────────────────────────────────────────────────────────────────────────────────
-> orbit-deploy
-✔ Application name · web
-✔ Tail the logs afterwards? · yes
-? Which region? ›
-  apac
-  eu
-  us
-────────────────────────────────────────────────────────────────────────────────
-> orbit-deploy
-✔ Application name · web
-✔ Tail the logs afterwards? · yes
-? Which region? ›
-❯ apac
   eu
   us
 ────────────────────────────────────────────────────────────────────────────────
@@ -81,24 +38,6 @@
 ✔ Application name · web
 ✔ Tail the logs afterwards? · yes
 ✔ Which region? · apac
-? How many replicas? (2) ›
-────────────────────────────────────────────────────────────────────────────────
-> orbit-deploy
-✔ Application name · web
-✔ Tail the logs afterwards? · yes
-✔ Which region? · apac
-? How many replicas? (2) ›
-────────────────────────────────────────────────────────────────────────────────
-> orbit-deploy
-✔ Application name · web
-✔ Tail the logs afterwards? · yes
-✔ Which region? · apac
-? How many replicas? (2) › abc
-────────────────────────────────────────────────────────────────────────────────
-> orbit-deploy
-✔ Application name · web
-✔ Tail the logs afterwards? · yes
-✔ Which region? · apac
 ? How many replicas? (2) › abc
 ────────────────────────────────────────────────────────────────────────────────
 > orbit-deploy
@@ -115,51 +54,7 @@ invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
 ✔ Which region? · apac
 ✔ How many replicas? · abc
 invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
-? How many replicas? (2) ›
-────────────────────────────────────────────────────────────────────────────────
-> orbit-deploy
-✔ Application name · web
-✔ Tail the logs afterwards? · yes
-✔ Which region? · apac
-✔ How many replicas? · abc
-invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
-? How many replicas? (2) ›
-────────────────────────────────────────────────────────────────────────────────
-> orbit-deploy
-✔ Application name · web
-✔ Tail the logs afterwards? · yes
-✔ Which region? · apac
-✔ How many replicas? · abc
-invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
 ? How many replicas? (2) › 3
-────────────────────────────────────────────────────────────────────────────────
-> orbit-deploy
-✔ Application name · web
-✔ Tail the logs afterwards? · yes
-✔ Which region? · apac
-✔ How many replicas? · abc
-invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
-? How many replicas? (2) › 3
-────────────────────────────────────────────────────────────────────────────────
-> orbit-deploy
-✔ Application name · web
-✔ Tail the logs afterwards? · yes
-✔ Which region? · apac
-✔ How many replicas? · abc
-invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
-✔ How many replicas? · 3
-deploying web to apac with 3 replicas (follow: true)
->
-────────────────────────────────────────────────────────────────────────────────
-> orbit-deploy
-✔ Application name · web
-✔ Tail the logs afterwards? · yes
-✔ Which region? · apac
-✔ How many replicas? · abc
-invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
-✔ How many replicas? · 3
-deploying web to apac with 3 replicas (follow: true)
->
 ────────────────────────────────────────────────────────────────────────────────
 > orbit-deploy
 ✔ Application name · web

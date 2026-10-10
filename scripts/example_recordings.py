@@ -8,6 +8,7 @@ is one, since backends take different keys.
 """
 
 from dataclasses import dataclass
+from itertools import groupby
 from pathlib import Path
 from typing import Self
 
@@ -77,8 +78,13 @@ class ExampleRun(CargoRun):
         return own if own.exists() else tapes / f"{self.example}.tape"
 
     def write_capture(self, recording: Recording) -> Path:
-        """Save `recording`'s screens as the run's text capture, returning where."""
+        """Save `recording`'s screens as the run's text capture, returning where.
+
+        A screen repeated back to back is kept once: how many times vhs captures an
+        unchanged screen depends on timing, and the capture must not.
+        """
+        screens = (screen for screen, _ in groupby(recording.screens))
         _ = self.capture.write_text(
-            "".join(f"{screen.text}\n{_SCREEN_RULE}\n" for screen in recording.screens)
+            "".join(f"{screen.text}\n{_SCREEN_RULE}\n" for screen in screens)
         )
         return self.capture

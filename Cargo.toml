@@ -47,6 +47,7 @@ semicolon_outside_block = "allow"    # vs semicolon_inside_block (kept)
 mod_module_files = "allow"           # vs self_named_module_files (kept): write foo/mod.rs
 unused_result_ok = "allow"           # vs let_underscore_must_use (kept): discard via `.ok()`
 pub_with_shorthand = "allow"         # vs pub_without_shorthand (kept): write pub(crate)
+unneeded_field_pattern = "allow"     # vs rest_pattern_accessible_field (kept): name every field
 
 missing_docs_in_private_items = "allow"     # private items get docs only where the name falls short
 missing_inline_in_public_items = "allow"    # nothing here is hot

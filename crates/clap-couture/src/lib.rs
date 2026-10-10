@@ -142,6 +142,30 @@ impl Text {
     }
 }
 
+/// The text couture prints itself, for localizing it.
+///
+/// Set any of it with `#[couture(messages = { ... })]` on the type you parse; each value takes an
+/// expression like [`Text`]. A heading is printed with a `:` after it, the way clap prints its
+/// own.
+#[derive(Clone, Copy, Debug)]
+pub struct Messages {
+    /// The select option that leaves an optional prompted arg unset.
+    pub none_option: Text,
+    /// The heading above the options in `--help`.
+    pub options_heading: Text,
+    /// The heading above the usage in `--help`.
+    pub usage_heading: Text,
+}
+
+impl Messages {
+    /// clap's English wording.
+    pub const DEFAULT: Self = Self {
+        none_option: Text::Literal("(none)"),
+        options_heading: Text::Literal("Options"),
+        usage_heading: Text::Literal("Usage"),
+    };
+}
+
 /// Defines a category of similar commands.
 pub struct Category {
     /// Text printed beside the heading, if any.
@@ -300,6 +324,9 @@ pub trait Couture {
     /// Each command paired with the category it belongs to.
     const CATEGORIES: CommandCategoryMap = CommandCategoryMap::EMPTY;
 
+    /// The text couture prints itself, from `#[couture(messages = { ... })]`.
+    const MESSAGES: Messages = Messages::DEFAULT;
+
     /// The args marked `#[couture(prompt)]`, and where they sit.
     #[cfg(feature = "interactive")]
     #[doc(hidden)]
@@ -308,7 +335,8 @@ pub trait Couture {
 
 /// Extension trait adding categorized help to a [`clap::Command`].
 pub trait CommandExt {
-    /// Group this command's `--help` subcommand listing by `T`'s categories.
+    /// Group this command's `--help` subcommand listing by `T`'s categories, with `T`'s
+    /// [`Messages`].
     ///
     /// Overwrites the command's [`help_template`](Command::help_template) and
     /// [`before_help`](Command::before_help).
@@ -353,11 +381,14 @@ impl CommandExt for Command {
         self.write_command_sections(&mut before, T::CATEGORIES).ok();
 
         // clap can't regroup its subcommand listing, so the template lists `{options}` instead of
-        // `{all-args}` and the menu goes in `{before-help}`.
-        let header = styles.get_header();
+        // `{all-args}` and the menu goes in `{before-help}`. The headings are written out rather
+        // than clap's `{usage-heading}`, which is always English.
+        let (header, usage) = (styles.get_header(), styles.get_usage());
+        let (options_heading, usage_heading) =
+            (T::MESSAGES.options_heading.get(), T::MESSAGES.usage_heading.get());
         let template = format!(
-            "{{name}} {{version}}\n{{author}}\n{{about}}\n\n{{usage-heading}}\n  \
-             {{usage}}\n\n{{before-help}}{header}Options:{header:#}\n{{options}}"
+            "{{name}} {{version}}\n{{author}}\n{{about}}\n\n{usage}{usage_heading}:{usage:#}\n  \
+             {{usage}}\n\n{{before-help}}{header}{options_heading}:{header:#}\n{{options}}"
         );
 
         self.before_help(before).help_template(template)

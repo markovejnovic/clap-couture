@@ -214,6 +214,14 @@ struct Piped {
 }
 
 #[derive(Parser, Couture, Debug)]
+#[couture(messages = { none_option = "(keine)" })]
+struct NoneOption {
+    #[arg(long, value_enum)]
+    #[couture(prompt = "Which color?")]
+    color: Option<Color>,
+}
+
+#[derive(Parser, Couture, Debug)]
 struct Localized {
     #[arg(long)]
     #[couture(prompt = REGION_QUESTION.get())]
@@ -491,4 +499,14 @@ fn a_prompt_expression_is_evaluated_when_asked() {
     let localized = Localized::couture_try_parse_from_with(&backend, ["deploy"]);
     assert_eq!(localized.map(|localized| localized.region).ok().as_deref(), Some("eu"));
     assert_eq!(backend.asked(), [asked(Kind::Text, "Welche Region?", None, &[])]);
+}
+
+#[rstest]
+fn an_optional_select_lists_the_none_option_message() {
+    let backend = ScriptedBackend::new([Reply::Select(None)]);
+    let cli = NoneOption::couture_try_parse_from_with(&backend, ["paint"]);
+    assert_eq!(cli.map(|cli| cli.color).ok(), Some(None));
+    assert_eq!(backend.asked(), [asked(Kind::Select, "Which color?", None, &[
+        "red", "blue", "(keine)"
+    ])]);
 }

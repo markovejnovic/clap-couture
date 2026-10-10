@@ -14,9 +14,12 @@ use clap::{
 };
 
 use super::Failure;
-use crate::interactive::{
-    Backend, CommandStyles, ConfirmPrompt, PromptError, PromptedArg, PromptedArgTree, SelectPrompt,
-    TextPrompt,
+use crate::{
+    Messages,
+    interactive::{
+        Backend, CommandStyles, ConfirmPrompt, PromptError, PromptedArg, PromptedArgTree,
+        SelectPrompt, TextPrompt,
+    },
 };
 
 /// A prompted arg's accepted answer.
@@ -30,6 +33,7 @@ struct Session<'run> {
     argv: &'run [OsString],
     backend: &'run dyn Backend,
     cmd: &'run Command,
+    messages: &'run Messages,
     prompted_args: &'run [PromptedArg],
 }
 
@@ -92,6 +96,7 @@ impl Session<'_> {
         }
         self.backend.select(&SelectPrompt {
             default: current,
+            none_option: &self.messages.none_option.get(),
             optional: !arg.is_required_set(),
             options: &options,
             question: &question,
@@ -120,6 +125,7 @@ impl Session<'_> {
 pub(super) fn parse<T>(
     cmd: Command,
     prompted_arg_tree: &'static PromptedArgTree,
+    messages: &Messages,
     argv: &[OsString],
     backend: &dyn Backend,
 ) -> Result<T, Failure>
@@ -135,7 +141,7 @@ where
         return super::parse(cmd, argv);
     };
 
-    let session = Session { argv, backend, cmd: &cmd, prompted_args: &prompted_args };
+    let session = Session { argv, backend, cmd: &cmd, messages, prompted_args: &prompted_args };
     let mut answers = Vec::new();
     for (prompted_arg, current) in pending(&cmd, &matches, &prompted_args) {
         if blocked(&cmd, &matches, prompted_arg, &answers) {

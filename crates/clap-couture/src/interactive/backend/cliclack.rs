@@ -2,10 +2,7 @@
 
 use std::io;
 
-use super::{
-    Backend, CommandStyles,
-    builtin::{ClapStyle, NONE_OPTION},
-};
+use super::{Backend, CommandStyles, builtin::ClapStyle};
 use crate::interactive::{ConfirmPrompt, PromptError, SelectPrompt, TextPrompt};
 
 /// Prompts drawn by cliclack, in its clack style.
@@ -33,7 +30,7 @@ impl Backend for Cliclack {
                 },
             );
             let mut select =
-                if prompt.optional { select.item(None, NONE_OPTION, "") } else { select };
+                if prompt.optional { select.item(None, prompt.none_option, "") } else { select };
             match prompt.default {
                 Some(default) => select.initial_value(Some(default.to_owned())).interact(),
                 None => select.interact(),

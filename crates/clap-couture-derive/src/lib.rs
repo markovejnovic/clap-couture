@@ -16,9 +16,8 @@ use crate::{couture_impl::CoutureImpl, input::CoutureInput};
 ///
 /// - `#[couture(categories = { "key" = { title = "...", description = "..." }, ... })]` on the enum
 ///   declares the categories in display order. `title` and `description` are optional.
-/// - Like clap's `about = expr`, `title`, `description` and `prompt` take any expression that
-///   converts into `Cow<'static, str>`, eg. `title = t!("deploy")` for localized text. A string
-///   literal is kept as is; any other expression is evaluated each time the text is shown.
+/// - Similar to [`clap`], you can pass arbitrary expressions to any field, eg. `title =
+///   t!("deploy")`, which can enable localized text.
 /// - `#[category("key")]` on a variant files it under that category. Naming a category the enum
 ///   neither declares nor inherits is a compile error, unless it declares and inherits none.
 /// - A `#[command(flatten)]` variant or field brings its type's categories along, after the enum's

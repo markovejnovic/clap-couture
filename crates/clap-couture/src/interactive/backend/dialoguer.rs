@@ -3,10 +3,7 @@
 use clap::builder::PossibleValue;
 use dialoguer::{Confirm, Input, Select, theme::ColorfulTheme};
 
-use super::{
-    Backend, CommandStyles,
-    builtin::{ClapStyle, NONE_OPTION},
-};
+use super::{Backend, CommandStyles, builtin::ClapStyle};
 use crate::interactive::{ConfirmPrompt, PromptError, SelectPrompt, TextPrompt};
 
 /// A dialoguer failure.
@@ -37,7 +34,7 @@ impl Backend for Dialoguer {
     fn select(&self, prompt: &SelectPrompt<'_>) -> Result<Option<String>, PromptError> {
         let theme = ColorfulTheme::from(prompt.styles);
         let names: Vec<&str> = prompt.options.iter().map(PossibleValue::get_name).collect();
-        let none = prompt.optional.then_some(NONE_OPTION);
+        let none = prompt.optional.then_some(prompt.none_option);
         let items: Vec<&str> = names.iter().copied().chain(none).collect();
         let select = Select::with_theme(&theme).with_prompt(prompt.question).items(&items);
         let default =
@@ -49,7 +46,7 @@ impl Backend for Dialoguer {
         .interact_opt()
         .map_err(DialoguerError)?
         .ok_or(PromptError::Cancelled)?;
-        // Past the options is the `NONE_OPTION` item, only listed for an optional prompt.
+        // Past the options is the none option, only listed for an optional prompt.
         Ok(names.get(picked).map(|name| (*name).to_owned()))
     }
 

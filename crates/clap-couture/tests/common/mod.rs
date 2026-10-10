@@ -104,7 +104,14 @@ impl Backend for ScriptedBackend {
             default: prompt.default.map(str::to_owned),
             error: None,
             kind: Kind::Select,
-            options: prompt.options.iter().map(|value| value.get_name().to_owned()).collect(),
+            // As the user sees them: the none option last, on an optional prompt.
+            options: prompt
+                .options
+                .iter()
+                .map(|value| value.get_name())
+                .chain(prompt.optional.then_some(prompt.none_option))
+                .map(str::to_owned)
+                .collect(),
             question: prompt.question.to_owned(),
         };
         match self.next(asked)? {

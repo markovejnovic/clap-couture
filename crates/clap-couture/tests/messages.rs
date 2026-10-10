@@ -25,7 +25,7 @@ struct French {
     cmd: Cmd,
 }
 
-/// A later `#[couture(...)]` wins, but only for the messages it sets.
+/// The last `messages = { ... }` replaces earlier ones outright.
 #[derive(Parser, Couture)]
 #[couture(messages = { usage_heading = "Verwendung:", options_heading = "Optionen:" })]
 #[couture(messages = { options_heading = String::from("Einstellungen:") })]
@@ -48,7 +48,7 @@ enum Cmd {
 #[rstest]
 #[case::default(Default::couture_command(), "Usage:", "Options:")]
 #[case::set(German::couture_command(), "Verwendung:", "Optionen:")]
-#[case::set_twice(Overridden::couture_command(), "Verwendung:", "Einstellungen:")]
+#[case::set_twice(Overridden::couture_command(), "Usage:", "Einstellungen:")]
 #[case::own_punctuation(French::couture_command(), "Utilisation :", "Options :")]
 #[case::on_the_subcommand_enum(Default::command().with_couture::<Cmd>(), "Usage:", "Optionen:")]
 fn help_headings_take_the_messages(

@@ -35,7 +35,8 @@ impl TryFrom<CoutureInput> for CoutureImpl {
 
     fn try_from(input: CoutureInput) -> darling::Result<Self> {
         let mut specs = Spec::parse_all(&input.attrs)?;
-        let messages = Messages::merged(specs.iter_mut().filter_map(|spec| spec.messages.take()));
+        // The last `messages = { ... }` wins outright, like `inherit`.
+        let messages = specs.iter_mut().rev().find_map(|spec| spec.messages.take());
         let (categories, prompted_arg_tree) = match &input.data {
             ast::Data::Enum(variants) => {
                 let naming = SubcommandNaming::from_container(&input.attrs);

@@ -26,24 +26,16 @@
 //!   .couture-light { display: none; }
 //!   :root[data-theme="light"] .couture-light { display: revert; }
 //!   :root[data-theme="light"] .couture-dark { display: none; }
+//!   .docblock img.couture-dark, .docblock img.couture-light {
+//!     width: 100%;
+//!     border-radius: var(--code-block-border-radius, 6px);
+//!   }
 //! </style>
-//! <table>
-//!   <tr>
-//!     <th>Clap</th>
-//!     <th>With Clap-Couture</th>
-//!   </tr>
-//!   <tr>
-//!     <td valign="top">
-//!       <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/01-orbit-disorganized-dark.svg" alt="clap's default --help: one long, flat list of commands" width="430">
-//!       <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/01-orbit-disorganized-light.svg" alt="clap's default --help: one long, flat list of commands" width="430">
-//!     </td>
-//!     <td valign="top">
-//!       <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/01-orbit-organized-dark.svg" alt="the same CLI with clap-couture: commands grouped into categories" width="430">
-//!       <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/01-orbit-organized-light.svg" alt="the same CLI with clap-couture: commands grouped into categories" width="430">
-//!     </td>
-//!   </tr>
-//! </table>
 //!
+//! With clap:
+#![cfg_attr(doc, doc = include_str!("../docs/01-orbit-disorganized.html"))]
+//! With clap-couture:
+#![cfg_attr(doc, doc = include_str!("../docs/01-orbit-organized.html"))]
 //! To get started with this feature, take your existing code:
 //!
 //! ```
@@ -148,10 +140,7 @@
 //! ```
 //!
 //! This results in:
-//!
-//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/02-markdown-simple-dark.svg" alt="--help with the markdown rendered: current in bold, your in italics" width="430">
-//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/02-markdown-simple-light.svg" alt="--help with the markdown rendered: current in bold, your in italics" width="430">
-//!
+#![cfg_attr(doc, doc = include_str!("../docs/02-markdown-simple.html"))]
 //! ## Interactive Input
 //!
 //! Finally, `clap-couture` lets you easily add interactive input, straight into your clap structs.
@@ -209,8 +198,8 @@
 //!
 //! This results in support for interactive input:
 //!
-//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/03-interactive-dark.gif" alt="running orbit-deploy with no flags: it asks for the app as text, whether to tail the logs as yes/no, and the region from a list, then asks for the replicas again after an answer that isn't a number" width="600">
-//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/03-interactive-light.gif" alt="running orbit-deploy with no flags: it asks for the app as text, whether to tail the logs as yes/no, and the region from a list, then asks for the replicas again after an answer that isn't a number" width="600">
+//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/03-interactive-dark.gif" alt="running orbit-deploy with no flags: it asks for the app as text, whether to tail the logs as yes/no, and the region from a list, then asks for the replicas again after an answer that isn't a number">
+//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/03-interactive-light.gif" alt="running orbit-deploy with no flags: it asks for the app as text, whether to tail the logs as yes/no, and the region from a list, then asks for the replicas again after an answer that isn't a number">
 //!
 //! ### Neat features
 //!
@@ -266,8 +255,8 @@
 //!
 //! An example of this interaction is:
 //!
-//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/05-interactive-confirm-dark.gif" alt="running orbit-destroy with no flags: it asks for the app and the region, then asks whether to destroy web in eu, and goes ahead on a yes" width="600">
-//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/05-interactive-confirm-light.gif" alt="running orbit-destroy with no flags: it asks for the app and the region, then asks whether to destroy web in eu, and goes ahead on a yes" width="600">
+//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/05-interactive-confirm-dark.gif" alt="running orbit-destroy with no flags: it asks for the app and the region, then asks whether to destroy web in eu, and goes ahead on a yes">
+//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/05-interactive-confirm-light.gif" alt="running orbit-destroy with no flags: it asks for the app and the region, then asks whether to destroy web in eu, and goes ahead on a yes">
 //!
 //! See [`examples/05-interactive-confirm.rs`](https://github.com/markovejnovic/clap-couture/blob/main/crates/clap-couture/examples/05-interactive-confirm.rs).
 //!
@@ -331,8 +320,8 @@
 //!
 //! An example of this interaction is:
 //!
-//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/06-interactive-prompter-dark.gif" alt="running orbit-create with no flags: it asks for the app, then whether to add a database, and on a yes, which engine" width="600">
-//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/06-interactive-prompter-light.gif" alt="running orbit-create with no flags: it asks for the app, then whether to add a database, and on a yes, which engine" width="600">
+//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/06-interactive-prompter-dark.gif" alt="running orbit-create with no flags: it asks for the app, then whether to add a database, and on a yes, which engine">
+//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/06-interactive-prompter-light.gif" alt="running orbit-create with no flags: it asks for the app, then whether to add a database, and on a yes, which engine">
 //!
 //! See [`examples/06-interactive-prompter.rs`](https://github.com/markovejnovic/clap-couture/blob/main/crates/clap-couture/examples/06-interactive-prompter.rs).
 //!

@@ -3,10 +3,20 @@ revision = 3
 requires-python = ">=3.12"
 
 [[package]]
+name = "ansi2html"
+version = "1.9.5"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/c2/49/682b08f7d8247d18aaafaedaf50609de6d91d5ab378c912b5508392578a8/ansi2html-1.9.5.tar.gz", hash = "sha256:ae17e92f1d6cac0e67d367e07fb0ba8a23dac8f193fc5d7a8c8a50fe5ddd95a4", size = 45225, upload-time = "2026-09-06T12:43:46.36Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c2/d4/104cba52b1aa94d1c60ae342c264d4308af59d3d8832b4975802e9fe8978/ansi2html-1.9.5-py3-none-any.whl", hash = "sha256:fff3d25b149951474a688c7e22240f93e69ac5aa023c44ab5dce806befcba281", size = 17877, upload-time = "2026-09-06T12:43:44.78Z" },
+]
+
+[[package]]
 name = "clap-couture-scripts"
 version = "0.0.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "ansi2html" },
     { name = "click" },
     { name = "pyromark" },
 ]
@@ -19,6 +29,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "ansi2html", specifier = "==1.9.5" },
     { name = "click", specifier = "==8.5.0" },
     { name = "pyromark", specifier = "==0.9.14" },
 ]

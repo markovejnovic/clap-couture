@@ -113,12 +113,18 @@ pub use prompted_args::{EditorAttr, PromptAttr, PromptedArg, PromptedArgBranch, 
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum PromptError {
+    /// The user backed out, which counts as Ctrl-C.
     #[error("prompt cancelled")]
     Cancelled,
     #[error(transparent)]
     Io(io::Error),
     #[error("not a terminal")]
     NotATerminal,
+    /// The editor died of this Unix signal, like Ctrl-C or the terminal closing. The prompt is
+    /// cancelled, and [`couture_parse`](crate::CoutureParser::couture_parse) dies of the same
+    /// signal, so a shell loop around the CLI stops too.
+    #[error("prompt cancelled")]
+    Signalled(i32),
 }
 
 // `Interrupted` is the user backing out, `NotConnected` a missing terminal.

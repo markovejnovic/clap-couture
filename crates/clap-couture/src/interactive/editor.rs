@@ -125,7 +125,8 @@ impl Editor {
     /// editor and is not run.
     ///
     /// # Errors
-    /// - [`PromptError::Cancelled`] when the editor dies of Ctrl-C, or of the terminal closing.
+    /// - [`PromptError::Signalled`] when the editor dies of Ctrl-C, or of the terminal closing;
+    ///   [`PromptError::Cancelled`] on Windows.
     /// - [`PromptError::Io`] when the editor cannot be found or started, or exits unsuccessfully.
     fn run(&self, path: &Path, waiting: &str) -> Result<bool, PromptError> {
         if self.command == ":" {
@@ -153,17 +154,20 @@ impl Editor {
             drop(write!(io::stderr(), "{tail}"));
         }
         let editor = self.command.to_string_lossy();
+        let problem = || {
+            PromptError::Io(io::Error::other(format!(
+                "There was a problem with the editor '{editor}'."
+            )))
+        };
         match status {
             Ok(status) if status.success() => Ok(true),
             // The user pressed Ctrl-C in the editor, or closed the terminal: back out like any
             // cancelled prompt, removing the temp file.
-            Ok(status) if interrupted(status) => Err(PromptError::Cancelled),
+            Ok(status) => Err(interruption(status).unwrap_or_else(problem)),
             Err(err) if err.kind() == io::ErrorKind::NotFound => Err(PromptError::Io(
                 io::Error::new(err.kind(), format!("Could not find the editor '{editor}'.")),
             )),
-            Ok(_) | Err(_) => Err(PromptError::Io(io::Error::other(format!(
-                "There was a problem with the editor '{editor}'."
-            )))),
+            Err(_) => Err(problem()),
         }
     }
 
@@ -348,24 +352,24 @@ impl IgnoredInterrupts {
     }
 }
 
-/// Check whether the editor died of one of [`LEFT_TO_EDITOR`]. It is our own child, so its status
-/// carries the signal itself.
+/// The cancellation when the editor died of one of [`LEFT_TO_EDITOR`], naming the signal so the
+/// CLI can die of it too. It is our own child, so its status carries the signal itself.
 #[cfg(unix)]
-fn interrupted(status: ExitStatus) -> bool {
+fn interruption(status: ExitStatus) -> Option<PromptError> {
     use std::os::unix::process::ExitStatusExt as _;
 
-    status.signal().is_some_and(|signal| LEFT_TO_EDITOR.contains(&signal))
+    status.signal().filter(|signal| LEFT_TO_EDITOR.contains(signal)).map(PromptError::Signalled)
 }
 
-/// Check whether the editor died of Ctrl-C.
+/// The cancellation when the editor died of Ctrl-C.
 #[cfg(windows)]
-fn interrupted(status: ExitStatus) -> bool {
-    status.code() == Some(STATUS_CONTROL_C_EXIT)
+fn interruption(status: ExitStatus) -> Option<PromptError> {
+    (status.code() == Some(STATUS_CONTROL_C_EXIT)).then_some(PromptError::Cancelled)
 }
 
 #[cfg(not(any(unix, windows)))]
-const fn interrupted(_status: ExitStatus) -> bool {
-    false
+const fn interruption(_status: ExitStatus) -> Option<PromptError> {
+    None
 }
 
 /// Ask `prompt` in the user's editor, as [`Backend::editor`](super::Backend::editor) does by
@@ -388,8 +392,9 @@ const fn interrupted(_status: ExitStatus) -> bool {
 /// when it is a known one. A yes reads the file, a no reopens the editor.
 ///
 /// # Errors
-/// - [`PromptError::Cancelled`] when the editor dies of Ctrl-C or of the terminal closing, or
-///   `confirm_done` is cancelled.
+/// - [`PromptError::Signalled`] when the editor dies of Ctrl-C or of the terminal closing;
+///   [`PromptError::Cancelled`] on Windows.
+/// - [`PromptError::Cancelled`] when `confirm_done` is cancelled.
 /// - [`PromptError::Io`] when the temp file cannot be written or read, or the editor cannot be
 ///   found or started, or exits unsuccessfully.
 pub fn edit<F>(
@@ -933,16 +938,20 @@ mod tests {
 
     #[cfg(unix)]
     #[rstest]
-    #[case::killed_by_sigint(libc::SIGINT, true)]
-    #[case::killed_by_sigquit(libc::SIGQUIT, true)]
-    #[case::killed_by_sighup(libc::SIGHUP, true)]
-    #[case::killed_by_sigterm(libc::SIGTERM, false)]
-    #[case::exits_130(130i32 << 8i32, false)]
-    #[case::exits_1(1i32 << 8i32, false)]
-    fn interrupted_reads_the_signal(#[case] raw: i32, #[case] expected: bool) {
+    #[case::killed_by_sigint(libc::SIGINT, Some(libc::SIGINT))]
+    #[case::killed_by_sigquit(libc::SIGQUIT, Some(libc::SIGQUIT))]
+    #[case::killed_by_sighup(libc::SIGHUP, Some(libc::SIGHUP))]
+    #[case::killed_by_sigterm(libc::SIGTERM, None)]
+    #[case::exits_130(130i32 << 8i32, None)]
+    #[case::exits_1(1i32 << 8i32, None)]
+    fn interruption_names_the_signal(#[case] raw: i32, #[case] expected: Option<i32>) {
         use std::os::unix::process::ExitStatusExt as _;
 
-        assert_eq!(interrupted(ExitStatus::from_raw(raw)), expected);
+        let signal = match interruption(ExitStatus::from_raw(raw)) {
+            Some(PromptError::Signalled(signal)) => Some(signal),
+            Some(_) | None => None,
+        };
+        assert_eq!(signal, expected);
     }
 
     #[cfg(unix)]

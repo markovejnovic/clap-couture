@@ -227,7 +227,10 @@ where
         match session.answer(prompted_arg, current.as_deref(), &answers) {
             Ok(Some(value)) => answers.push(Answer { prompted_arg, value }),
             Ok(None) => {}
-            Err(PromptError::Cancelled) => return Err(Failure::Cancelled),
+            Err(PromptError::Cancelled) => return Err(Failure::Cancelled { signal: None }),
+            Err(PromptError::Signalled(signal)) => {
+                return Err(Failure::Cancelled { signal: Some(signal) });
+            }
             Err(PromptError::Io(err)) => return Err(Failure::Io(err)),
             Err(PromptError::NotATerminal) => return super::parse(cmd, argv),
         }

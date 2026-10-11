@@ -77,7 +77,9 @@ pub trait Backend {
     /// it to draw something around the editor, and call `edit` from the override.
     ///
     /// # Errors
-    /// - [`PromptError::Cancelled`] when the editor dies of Ctrl-C.
+    /// - [`PromptError::Signalled`] when the editor dies of Ctrl-C or of the terminal closing;
+    ///   [`PromptError::Cancelled`] on Windows.
+    /// - [`PromptError::Cancelled`] when the done-editing question is cancelled.
     /// - [`PromptError::Io`] when the editor cannot be found or started, or exits unsuccessfully.
     #[cfg(feature = "interactive-editor")]
     fn editor(&self, prompt: &EditorPrompt<'_>) -> Result<Option<String>, PromptError> {

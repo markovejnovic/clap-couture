@@ -111,22 +111,27 @@ impl Backend for Cliclack {
         })
     }
 
+    /// cliclack can't pre-fill its input, so `initial` shows as the placeholder instead: typing
+    /// it keeps it, and an empty answer stays empty.
     fn text(&self, prompt: &TextPrompt<'_>) -> Result<Option<String>, PromptError> {
-        let answer: String = Theme::from(prompt.styles).scoped(|| {
+        let theme = Theme::from(prompt.styles);
+        let theme = match prompt.initial {
+            Some(_) => theme.with_blank_answer(prompt.hint.unwrap_or_default()),
+            None => theme,
+        };
+        let answer: String = theme.scoped(|| {
             let input = ::cliclack::input(prompt.question).required(!prompt.optional);
-            // TODO(markovejnovic): cliclack's `Input` can't start out holding editable text (no
-            // equivalent of inquire's `with_initial_value`), so `initial` is passed as a default
-            // instead. The cost: a list prompt pre-filled from the arg's defaults can't be
-            // finished early, as Enter on it keeps the default instead of ending the list. Once
-            // cliclack supports starting text, pass `initial` that way and show the hint even
-            // when there's a default.
-            //
             // When there is a default, the hint is left off: cliclack shows the hint where it
-            // would show "(default)", hiding it, and Enter wouldn't finish the list anyway.
-            let mut input = match (prompt.default.or(prompt.initial), prompt.hint) {
-                (Some(default), _) => input.default_input(default),
-                (None, Some(hint)) => input.placeholder(hint),
-                (None, None) => input,
+            // would show "(default)", hiding it.
+            let mut input = match (prompt.default, prompt.initial, prompt.hint) {
+                (Some(default), ..) => input.default_input(default),
+                (None, Some(initial), Some(hint)) => {
+                    input.placeholder(&format!("{initial} {hint}"))
+                }
+                (None, Some(placeholder), None) | (None, None, Some(placeholder)) => {
+                    input.placeholder(placeholder)
+                }
+                (None, None, None) => input,
             };
             input.interact()
         })?;
@@ -140,8 +145,9 @@ impl Backend for Cliclack {
 /// of following clap's theme. The [`Theme::scoped`] function allows you to run a function with a
 /// temporarily globally set theme.
 struct Theme {
-    input: console::Style,
-    placeholder: console::Style,
+    /// What an empty answer leaves in the transcript, if not the placeholder.
+    blank_answer: Option<String>,
+    styles: Styles,
 }
 
 impl Theme {
@@ -152,18 +158,57 @@ impl Theme {
         ::cliclack::reset_theme();
         answer.map_err(PromptError::from)
     }
+
+    /// This theme, leaving `blank_answer` in the transcript for an empty answer.
+    fn with_blank_answer(self, blank_answer: &str) -> Self {
+        Self { blank_answer: Some(blank_answer.to_owned()), ..self }
+    }
 }
 
 impl From<CommandStyles<'_>> for Theme {
     fn from(CommandStyles(styles): CommandStyles<'_>) -> Self {
         Self {
-            input: console::Style::from(ClapStyle(styles.get_literal())),
-            placeholder: console::Style::from(ClapStyle(styles.get_placeholder())),
+            blank_answer: None,
+            styles: Styles {
+                input: console::Style::from(ClapStyle(styles.get_literal())),
+                placeholder: console::Style::from(ClapStyle(styles.get_placeholder())),
+            },
         }
     }
 }
 
 impl ::cliclack::Theme for Theme {
+    fn format_placeholder(
+        &self,
+        state: &::cliclack::ThemeState,
+        cursor: &::cliclack::StringCursor,
+    ) -> String {
+        match (state, &self.blank_answer) {
+            (::cliclack::ThemeState::Submit, Some(blank_answer)) => {
+                let mut blank_cursor = ::cliclack::StringCursor::default();
+                blank_cursor.extend(blank_answer);
+                self.styles.format_placeholder(state, &blank_cursor)
+            }
+            _ => self.styles.format_placeholder(state, cursor),
+        }
+    }
+
+    fn input_style(&self, state: &::cliclack::ThemeState) -> console::Style {
+        self.styles.input_style(state)
+    }
+
+    fn placeholder_style(&self, state: &::cliclack::ThemeState) -> console::Style {
+        self.styles.placeholder_style(state)
+    }
+}
+
+/// The command's styles for cliclack's input and placeholder text.
+struct Styles {
+    input: console::Style,
+    placeholder: console::Style,
+}
+
+impl ::cliclack::Theme for Styles {
     fn input_style(&self, _state: &::cliclack::ThemeState) -> console::Style {
         self.input.clone()
     }

@@ -20,7 +20,7 @@ use crate::os::{
 
 /// An editor that exits sooner than this and leaves the file as it was most likely handed the
 /// file to a running instance, like `code` without `--wait`, rather than being done with it.
-const RETURNED_EARLY: Duration = Duration::from_secs(2);
+const RETURNED_EARLY: Duration = Duration::from_millis(500);
 
 /// The waiting hint, while the editor is open.
 ///

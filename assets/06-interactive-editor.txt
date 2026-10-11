@@ -1,0 +1,191 @@
+>
+────────────────────────────────────────────────────────────────────────────────
+> deploy
+────────────────────────────────────────────────────────────────────────────────
+> deploy
+◆  Tail the logs afterwards
+│  ○ Yes  / ● No
+└
+────────────────────────────────────────────────────────────────────────────────
+## Changes
+
+
+#| Release notes for this deploy
+#|
+#| These lines are removed. Leave the file empty to leave it unset.
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+<28dy_91h40000gn/T/06-interactive-editor-NxPXeh/deploy-notes.md" 6L, 117B
+────────────────────────────────────────────────────────────────────────────────
+## Changes
+
+
+
+#| Release notes for this deploy
+#|
+#| These lines are removed. Leave the file empty to leave it unset.
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+-- INSERT --
+────────────────────────────────────────────────────────────────────────────────
+## Changes
+- Ships the new billing page.
+
+
+#| Release notes for this deploy
+#|
+#| These lines are removed. Leave the file empty to leave it unset.
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+-- INSERT --
+────────────────────────────────────────────────────────────────────────────────
+## Changes
+- Ships the new billing page.
+
+
+#| Release notes for this deploy
+#|
+#| These lines are removed. Leave the file empty to leave it unset.
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+                                                                          ^[
+────────────────────────────────────────────────────────────────────────────────
+## Changes
+- Ships the new billing page.
+
+
+#| Release notes for this deploy
+#|
+#| These lines are removed. Leave the file empty to leave it unset.
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+:wq
+────────────────────────────────────────────────────────────────────────────────
+> deploy
+◇  Tail the logs afterwards
+│  Yes
+│
+◇  Release notes for this deploy
+│  ## Changes…
+│
+◆  Region to deploy to
+│
+└
+────────────────────────────────────────────────────────────────────────────────
+> deploy
+◇  Tail the logs afterwards
+│  Yes
+│
+◇  Release notes for this deploy
+│  ## Changes…
+│
+◆  Region to deploy to
+│  us-east
+└
+────────────────────────────────────────────────────────────────────────────────
+> deploy
+◇  Tail the logs afterwards
+│  Yes
+│
+◇  Release notes for this deploy
+│  ## Changes…
+│
+◇  Region to deploy to
+│  us-east
+│
+◆  How to roll the release out
+│  ○ canary
+│  ● rolling (One instance at a time)
+│  ○ (none)
+└
+────────────────────────────────────────────────────────────────────────────────
+> deploy
+◇  Tail the logs afterwards
+│  Yes
+│
+◇  Release notes for this deploy
+│  ## Changes…
+│
+◇  Region to deploy to
+│  us-east
+│
+◇  How to roll the release out
+│  rolling
+│
+deploying to us-east (rolling), following logs: true
+notes:
+## Changes
+- Ships the new billing page.
+>
+────────────────────────────────────────────────────────────────────────────────

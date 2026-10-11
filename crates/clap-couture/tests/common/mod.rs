@@ -5,14 +5,16 @@ use std::io;
 
 use clap::builder::PossibleValue;
 use clap_couture::interactive::{
-    Backend, CommandStyles, ConfirmPrompt, PromptError, SelectPrompt, TextPrompt,
+    Backend, CommandStyles, ConfirmPrompt, MultiSelectPrompt, PromptError, SelectPrompt, TextPrompt,
 };
 
 /// One prompt the fake was shown.
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct Asked {
-    pub(crate) default: Option<String>,
+    /// The answer Enter accepts, or a multi-select's pre-picked options.
+    pub(crate) defaults: Vec<String>,
     pub(crate) error: Option<String>,
+    pub(crate) hint: Option<String>,
     pub(crate) kind: Kind,
     pub(crate) options: Vec<String>,
     pub(crate) question: String,
@@ -22,6 +24,7 @@ pub(crate) struct Asked {
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum Kind {
     Confirm,
+    MultiSelect,
     Select,
     Text,
 }
@@ -30,6 +33,7 @@ pub(crate) enum Kind {
 pub(crate) enum Reply {
     Cancel,
     Confirm(bool),
+    MultiSelect(&'static [&'static str]),
     Select(Option<&'static str>),
     Text(Option<&'static str>),
 }
@@ -78,8 +82,9 @@ impl ScriptedBackend {
 impl Backend for ScriptedBackend {
     fn confirm(&self, prompt: &ConfirmPrompt<'_>) -> Result<bool, PromptError> {
         let asked = Asked {
-            default: Some(prompt.default.to_string()),
+            defaults: Vec::from([prompt.default.to_string()]),
             error: None,
+            hint: None,
             kind: Kind::Confirm,
             options: Vec::new(),
             question: prompt.question.to_owned(),
@@ -87,12 +92,28 @@ impl Backend for ScriptedBackend {
         match self.next(asked)? {
             Reply::Confirm(yes) => Ok(yes),
             Reply::Cancel => Err(PromptError::Cancelled),
-            Reply::Select(_) | Reply::Text(_) => Err(wrong_reply()),
+            Reply::MultiSelect(_) | Reply::Select(_) | Reply::Text(_) => Err(wrong_reply()),
         }
     }
 
     fn is_available(&self) -> bool {
         self.available
+    }
+
+    fn multi_select(&self, prompt: &MultiSelectPrompt<'_>) -> Result<Vec<String>, PromptError> {
+        let asked = Asked {
+            defaults: prompt.defaults.to_vec(),
+            error: None,
+            hint: None,
+            kind: Kind::MultiSelect,
+            options: prompt.options.iter().map(|option| option.get_name().to_owned()).collect(),
+            question: prompt.question.to_owned(),
+        };
+        match self.next(asked)? {
+            Reply::MultiSelect(names) => Ok(names.iter().map(|name| (*name).to_owned()).collect()),
+            Reply::Cancel => Err(PromptError::Cancelled),
+            Reply::Confirm(_) | Reply::Select(_) | Reply::Text(_) => Err(wrong_reply()),
+        }
     }
 
     fn report(&self, error: &str, _styles: CommandStyles<'_>) -> Result<(), PromptError> {
@@ -102,8 +123,9 @@ impl Backend for ScriptedBackend {
 
     fn select(&self, prompt: &SelectPrompt<'_>) -> Result<Option<String>, PromptError> {
         let asked = Asked {
-            default: prompt.default.map(str::to_owned),
+            defaults: prompt.default.map(str::to_owned).into_iter().collect(),
             error: None,
+            hint: None,
             kind: Kind::Select,
             // As the user sees them: the none option last, on an optional prompt.
             options: prompt
@@ -118,14 +140,15 @@ impl Backend for ScriptedBackend {
         match self.next(asked)? {
             Reply::Select(name) => Ok(name.map(str::to_owned)),
             Reply::Cancel => Err(PromptError::Cancelled),
-            Reply::Confirm(_) | Reply::Text(_) => Err(wrong_reply()),
+            Reply::Confirm(_) | Reply::MultiSelect(_) | Reply::Text(_) => Err(wrong_reply()),
         }
     }
 
     fn text(&self, prompt: &TextPrompt<'_>) -> Result<Option<String>, PromptError> {
         let asked = Asked {
-            default: prompt.default.map(str::to_owned),
+            defaults: prompt.default.map(str::to_owned).into_iter().collect(),
             error: None,
+            hint: prompt.hint.map(str::to_owned),
             kind: Kind::Text,
             options: Vec::new(),
             question: prompt.question.to_owned(),
@@ -133,7 +156,7 @@ impl Backend for ScriptedBackend {
         match self.next(asked)? {
             Reply::Text(answer) => Ok(answer.map(str::to_owned)),
             Reply::Cancel => Err(PromptError::Cancelled),
-            Reply::Confirm(_) | Reply::Select(_) => Err(wrong_reply()),
+            Reply::Confirm(_) | Reply::MultiSelect(_) | Reply::Select(_) => Err(wrong_reply()),
         }
     }
 }

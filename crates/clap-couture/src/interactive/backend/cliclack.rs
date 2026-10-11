@@ -3,7 +3,7 @@
 use std::io;
 
 use super::{Backend, CommandStyles, builtin::ClapStyle};
-use crate::interactive::{ConfirmPrompt, PromptError, SelectPrompt, TextPrompt};
+use crate::interactive::{ConfirmPrompt, MultiSelectPrompt, PromptError, SelectPrompt, TextPrompt};
 
 /// Prompts drawn by cliclack, in its clack style.
 #[derive(Clone, Copy, Debug, Default)]
@@ -13,6 +13,21 @@ impl Backend for Cliclack {
     fn confirm(&self, prompt: &ConfirmPrompt<'_>) -> Result<bool, PromptError> {
         Theme::from(prompt.styles).scoped(|| {
             ::cliclack::confirm(prompt.question).initial_value(prompt.default).interact()
+        })
+    }
+
+    fn multi_select(&self, prompt: &MultiSelectPrompt<'_>) -> Result<Vec<String>, PromptError> {
+        Theme::from(prompt.styles).scoped(|| {
+            prompt
+                .options
+                .iter()
+                .fold(::cliclack::multiselect(prompt.question), |select, option| {
+                    let hint = option.get_help().map(ToString::to_string).unwrap_or_default();
+                    select.item(option.get_name().to_owned(), option.get_name(), hint)
+                })
+                .initial_values(prompt.defaults.to_vec())
+                .required(!prompt.optional)
+                .interact()
         })
     }
 
@@ -40,7 +55,11 @@ impl Backend for Cliclack {
 
     fn text(&self, prompt: &TextPrompt<'_>) -> Result<Option<String>, PromptError> {
         let answer: String = Theme::from(prompt.styles).scoped(|| {
-            let mut input = ::cliclack::input(prompt.question).required(!prompt.optional);
+            let input = ::cliclack::input(prompt.question).required(!prompt.optional);
+            let mut input = match prompt.hint {
+                Some(hint) => input.placeholder(hint),
+                None => input,
+            };
             match prompt.default {
                 Some(default) => input.default_input(default).interact(),
                 None => input.interact(),

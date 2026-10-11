@@ -40,7 +40,9 @@ use std::io::{self, Write as _};
 use clap::{Parser, Subcommand, ValueEnum, builder::PossibleValue};
 use clap_couture::{
     Couture, CoutureParser as _,
-    interactive::{Backend, ConfirmPrompt, PromptError, SelectPrompt, TextPrompt},
+    interactive::{
+        Backend, ConfirmPrompt, MultiSelectPrompt, PromptError, SelectPrompt, TextPrompt,
+    },
 };
 
 /// Deploy and manage your apps from the terminal.
@@ -172,6 +174,16 @@ impl Backend for Plain {
         })
     }
 
+    fn multi_select(&self, prompt: &MultiSelectPrompt<'_>) -> Result<Vec<String>, PromptError> {
+        let names: Vec<&str> = prompt.options.iter().map(PossibleValue::get_name).collect();
+        let answer =
+            Self::ask(&format!("{} [{}, comma-separated]", prompt.question, names.join("/")))?;
+        if answer.is_empty() {
+            return Ok(prompt.defaults.to_vec());
+        }
+        Ok(answer.split(',').map(|name| name.trim().to_owned()).collect())
+    }
+
     fn select(&self, prompt: &SelectPrompt<'_>) -> Result<Option<String>, PromptError> {
         let names: Vec<&str> = prompt.options.iter().map(PossibleValue::get_name).collect();
         let answer = Self::ask(&format!("{} [{}]", prompt.question, names.join("/")))?;
@@ -179,7 +191,11 @@ impl Backend for Plain {
     }
 
     fn text(&self, prompt: &TextPrompt<'_>) -> Result<Option<String>, PromptError> {
-        let answer = Self::ask(prompt.question)?;
+        let question = prompt.hint.map_or_else(
+            || prompt.question.to_owned(),
+            |hint| format!("{} {hint}", prompt.question),
+        );
+        let answer = Self::ask(&question)?;
         Ok(Self::or_default(answer, prompt.default, prompt.optional))
     }
 }

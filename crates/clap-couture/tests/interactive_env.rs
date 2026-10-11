@@ -7,7 +7,9 @@ use std::io;
 use clap::Parser;
 use clap_couture::{
     Couture, CoutureParser as _,
-    interactive::{Backend, ConfirmPrompt, PromptError, SelectPrompt, TextPrompt},
+    interactive::{
+        Backend, ConfirmPrompt, MultiSelectPrompt, PromptError, SelectPrompt, TextPrompt,
+    },
 };
 use rstest::rstest;
 
@@ -28,6 +30,10 @@ impl Backend for Refuses {
 
     fn is_available(&self) -> bool {
         true
+    }
+
+    fn multi_select(&self, _prompt: &MultiSelectPrompt<'_>) -> Result<Vec<String>, PromptError> {
+        Err(refused())
     }
 
     fn select(&self, _prompt: &SelectPrompt<'_>) -> Result<Option<String>, PromptError> {

@@ -1,10 +1,10 @@
 //! [`Backend`] drawn by [dialoguer](https://docs.rs/dialoguer).
 
 use clap::builder::PossibleValue;
-use dialoguer::{Confirm, Input, Select, theme::ColorfulTheme};
+use dialoguer::{Confirm, Input, MultiSelect, Select, theme::ColorfulTheme};
 
 use super::{Backend, CommandStyles, builtin::ClapStyle};
-use crate::interactive::{ConfirmPrompt, PromptError, SelectPrompt, TextPrompt};
+use crate::interactive::{ConfirmPrompt, MultiSelectPrompt, PromptError, SelectPrompt, TextPrompt};
 
 /// A dialoguer failure.
 struct DialoguerError(dialoguer::Error);
@@ -22,6 +22,32 @@ impl Backend for Dialoguer {
             .interact_opt()
             .map_err(DialoguerError)?
             .ok_or(PromptError::Cancelled)
+    }
+
+    fn multi_select(&self, prompt: &MultiSelectPrompt<'_>) -> Result<Vec<String>, PromptError> {
+        let theme = ColorfulTheme::from(prompt.styles);
+        let names: Vec<&str> = prompt.options.iter().map(PossibleValue::get_name).collect();
+        let picked_by_default: Vec<bool> = names
+            .iter()
+            .map(|name| prompt.defaults.iter().any(|default| default == name))
+            .collect();
+        // dialoguer cannot require a pick, so a required prompt answered with none is asked again.
+        loop {
+            let picked = MultiSelect::with_theme(&theme)
+                .with_prompt(prompt.question)
+                .items(&names)
+                .defaults(&picked_by_default)
+                .interact_opt()
+                .map_err(DialoguerError)?
+                .ok_or(PromptError::Cancelled)?;
+            if prompt.optional || !picked.is_empty() {
+                return Ok(picked
+                    .into_iter()
+                    .filter_map(|index| names.get(index))
+                    .map(|name| (*name).to_owned())
+                    .collect());
+            }
+        }
     }
 
     fn report(&self, error: &str, styles: CommandStyles<'_>) -> Result<(), PromptError> {
@@ -53,7 +79,10 @@ impl Backend for Dialoguer {
     fn text(&self, prompt: &TextPrompt<'_>) -> Result<Option<String>, PromptError> {
         let theme = ColorfulTheme::from(prompt.styles);
         let input = Input::<String>::with_theme(&theme)
-            .with_prompt(prompt.question)
+            .with_prompt(prompt.hint.map_or_else(
+                || prompt.question.to_owned(),
+                |hint| format!("{} {hint}", prompt.question),
+            ))
             .allow_empty(prompt.optional);
         let answer = match prompt.default {
             Some(default) => input.default(default.to_owned()),

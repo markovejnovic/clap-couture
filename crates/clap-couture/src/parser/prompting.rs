@@ -12,9 +12,12 @@
 //! A secret's answer goes into a vault instead, and clap gets a placeholder that the secret's
 //! value parser swaps back. It skips the trial parse: that parser takes any string, so there is
 //! nothing to ask again.
+//!
+//! Before any of it, the `#[couture(accept_stdin)]` arg on the path the user took, if it got no
+//! value, takes what is piped into stdin, and is then no longer asked.
 
 use core::iter;
-use std::ffi::OsString;
+use std::{ffi::OsString, io};
 
 use clap::{
     Arg, ArgAction, ArgGroup, ArgMatches, Command, FromArgMatches, Id,
@@ -26,6 +29,7 @@ use clap::{
 use super::{
     Failure,
     secrets::{self, Vault},
+    stdin,
 };
 use crate::{
     Messages,
@@ -42,7 +46,7 @@ use crate::{
 };
 
 /// A prompted arg's accepted answer.
-struct Answer<'prompted_arg> {
+pub(super) struct Answer<'prompted_arg> {
     /// What clap gets as the arg's defaults: the answer itself, or a secret's placeholder. One
     /// value, or any number for an arg that takes many.
     injected_values: Vec<String>,
@@ -380,25 +384,44 @@ impl Session<'_> {
     }
 }
 
-/// Parse `argv` against `cmd`, asking `backend` for the prompted args in `prompted_arg_tree` that
-/// got no value.
+/// Parse `argv` against `cmd`, filling the stdin arg in `prompted_arg_tree` from
+/// `read_piped_stdin` and asking `backend` for the prompted args that got no value.
 pub(super) fn parse<T>(
     cmd: Command,
     prompted_arg_tree: &'static PromptedArgTree,
     messages: &Messages,
     argv: &[OsString],
     backend: &dyn Backend,
+    read_piped_stdin: impl FnOnce() -> io::Result<Option<Vec<u8>>>,
 ) -> Result<T, Failure>
 where
     T: FromArgMatches,
 {
-    let prompted_args = prompted_arg_tree.prompted_args();
-    if prompted_args.is_empty() || !backend.is_available() {
+    let mut prompted_args = prompted_arg_tree.prompted_args();
+    let stdin_args = prompted_arg_tree.stdin_args();
+    if stdin_args.is_empty() && (prompted_args.is_empty() || !backend.is_available()) {
         return parse_unprompted(cmd, &prompted_args, argv);
     }
     // Re-guarded with the vault this parse's answers go into; trial and final parses share it.
     let vault = Vault::default();
-    let cmd = secrets::guard(cmd, &prompted_args, &vault, &messages.environment.get());
+    let mut cmd = secrets::guard(cmd, &prompted_args, &vault, &messages.environment.get());
+    if let Some((stdin_arg, piped)) =
+        stdin::piped(&cmd, &prompted_args, &stdin_args, argv, read_piped_stdin)?
+    {
+        let is_stdin_arg = |prompted_arg: &PromptedArg| {
+            prompted_arg.subcommand_path == stdin_arg.subcommand_path
+                && prompted_arg.attr.arg_id == stdin_arg.arg_id
+        };
+        let secret = prompted_args
+            .iter()
+            .any(|prompted_arg| is_stdin_arg(prompted_arg) && prompted_arg.attr.secret.is_some());
+        let piped = if secret { vault.store(piped.into()) } else { piped };
+        cmd = inject_at(cmd, &stdin_arg.subcommand_path, stdin_arg.arg_id, &[piped]);
+        prompted_args.retain(|prompted_arg| !is_stdin_arg(prompted_arg));
+    }
+    if prompted_args.is_empty() || !backend.is_available() {
+        return parse_unprompted(cmd, &prompted_args, argv);
+    }
     // Help, usage and errors come from the command the user sees, not the relaxed one.
     let Ok(matches) = relax(cmd.clone(), prompted_args.iter()).try_get_matches_from(argv) else {
         return super::parse(cmd, argv);
@@ -418,7 +441,8 @@ where
     unanswered
         .sort_by_key(|(prompted_arg, _)| prompted_arg.attr.purpose == PromptPurpose::Confirmation);
     for (index, (prompted_arg, current)) in unanswered.iter().enumerate() {
-        if blocked(&cmd, &matches, prompted_arg, &answers) {
+        let (path, id) = (prompted_arg.subcommand_path.as_slice(), prompted_arg.attr.arg_id);
+        if blocked(&cmd, &matches, path, id, &answers) {
             continue;
         }
         let later: Vec<&PromptedArg> =
@@ -471,7 +495,7 @@ where
         let id = confirmation.attr.arg_id;
         let passed = matches_at(&matches, &confirmation.subcommand_path)
             .is_none_or(|level| explicit(level, &Id::from(id)));
-        !passed && !blocked(&cmd, &matches, confirmation, &[])
+        !passed && !blocked(&cmd, &matches, &confirmation.subcommand_path, id, &[])
     });
     if unconfirmed {
         // Parsed again only to fail: clap words the error, and the help stays as declared.
@@ -485,34 +509,32 @@ where
     T::from_arg_matches_mut(&mut matches).map_err(|err| Failure::Clap(err.format(&mut cmd)))
 }
 
-fn arg_at<'cmd>(cmd: &'cmd Command, path: &[&str], id: &str) -> Option<&'cmd Arg> {
+pub(super) fn arg_at<'cmd>(cmd: &'cmd Command, path: &[&str], id: &str) -> Option<&'cmd Arg> {
     command_at(cmd, path)?.get_arguments().find(|arg| arg.get_id() == id)
 }
 
-/// Check whether `prompted_arg` conflicts with an arg the user passed or an earlier answer.
+/// Check whether arg `id` of the command at `path` conflicts with an arg the user passed or an
+/// earlier answer.
 ///
 /// Answers go in as default values, which clap never checks for conflicts, so asking here
 /// would let the parse land in a state clap rejects when typed.
-fn blocked(
+pub(super) fn blocked(
     cmd: &Command,
     matches: &ArgMatches,
-    prompted_arg: &PromptedArg,
+    path: &[&str],
+    id: &str,
     answers: &[Answer<'_>],
 ) -> bool {
-    let (Some(level), Some(level_matches)) = (
-        command_at(cmd, &prompted_arg.subcommand_path),
-        matches_at(matches, &prompted_arg.subcommand_path),
-    ) else {
-        return false;
-    };
-    let Some(arg) = level.get_arguments().find(|arg| arg.get_id() == prompted_arg.attr.arg_id)
+    let (Some(level), Some(level_matches)) = (command_at(cmd, path), matches_at(matches, path))
     else {
         return false;
     };
-    let answered = |id: &Id| {
+    let Some(arg) = level.get_arguments().find(|arg| arg.get_id() == id) else {
+        return false;
+    };
+    let answered = |other: &Id| {
         answers.iter().any(|answer| {
-            answer.prompted_arg.subcommand_path == prompted_arg.subcommand_path
-                && answer.prompted_arg.attr.arg_id == id
+            answer.prompted_arg.subcommand_path == path && answer.prompted_arg.attr.arg_id == other
         })
     };
     let conflicts = level.get_arg_conflicts_with(arg);
@@ -595,14 +617,16 @@ fn inject<'prompted_arg>(
     answers: impl IntoIterator<Item = (&'prompted_arg PromptedArg, &'prompted_arg [String])>,
 ) -> Command {
     answers.into_iter().fold(cmd, |cmd, (prompted_arg, values)| {
-        // A default value is no explicit value to clap, so the rules that require the arg would
-        // still miss it.
-        with_arg_at(
-            unrequire(cmd, prompted_arg),
-            &prompted_arg.subcommand_path,
-            prompted_arg.attr.arg_id,
-            |arg| arg.default_values(values.iter().cloned()),
-        )
+        inject_at(cmd, &prompted_arg.subcommand_path, prompted_arg.attr.arg_id, values)
+    })
+}
+
+/// Set `values` as the default values of arg `id` of the command at `path`.
+fn inject_at(cmd: Command, path: &[&str], id: &str, values: &[String]) -> Command {
+    // A default value is no explicit value to clap, so the rules that require the arg would
+    // still miss it.
+    with_arg_at(unrequire(cmd, path, id), path, id, |arg| {
+        arg.default_values(values.iter().cloned())
     })
 }
 
@@ -641,7 +665,7 @@ fn interpolate(question: &str, matches: &ArgMatches) -> String {
     interpolated
 }
 
-fn matches_at<'matches>(
+pub(super) fn matches_at<'matches>(
     matches: &'matches ArgMatches,
     path: &[&str],
 ) -> Option<&'matches ArgMatches> {
@@ -665,23 +689,31 @@ fn pending<'prompted_arg>(
     prompted_args
         .iter()
         .filter_map(|prompted_arg| {
-            let arg = arg_at(&built, &prompted_arg.subcommand_path, prompted_arg.attr.arg_id)?;
-            let level = matches_at(matches, &prompted_arg.subcommand_path)?;
-            let id = prompted_arg.attr.arg_id;
-            match level.value_source(id) {
-                None if default_values(arg).next().is_none() => Some((prompted_arg, Vec::new())),
-                Some(ValueSource::DefaultValue) => {
-                    let current = raw_values(level, id);
-                    current
-                        .iter()
-                        .map(String::as_str)
-                        .eq(default_values(arg))
-                        .then_some((prompted_arg, current))
-                }
-                None | Some(_) => None,
-            }
+            let path = &prompted_arg.subcommand_path;
+            unfilled(&built, matches, path, prompted_arg.attr.arg_id)
+                .map(|current| (prompted_arg, current))
         })
         .collect()
+}
+
+/// The values of arg `id` of the command at `path`, when it is on the path the user took and got
+/// no value or only its default; see [`pending`]. `built` must be built.
+pub(super) fn unfilled(
+    built: &Command,
+    matches: &ArgMatches,
+    path: &[&str],
+    id: &str,
+) -> Option<Vec<String>> {
+    let arg = arg_at(built, path, id)?;
+    let level = matches_at(matches, path)?;
+    match level.value_source(id) {
+        None if default_values(arg).next().is_none() => Some(Vec::new()),
+        Some(ValueSource::DefaultValue) => {
+            let current = raw_values(level, id);
+            current.iter().map(String::as_str).eq(default_values(arg)).then_some(current)
+        }
+        None | Some(_) => None,
+    }
 }
 
 fn raw_values(matches: &ArgMatches, id: &str) -> Vec<String> {
@@ -702,11 +734,13 @@ fn takes_many(arg: &Arg) -> bool {
 }
 
 /// Make each of `prompted_args` optional, so a missing one does not stop a parse.
-fn relax<'prompted_arg>(
+pub(super) fn relax<'prompted_arg>(
     cmd: Command,
     prompted_args: impl IntoIterator<Item = &'prompted_arg PromptedArg>,
 ) -> Command {
-    prompted_args.into_iter().fold(cmd, unrequire)
+    prompted_args.into_iter().fold(cmd, |cmd, prompted_arg| {
+        unrequire(cmd, &prompted_arg.subcommand_path, prompted_arg.attr.arg_id)
+    })
 }
 
 /// The first line of clap's message, without its `error: ` prefix. clap quotes the rejected
@@ -722,12 +756,11 @@ fn summary(err: &clap::Error, values: &[String]) -> String {
     line.strip_prefix("error: ").unwrap_or(line).to_owned()
 }
 
-/// Drop the rules that make `prompted_arg` required: its `required`, its
+/// Drop the rules that make arg `id` of the command at `path` required: its `required`, its
 /// `required_unless_present`, and the `required` of the groups it belongs to. clap can't clear
 /// `required_unless_present_all` or `required_if_eq`, so those stay.
-fn unrequire(cmd: Command, prompted_arg: &PromptedArg) -> Command {
-    let id = prompted_arg.attr.arg_id;
-    with_command_at(cmd, &prompted_arg.subcommand_path, |level| {
+pub(super) fn unrequire(cmd: Command, path: &[&str], id: &str) -> Command {
+    with_command_at(cmd, path, |level| {
         if !level.get_arguments().any(|arg| arg.get_id() == id) {
             return level;
         }

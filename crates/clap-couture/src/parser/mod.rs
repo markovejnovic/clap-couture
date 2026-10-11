@@ -4,6 +4,8 @@
 mod prompting;
 #[cfg(feature = "interactive")]
 mod secrets;
+#[cfg(feature = "interactive")]
+mod stdin;
 
 use std::ffi::OsString;
 
@@ -90,6 +92,7 @@ pub trait CoutureParser: Parser + Couture {
             &Self::MESSAGES,
             &itr.into_iter().map(Into::into).collect::<Vec<OsString>>(),
             backend,
+            crate::os::stdin::read_piped,
         )
         .map_err(Failure::into_clap)
     }
@@ -195,7 +198,14 @@ where
     #[cfg(feature = "interactive")]
     {
         let backend = crate::interactive::DefaultBackend::default();
-        prompting::parse(T::couture_command(), &T::PROMPTED_ARGS, &T::MESSAGES, argv, &backend)
+        prompting::parse(
+            T::couture_command(),
+            &T::PROMPTED_ARGS,
+            &T::MESSAGES,
+            argv,
+            &backend,
+            crate::os::stdin::read_piped,
+        )
     }
     #[cfg(not(feature = "interactive"))]
     {

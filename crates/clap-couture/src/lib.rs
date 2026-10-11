@@ -290,6 +290,39 @@
 //!
 //! See [`examples/07-interactive-secret.rs`](https://github.com/markovejnovic/clap-couture/blob/main/crates/clap-couture/examples/07-interactive-secret.rs).
 //!
+//! ### Piped input
+//!
+//! `#[couture(accept_stdin)]` lets an arg come from a pipe: `echo hi | post` works like `post
+//! --message hi`. Stdin is read only when it is a pipe and the arg was left out, so a terminal, a
+//! file or `/dev/null` on stdin never blocks the parse. Beside `prompt`, the arg is asked when
+//! nothing is piped; beside `secret`, it works like `docker login --password-stdin`.
+//!
+//! ```
+//! use clap::Parser;
+//! use clap_couture::{Couture, CoutureParser as _};
+//!
+//! #[derive(Parser, Couture)]
+//! struct Cli {
+//!     /// Message to post.
+//!     #[arg(long)]
+//!     #[couture(prompt, accept_stdin)]
+//!     message: String,
+//! }
+//!
+//! let cli = Cli::couture_parse_from(["post", "--message", "hi"]);
+//! # assert_eq!(cli.message, "hi");
+//! ```
+//!
+//! An example of this interaction is:
+//!
+//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/10-interactive-stdin-dark.gif" alt="piping release notes into orbit-release, which takes them without asking, then running orbit-release alone, which asks for the notes">
+//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/10-interactive-stdin-light.gif" alt="piping release notes into orbit-release, which takes them without asking, then running orbit-release alone, which asks for the notes">
+//!
+//! See [`examples/10-interactive-stdin.rs`](https://github.com/markovejnovic/clap-couture/blob/main/crates/clap-couture/examples/10-interactive-stdin.rs).
+//!
+//! Only one arg on a command may take stdin, as stdin can only be read once. See
+//! [the `interactive` module](interactive#reading-piped-stdin) for the details.
+//!
 //! ### Custom interactive input
 //!
 //! Some questions only make sense after the parse. [`CoutureParser::prompter`] asks them in the

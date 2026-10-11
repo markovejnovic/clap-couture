@@ -165,6 +165,72 @@
 //!     token: String,
 //! }
 //! ```
+//! 
+//! # Reading piped stdin
+//!
+//! `#[couture(accept_stdin)]` on an arg the user left out takes everything piped into stdin as its
+//! value, with one trailing line ending dropped, so `echo eu |` reads as `eu`. It applies only
+//! when stdin is a pipe (or a socket, as some runtimes pipe through one); a terminal, a file or
+//! the null device is never read. Nothing piped, or an arg passed on the command line or through
+//! its env var, leaves stdin unread, and so does a passed arg it conflicts with. Stdin is read
+//! only once the rest of the command line parses, so `--help` never waits on it. What is piped
+//! must be UTF-8.
+//!
+//! A piped value is never asked for, so beside `prompt` the arg is asked only when nothing is
+//! piped. Beside `secret`, the piped value is held like a prompted answer, never as plain text in
+//! clap.
+//! ```
+//! use clap::Parser;
+//! use clap_couture::{Couture, interactive::secrecy::SecretString};
+//!
+//! #[derive(Parser, Couture)]
+//! struct Cli {
+//!     /// Password
+//!     #[arg(long)]
+//!     #[couture(prompt, secret, accept_stdin)]
+//!     password: SecretString,
+//! }
+//! ```
+//! 
+//! Stdin can only be read once, so at most one arg on any command path takes it. Each subcommand
+//! may have one of its own, but not alongside one on a command above it:
+//! ```compile_fail,E0080
+//! use clap::{Parser, Subcommand};
+//! use clap_couture::{Couture, CoutureParser as _};
+//!
+//! #[derive(Parser, Couture)]
+//! struct Cli {
+//!     #[arg(long)]
+//!     #[couture(accept_stdin)]
+//!     subject: Option<String>,
+//!     #[command(subcommand)]
+//!     cmd: Cmd,
+//! }
+//!
+//! #[derive(Subcommand, Couture)]
+//! enum Cmd {
+//!     Send {
+//!         #[arg(long)]
+//!         #[couture(accept_stdin)]
+//!         body: String,
+//!     },
+//! }
+//!
+//! let cli = Cli::couture_parse();
+//! ```
+//! 
+//! An arg taking stdin takes exactly one value, so a flag or a `Vec` can't:
+//! ```compile_fail
+//! use clap::Parser;
+//! use clap_couture::Couture;
+//!
+//! #[derive(Parser, Couture)]
+//! struct Cli {
+//!     #[arg(long)]
+//!     #[couture(accept_stdin)]
+//!     tags: Vec<String>,
+//! }
+//! ```
 
 mod backend;
 mod prompted_args;
@@ -183,6 +249,7 @@ pub use backend::EditorInteraction;
 pub use backend::Inquire;
 pub use backend::{Backend, CommandStyles, DefaultBackend, NonInteractive};
 use clap::builder::PossibleValue;
+pub(crate) use prompted_args::StdinArg;
 #[doc(hidden)]
 pub use prompted_args::{
     EditorAttr, PromptAttr, PromptPurpose, PromptedArg, PromptedArgBranch, PromptedArgTree,

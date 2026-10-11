@@ -1,5 +1,5 @@
-//! `PROMPTED_ARGS`: the args `#[couture(prompt)]` and `#[couture(confirm)]` mark, and the command
-//! path to each.
+//! `PROMPTED_ARGS`: the args `#[couture(prompt)]`, `#[couture(confirm)]` and
+//! `#[couture(accept_stdin)]` mark, and the command path to each.
 
 use darling::{
     Error,
@@ -22,6 +22,8 @@ pub(crate) struct PromptedArgTree {
     branches: Vec<PromptedArgBranch>,
     /// The args prompted for at this level.
     own_args: Vec<PromptAttr>,
+    /// The clap id of this level's `#[couture(accept_stdin)]` arg, if any.
+    stdin_arg: Option<String>,
 }
 
 /// What hangs off one command level besides its own prompted args.
@@ -78,6 +80,8 @@ impl PromptedArgTree {
     /// - A `#[couture(prompt)]` or `#[couture(confirm)]` without the `interactive` feature.
     /// - Either on a field that is not a single named arg, or both on one field.
     /// - A `#[couture(confirm)]` on a field that is not a `bool`.
+    /// - A `#[couture(accept_stdin)]` on more than one field, or on one that is not a single named
+    ///   arg taking one value.
     pub(crate) fn of_fields(fields: &[FieldInput]) -> darling::Result<Self> {
         let mut errors = Error::accumulator();
         let own_args = fields
@@ -85,7 +89,18 @@ impl PromptedArgTree {
             .filter_map(|field| errors.handle(PromptAttr::of_field(field)).flatten())
             .collect();
         let branches = fields.iter().filter_map(PromptedArgBranch::of_field).collect();
-        errors.finish_with(Self { branches, own_args })
+        let mut marked_stdin = fields.iter().filter(|field| field.accept_stdin.is_present());
+        let stdin_arg = marked_stdin.next().and_then(|field| errors.handle(stdin_arg_of(field)));
+        for field in marked_stdin {
+            errors.push(
+                Error::custom(
+                    "`#[couture(accept_stdin)]` marks one arg per command; stdin can only be read \
+                     once",
+                )
+                .with_span(&field.accept_stdin.span()),
+            );
+        }
+        errors.finish_with(Self { branches, own_args, stdin_arg })
     }
 
     /// The tree for a subcommand enum: one branch per variant that can hold prompted args.
@@ -103,7 +118,7 @@ impl PromptedArgTree {
                 errors.handle(PromptedArgBranch::of_variant(variant, naming)).flatten()
             })
             .collect();
-        errors.finish_with(Self { branches, own_args: Vec::new() })
+        errors.finish_with(Self { branches, own_args: Vec::new(), stdin_arg: None })
     }
 }
 
@@ -301,10 +316,15 @@ impl Purpose {
 impl ToTokens for PromptedArgTree {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         let (branches, own_args) = (&self.branches, &self.own_args);
+        let stdin_arg = self.stdin_arg.as_ref().map_or_else(
+            || quote!(::core::option::Option::None),
+            |arg_id| quote!(::core::option::Option::Some(#arg_id)),
+        );
         tokens.extend(quote! {
             ::clap_couture::interactive::PromptedArgTree {
                 branches: &[#(#branches),*],
                 own_args: &[#(#own_args),*],
+                stdin_arg: #stdin_arg,
             }
         });
     }
@@ -381,4 +401,43 @@ impl ToTokens for PromptAttr {
             }
         });
     }
+}
+
+/// The clap id of a field marked `#[couture(accept_stdin)]`.
+///
+/// # Errors
+/// - No `interactive` feature.
+/// - The field is not a single named arg, takes no value, or takes many.
+/// - `#[couture(confirm)]` beside it.
+fn stdin_arg_of(field: &FieldInput) -> darling::Result<String> {
+    let span = field.accept_stdin.span();
+    let error = |message: &str| Err(Error::custom(message).with_span(&span));
+    if !cfg!(feature = "interactive") {
+        return error(
+            "`#[couture(accept_stdin)]` needs clap-couture's `interactive` feature; enable it or \
+             one of `interactive-cliclack`, `interactive-dialoguer`, `interactive-inquire`",
+        );
+    }
+    match FieldKind::from(field.attrs.as_slice()) {
+        FieldKind::Arg => {}
+        FieldKind::Flatten | FieldKind::Subcommand => {
+            return error(
+                "`#[couture(accept_stdin)]` marks a single arg; put it on a field of that type \
+                 instead",
+            );
+        }
+        FieldKind::Skip => {
+            return error("`#[couture(accept_stdin)]` cannot mark a field clap skips");
+        }
+    }
+    let Some(arg_id) = field.clap_arg_id() else {
+        return error("`#[couture(accept_stdin)]` needs a named field");
+    };
+    if field.confirm.is_some() || field.ty.is_bool() && !field.attrs.has_clap_key("action") {
+        return error("`#[couture(accept_stdin)]` needs an arg that takes a value");
+    }
+    if field.ty.is_multi_value() {
+        return error("`#[couture(accept_stdin)]` takes a single value");
+    }
+    Ok(arg_id)
 }

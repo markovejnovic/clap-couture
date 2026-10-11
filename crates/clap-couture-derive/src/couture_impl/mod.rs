@@ -73,6 +73,8 @@ impl ToTokens for CoutureImpl {
                 const PROMPTED_ARGS: ::clap_couture::interactive::PromptedArgTree = {
                     use ::clap_couture::NotCouture as _;
 
+                    // Fails the build when one command path reads stdin twice, across types.
+                    #prompted_arg_tree.assert_stdin_read_once();
                     #prompted_arg_tree
                 };
             }

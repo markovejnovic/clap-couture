@@ -95,14 +95,14 @@ five commands, and a wall of text with thirty. Couture lets you group them:
     },
 })]
 enum Cmd {
-    #[category("deploy")]  Deploy,
-    #[category("account")] Login,
+    #[couture(category = "deploy")]  Deploy,
+    #[couture(category = "account")] Login,
     Logs, // no category: listed first, under no heading
-    #[category("deploy")]  Rollback,
+    #[couture(category = "deploy")]  Rollback,
     Search,
-    #[category("deploy")]  Secrets,
+    #[couture(category = "deploy")]  Secrets,
     Status,
-    #[category("account")] Sync,
+    #[couture(category = "account")] Sync,
 }
 ```
 
@@ -168,12 +168,14 @@ force: bool,
 
 ### Piped input
 
-`#[couture(stdin)]` lets an arg come from a pipe, so `echo hi | post`
-works like `post --message hi`.
+`#[couture(stdin)]` reads stdin into an arg passed `-`, so `post --message -`
+takes the message from a pipe or a file. `#[couture(stdin(piped))]` also takes a
+pipe unasked, so `echo hi | post` works like `post --message hi`, but a pipe
+nobody writes to, as under `ssh host post`, then hangs the CLI: prefer `stdin`.
 
 ```rust
 #[arg(long)]
-#[couture(prompt, stdin)]
+#[couture(prompt, stdin(piped))]
 message: String,
 ```
 
@@ -195,7 +197,7 @@ passes `-` as the command line flag.
 message: Option<String>,
 
 #[arg(long)]
-#[couture(prompt, secret, stdin(dash))] // `login --password -` reads stdin
+#[couture(prompt, secret, stdin)] // `login --password -` reads stdin
 password: SecretString,
 ```
 

@@ -1,8 +1,8 @@
 [package]
 name = "clap-couture"
 version = "0.1.0"
-edition = "2024"
-description = "Beautiful, categorized --help for clap CLIs: group subcommands into titled, styled sections."
+edition.workspace = true
+description = "Polish for clap CLIs: categorized, markdown --help, and prompts for missing args: masked secrets, $EDITOR, confirmations and stdin."
 keywords = ["clap", "cli", "help", "terminal", "derive"]
 categories = ["command-line-interface", "development-tools"]
 readme = "../../README.md"

@@ -40,7 +40,8 @@ where
     }
 
     /// Ask in the user's editor, in a temp file with `extension`, like `md`, that starts with
-    /// `initial`. An empty answer reports [`Messages::editor_empty`] and cancels.
+    /// `initial`. An empty answer reports the [`editor_empty`](Messages::with_editor_empty)
+    /// message and cancels.
     ///
     /// # Errors
     /// - [`PromptError::Cancelled`] when the user backs out or leaves the file empty.

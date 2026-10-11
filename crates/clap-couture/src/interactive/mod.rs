@@ -166,15 +166,29 @@
 //! }
 //! ```
 //! 
-//! # Reading piped stdin
+//! # Reading stdin
 //!
-//! `#[couture(stdin)]` on an arg the user left out takes everything piped into stdin as its
-//! value, with one trailing line ending dropped, so `echo eu |` reads as `eu`. It applies only
-//! when stdin is a pipe (or a socket, as some runtimes pipe through one); a terminal, a file or
-//! the null device is never read. Nothing piped, or an arg passed on the command line or through
-//! its env var, leaves stdin unread, and so does a passed arg it conflicts with. Stdin is read
-//! only once the rest of the command line parses, so `--help` never waits on it. What is piped
-//! must be UTF-8.
+//! `#[couture(stdin)]` reads all of stdin into an arg passed `-`, as in `kubectl apply -f -`;
+//! see [Dash as a value](#dash-as-a-value). One trailing line ending is dropped, so `echo eu |`
+//! reads as `eu`. What is read must be UTF-8, and at most 16 MiB: more fails the parse rather
+//! than exhausting memory.
+//!
+//! `#[couture(stdin(piped))]` also takes stdin when the arg is left out and stdin is a pipe (or a
+//! socket, as some runtimes pipe through one), so `echo hi | post` works like `post --message
+//! hi`. A terminal, a file or the null device is never read. Nothing piped, or an arg passed on
+//! the command line or through its env var, leaves stdin unread, and so does a passed arg it
+//! conflicts with. Stdin is read only once the rest of the command line parses, so `--help` never
+//! waits on it.
+//!
+//! <div class="warning">
+//!
+//! A pipe on stdin is no sign that anything was piped for the CLI, and `stdin(piped)` reads it to
+//! its end. Run as `ssh host cli` without `-t`, from Node's `spawn` with its default piped stdin,
+//! or under mintty on Windows, which shows a terminal as a pipe, the parse hangs until the user
+//! closes stdin. Inside `while read line; do cli; done < file`, it eats the rest of the loop's
+//! input. Prefer `stdin`, where the user asks for stdin with `-`.
+//!
+//! </div>
 //!
 //! A piped value is never asked for, so beside `prompt` the arg is asked only when nothing is
 //! piped. Beside `secret`, the piped value is held like a prompted answer, never as plain text in
@@ -187,7 +201,7 @@
 //! struct Cli {
 //!     /// Password
 //!     #[arg(long)]
-//!     #[couture(prompt, secret, stdin)]
+//!     #[couture(prompt, secret, stdin(piped))]
 //!     password: SecretString,
 //! }
 //! ```
@@ -201,7 +215,7 @@
 //! #[derive(Parser, Couture)]
 //! struct Cli {
 //!     #[arg(long)]
-//!     #[couture(stdin)]
+//!     #[couture(stdin(piped))]
 //!     subject: Option<String>,
 //!     #[command(subcommand)]
 //!     cmd: Cmd,
@@ -211,7 +225,7 @@
 //! enum Cmd {
 //!     Send {
 //!         #[arg(long)]
-//!         #[couture(stdin)]
+//!         #[couture(stdin(piped))]
 //!         body: String,
 //!     },
 //! }
@@ -227,7 +241,7 @@
 //! #[derive(Parser, Couture)]
 //! struct Cli {
 //!     #[arg(long)]
-//!     #[couture(stdin)]
+//!     #[couture(stdin(piped))]
 //!     tags: Vec<String>,
 //! }
 //! ```
@@ -236,9 +250,9 @@
 //!
 //! `dash` makes `-` as an arg's value stand for something, as in `git commit -F -`.
 //! `#[couture(prompt(dash))]` asks for the arg when its value is `-`, and only then: left out, it
-//! stays unset. `#[couture(stdin(dash))]` reads all of stdin into the arg when its value is
-//! `-`, whatever stdin is, a pipe, a file or a terminal (read until end of input), and leaves
-//! stdin alone otherwise. Either works for a flag's value (`--message -`, `--message=-`, `-m-`,
+//! stays unset. `#[couture(stdin)]` reads all of stdin into the arg when its value is `-`,
+//! whatever stdin is, a pipe, a file or a terminal (read until end of input), and leaves stdin
+//! alone otherwise. Either works for a flag's value (`--message -`, `--message=-`, `-m-`,
 //! `-vm -`) or a positional, beside `secret` too: the `-` is no secret on the command line.
 //! `prompt(dash, question = "...")` asks its own question.
 //! ```
@@ -254,7 +268,7 @@
 //!
 //!     /// Password; `-` reads it from stdin.
 //!     #[arg(long)]
-//!     #[couture(prompt, secret, stdin(dash))]
+//!     #[couture(prompt, secret, stdin)]
 //!     password: Option<SecretString>,
 //! }
 //!
@@ -275,7 +289,7 @@
 //! struct Cli {
 //!     /// Password; `-` asks for it, or reads it from a pipe.
 //!     #[arg(long)]
-//!     #[couture(prompt(dash), secret, stdin(dash))]
+//!     #[couture(prompt(dash), secret, stdin)]
 //!     password: Option<SecretString>,
 //! }
 //! ```
@@ -294,7 +308,7 @@
 //! ```
 
 mod backend;
-mod prompted_args;
+pub(crate) mod prompted_args;
 mod prompter;
 mod sealed;
 
@@ -310,12 +324,9 @@ pub use backend::EditorInteraction;
 pub use backend::Inquire;
 pub use backend::{Backend, CommandStyles, DefaultBackend, NonInteractive};
 use clap::builder::PossibleValue;
-pub(crate) use prompted_args::StdinArg;
-#[doc(hidden)]
-pub use prompted_args::{
-    DashAttr, EditorAttr, PromptAttr, PromptPurpose, PromptedArg, PromptedArgBranch,
-    PromptedArgTree, SecretAttr, SecretField, StdinAttr,
-};
+#[cfg(feature = "interactive-editor")]
+pub(crate) use prompted_args::EditorAttr;
+pub(crate) use prompted_args::{DashAttr, PromptPurpose, PromptedArg, PromptedArgTree, StdinArg};
 pub use prompter::Prompter;
 /// The [`secrecy`](https://docs.rs/secrecy) crate couture's secret args are typed with, so the app
 /// names the same `SecretString`.

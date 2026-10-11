@@ -60,6 +60,6 @@ fn an_env_var_suppresses_the_prompt() {
     unsafe {
         std::env::set_var("CLAP_COUTURE_TEST_REGION", "eu");
     }
-    let region = Cli::couture_try_parse_from_with(&Refuses, ["app"]).map(|cli| cli.region);
+    let region = Cli::couture_try_parse_from_with(Refuses, ["app"]).map(|cli| cli.region);
     assert_eq!(region.ok().as_deref(), Some("eu"));
 }

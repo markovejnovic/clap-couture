@@ -61,7 +61,7 @@ fn notes_with(editor: &str) -> Result<String, String> {
     unsafe {
         env::set_var("EDITOR", editor);
     }
-    Release::couture_try_parse_from_with(&DefaultEditor, ["release"])
+    Release::couture_try_parse_from_with(DefaultEditor, ["release"])
         .map(|release| release.notes)
         .map_err(|err| err.to_string())
 }

@@ -1,18 +1,18 @@
-//! `#[couture(stdin)]`: an arg the user left out takes what is piped into stdin, and
-//! `stdin(dash)` one passed `-` takes all of stdin.
+//! `#[couture(stdin)]`: an arg passed `-` takes all of stdin, and a `stdin(piped)` one the user
+//! left out takes what is piped into it.
 
 use std::ffi::OsString;
 
 use clap::{Command, error::ErrorKind};
 
 use super::{
-    Failure,
+    ParseError,
     dash::Dashed,
     prompting::{arg_at, blocked, relax, unfilled, unrequire},
 };
 use crate::{
     interactive::{PromptedArg, PromptedArgTree, StdinArg},
-    os::stdin::{ReadWhen, Stdin},
+    os::stdin::{ReadWhen, STDIN_LIMIT, Stdin},
 };
 
 /// The args marked `#[couture(stdin)]`, at most one on any one subcommand chain.
@@ -44,7 +44,7 @@ impl StdinArgs {
     /// The stdin arg on the path the user took, if it got no value, and the text piped in for it.
     /// `None` when nothing is piped, or the arg conflicts with one the user passed. Stdin is read
     /// only once the rest of `argv` parses, so `--help` never waits on it. An arg passed `-` has
-    /// a value, so no pipe fills it, and a `stdin(dash)` one takes only what `-` reads.
+    /// a value, so no pipe fills it, and a `stdin` one takes only what `-` reads.
     ///
     /// # Errors
     /// - Reading stdin failed.
@@ -55,7 +55,7 @@ impl StdinArgs {
         prompted_args: &[PromptedArg],
         argv: &[OsString],
         stdin: &impl Stdin,
-    ) -> Result<Option<StdinValue<'_>>, Failure> {
+    ) -> Result<Option<StdinValue<'_>>, ParseError> {
         let implicit: Vec<&StdinArg> =
             self.iter().filter(|stdin_arg| stdin_arg.attr.dash.is_none()).collect();
         if implicit.is_empty() {
@@ -76,7 +76,7 @@ impl StdinArgs {
             return Ok(None);
         };
         let Some(piped) =
-            stdin.read(ReadWhen::Piped).map_err(Failure::Io)?.filter(|piped| !piped.is_empty())
+            stdin.read(ReadWhen::Piped).map_err(ParseError::Io)?.filter(|piped| !piped.is_empty())
         else {
             return Ok(None);
         };
@@ -95,14 +95,14 @@ impl StdinArgs {
         dashed: &Dashed<'_>,
         argv: &[OsString],
         stdin: &impl Stdin,
-    ) -> Result<Option<StdinValue<'_>>, Failure> {
+    ) -> Result<Option<StdinValue<'_>>, ParseError> {
         let Some(stdin_arg) = self
             .iter()
             .find(|stdin_arg| dashed.reads(&stdin_arg.subcommand_path, stdin_arg.attr.arg_id))
         else {
             return self.piped(cmd, prompted_args, argv, stdin);
         };
-        let all = stdin.read(ReadWhen::Always).map_err(Failure::Io)?.unwrap_or_default();
+        let all = stdin.read(ReadWhen::Always).map_err(ParseError::Io)?.unwrap_or_default();
         StdinValue::decode(cmd, stdin_arg, all).map(Some)
     }
 
@@ -118,22 +118,28 @@ impl<'stdin_arg> StdinValue<'stdin_arg> {
     /// `stdin`, read for `stdin_arg`, as its value.
     ///
     /// # Errors
-    /// `stdin` is not UTF-8.
+    /// - `stdin` is longer than [`STDIN_LIMIT`].
+    /// - `stdin` is not UTF-8.
     fn decode(
         cmd: &Command,
         stdin_arg: &'stdin_arg StdinArg,
         stdin: Vec<u8>,
-    ) -> Result<Self, Failure> {
-        let Ok(mut text) = String::from_utf8(stdin) else {
+    ) -> Result<Self, ParseError> {
+        let refuse = |kind: ErrorKind, why: &str| {
             // Built, so the arg can be printed.
             let mut built = cmd.clone();
             built.build();
             let arg = arg_at(&built, &stdin_arg.subcommand_path, stdin_arg.attr.arg_id)
                 .map_or_else(|| stdin_arg.attr.arg_id.to_owned(), ToString::to_string);
-            let message = format!("{arg} got invalid UTF-8 from stdin");
-            return Err(Failure::Clap(
-                clap::Error::raw(ErrorKind::InvalidUtf8, message).format(&mut cmd.clone()),
-            ));
+            let message = format!("{arg} got {why} from stdin");
+            ParseError::Clap(clap::Error::raw(kind, message).format(&mut cmd.clone()))
+        };
+        if stdin.len() > STDIN_LIMIT {
+            let mebibytes = STDIN_LIMIT >> 20u32;
+            return Err(refuse(ErrorKind::ValueValidation, &format!("more than {mebibytes} MiB")));
+        }
+        let Ok(mut text) = String::from_utf8(stdin) else {
+            return Err(refuse(ErrorKind::InvalidUtf8, "invalid UTF-8"));
         };
         if text.ends_with('\n') {
             text.pop();

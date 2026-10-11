@@ -29,13 +29,13 @@ struct Cli {
 })]
 enum Cmd {
     /// Sign in.
-    #[category("account")]
+    #[couture(category = "account")]
     Login,
     /// Tail live logs.
-    #[category("everyday")]
+    #[couture(category = "everyday")]
     Logs,
     /// Ship the current project.
-    #[category("deploy")]
+    #[couture(category = "deploy")]
     Ship,
 }
 

@@ -1,8 +1,8 @@
 //! The derive input as darling reads it.
 //!
-//! clap's own attributes (`#[command]`, `#[arg]`, `#[clap]`) and `#[category("...")]` are forwarded
-//! raw, as is the enum's `#[couture(categories = { "key" = { ... } })]`: its string keys are not
-//! syn `Meta`, so darling cannot parse it.
+//! clap's own attributes (`#[command]`, `#[arg]`, `#[clap]`) are forwarded raw, as is the deriving
+//! type's `#[couture(...)]`: the string keys of its `categories = { "key" = { ... } }` are not syn
+//! `Meta`, so darling cannot parse it.
 
 #![expect(
     clippy::unreachable,
@@ -13,9 +13,12 @@ use darling::{
     FromDeriveInput, FromField, FromMeta, FromVariant, ast,
     util::{Flag, Override, SpannedValue},
 };
-use syn::{Attribute, Expr, Generics, Ident, Type, ext::IdentExt as _};
+use syn::{Attribute, Expr, Generics, Ident, LitStr, Type, ext::IdentExt as _};
 
-use crate::{clap_compat::ClapAttrs as _, text::TextExpr};
+use crate::{
+    clap_compat::{ClapAttrs as _, ClapName},
+    text::TextExpr,
+};
 
 /// The item `#[derive(Couture)]` is on.
 #[derive(FromDeriveInput)]
@@ -71,7 +74,7 @@ pub(crate) struct FieldInput {
     pub(crate) prompt: Option<SpannedValue<PromptOptions>>,
     /// `Inherit` for `#[couture(secret)]`, `Explicit` for `#[couture(secret(allow_argv))]`.
     pub(crate) secret: Option<BareOr<SecretOptions>>,
-    /// `Inherit` for `#[couture(stdin)]`, `Explicit` for `#[couture(stdin(dash))]`.
+    /// `Inherit` for `#[couture(stdin)]`, `Explicit` for `#[couture(stdin(piped))]`.
     pub(crate) stdin: Option<BareOr<StdinOptions>>,
     pub(crate) ty: Type,
 }
@@ -86,15 +89,17 @@ pub(crate) struct SecretOptions {
 /// The options of `#[couture(stdin(...))]`.
 #[derive(FromMeta)]
 pub(crate) struct StdinOptions {
-    /// Stdin is read only when `-` is the arg's value, whatever stdin is.
-    pub(crate) dash: Flag,
+    /// Stdin is read whenever it is a pipe and the arg was left out, not only for `-`.
+    pub(crate) piped: Flag,
 }
 
 /// A variant of a subcommand enum.
 #[derive(FromVariant)]
-#[darling(forward_attrs(arg, category, clap, command))]
+#[darling(attributes(couture), forward_attrs(arg, clap, command))]
 pub(crate) struct VariantInput {
     pub(crate) attrs: Vec<Attribute>,
+    /// `#[couture(category = "...")]`: the label it files the variant under.
+    pub(crate) category: Option<LitStr>,
     pub(crate) fields: ast::Fields<FieldInput>,
     pub(crate) ident: Ident,
 }
@@ -117,7 +122,9 @@ impl FromMeta for PromptOptions {
 impl FieldInput {
     /// The id clap gives this field's arg: `#[arg(id = "...")]`, else the ident with any `r#`
     /// stripped (`r#type` is `type`). `None` for a tuple field.
-    pub(crate) fn clap_arg_id(&self) -> Option<String> {
-        self.attrs.clap_id().or_else(|| self.ident.as_ref().map(|ident| ident.unraw().to_string()))
+    pub(crate) fn clap_arg_id(&self) -> Option<ClapName> {
+        self.attrs.clap_id().or_else(|| {
+            self.ident.as_ref().map(|ident| ClapName::Literal(ident.unraw().to_string()))
+        })
     }
 }

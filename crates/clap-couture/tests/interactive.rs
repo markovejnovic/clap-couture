@@ -16,7 +16,7 @@ use core::{
 use clap::{
     ArgGroup, Args, Parser, Subcommand, ValueEnum, builder::ArgPredicate, error::ErrorKind,
 };
-use clap_couture::{Couture, CoutureParser as _};
+use clap_couture::{Couture, CoutureParser as _, ParseError};
 use common::{Asked, Kind, Reply, ScriptedBackend};
 use rstest::rstest;
 
@@ -465,14 +465,17 @@ fn asks_again_with_claps_message_when_an_answer_is_invalid() {
 fn a_cancelled_prompt_is_an_io_error() {
     let backend = ScriptedBackend::new([Reply::Cancel]);
     let deploy = Deploy::couture_try_parse_from_with(&backend, deploy_argv("region"));
-    assert_eq!(deploy.map_err(|err| err.kind()).err(), Some(ErrorKind::Io));
+    assert!(matches!(deploy, Err(ParseError::Cancelled(_))));
 }
 
 #[rstest]
 fn without_a_terminal_a_missing_required_arg_is_claps_error() {
     let backend = ScriptedBackend::unavailable();
     let deploy = Deploy::couture_try_parse_from_with(&backend, deploy_argv("region"));
-    assert_eq!(deploy.map_err(|err| err.kind()).err(), Some(ErrorKind::MissingRequiredArgument));
+    assert_eq!(
+        deploy.map_err(|err| err.kind()).err(),
+        Some(Some(ErrorKind::MissingRequiredArgument))
+    );
 }
 
 #[rstest]
@@ -522,7 +525,7 @@ fn never_asks_for_a_global_arg_passed_after_the_subcommand() {
 fn help_exits_before_asking() {
     let backend = ScriptedBackend::new([]);
     let repo = Repo::couture_try_parse_from_with(&backend, ["repo", "push", "--help"]);
-    assert_eq!(repo.map_err(|err| err.kind()).err(), Some(ErrorKind::DisplayHelp));
+    assert_eq!(repo.map_err(|err| err.kind()).err(), Some(Some(ErrorKind::DisplayHelp)));
     assert_eq!(backend.asked(), []);
 }
 
@@ -542,7 +545,7 @@ fn help_shows_the_prompted_args_in_usage() {
     let backend = ScriptedBackend::new([]);
     let help = Deploy::couture_try_parse_from_with(&backend, ["deploy", "--help"])
         .map(drop)
-        .map_err(|err| err.render().to_string());
+        .map_err(|err| err.to_string());
     let help = help.err().unwrap_or_default();
     let usage = help.lines().skip_while(|line| !line.starts_with("Usage:")).nth(1);
     assert!(
@@ -820,7 +823,7 @@ fn confirms_after_every_prompt_with_the_answers_filled_in() {
 fn a_declined_confirmation_is_an_io_error() {
     let backend = ScriptedBackend::new([Reply::Confirm(false)]);
     let delete = Delete::couture_try_parse_from_with(&backend, ["delete", "--name", "web"]);
-    assert_eq!(delete.map_err(|err| err.kind()).err(), Some(ErrorKind::Io));
+    assert!(matches!(delete, Err(ParseError::Declined)));
 }
 
 #[rstest]
@@ -849,10 +852,10 @@ fn without_a_terminal_a_passed_or_conflicting_flag_parses(
 fn without_a_terminal_an_unconfirmed_flag_is_a_missing_required_arg() {
     let backend = ScriptedBackend::unavailable();
     let wipe = Wipe::couture_try_parse_from_with(&backend, ["wipe", "--name", "web"]);
-    let err = wipe.map_err(|err| (err.kind(), err.render().to_string())).err();
+    let err = wipe.map_err(|err| (err.kind(), err.to_string())).err();
     assert!(
         err.as_ref().is_some_and(|(kind, rendered)| {
-            *kind == ErrorKind::MissingRequiredArgument && rendered.contains("--force")
+            *kind == Some(ErrorKind::MissingRequiredArgument) && rendered.contains("--force")
         }),
         "{err:?}"
     );
@@ -863,7 +866,7 @@ fn without_a_terminal_help_leaves_the_confirmed_flag_optional() {
     let backend = ScriptedBackend::unavailable();
     let help = Delete::couture_try_parse_from_with(&backend, ["delete", "--help"])
         .map(drop)
-        .map_err(|err| err.render().to_string());
+        .map_err(|err| err.to_string());
     let help = help.err().unwrap_or_default();
     let usage = help.lines().skip_while(|line| !line.starts_with("Usage:")).nth(1);
     assert!(usage.is_some_and(|usage| !usage.contains("--force")), "{help}");

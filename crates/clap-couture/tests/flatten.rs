@@ -52,7 +52,7 @@ enum Cmd {
     #[command(flatten)]
     Account(Account),
     /// Ship it.
-    #[category("a")]
+    #[couture(category = "a")]
     Deploy,
 }
 
@@ -60,7 +60,7 @@ enum Cmd {
 #[couture(categories = { "b" = { title = "Child title:" } })]
 enum Account {
     /// Log in.
-    #[category("b")]
+    #[couture(category = "b")]
     Login,
     /// Log out.
     Logout,
@@ -71,12 +71,15 @@ enum Account {
 #[derive(Subcommand, Couture)]
 enum Nested {
     /// Sync settings.
-    #[category("b")]
+    #[couture(category = "b")]
     Sync,
 }
 
 fn label_of(categories: CommandCategoryMap, command: &str) -> Option<&'static str> {
-    categories.iter().find(|(name, _)| name.as_str() == command).map(|(_, category)| category.label)
+    categories
+        .iter()
+        .find(|(name, _)| name.as_str() == command)
+        .map(|(_, category)| category.label())
 }
 
 #[rstest]
@@ -94,7 +97,7 @@ fn flattened_commands_keep_their_category(
     #[case] expected_label: Option<&str>,
 ) {
     assert_eq!(label_of(categories, command), expected_label);
-    assert_eq!(categories.find(command).map(|category| category.label), expected_label);
+    assert_eq!(categories.find(command).map(clap_couture::Category::label), expected_label);
 }
 
 #[rstest]

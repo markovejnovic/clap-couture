@@ -41,7 +41,7 @@ struct Overridden {
 )]
 enum Cmd {
     /// Tail live logs.
-    #[category("everyday")]
+    #[couture(category = "everyday")]
     Logs,
 }
 

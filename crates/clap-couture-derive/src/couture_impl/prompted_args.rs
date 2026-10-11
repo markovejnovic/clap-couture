@@ -7,8 +7,9 @@ use quote::{ToTokens, quote};
 use syn::Type;
 
 use crate::{
-    clap_compat::{ClapAttrs as _, ClapFieldType as _, FieldKind, SubcommandNaming},
+    clap_compat::{ClapAttrs as _, ClapFieldType as _, ClapName, FieldKind, SubcommandNaming},
     input::{BareOr, EditorOptions, FieldInput, StdinOptions, VariantInput},
+    runtime::Runtime,
     text::{OptionalText, TextExpr},
 };
 
@@ -27,12 +28,12 @@ enum PromptedArgBranch {
     /// A type merged into this level: a flattened `Args` type, or the subcommand enum.
     Flattened(Type),
     /// A struct variant: a subcommand whose args are its own fields.
-    Inline(String, PromptedArgTree),
+    Inline(ClapName, PromptedArgTree),
     /// A tuple variant: a subcommand whose args are another type's.
-    Subcommand(String, Type),
+    Subcommand(ClapName, Type),
 }
 
-/// A `dash` in `prompt(dash)` or `stdin(dash)`.
+/// A `dash` in `prompt(dash)`, or a `stdin` without `piped`.
 struct DashAttr {
     /// The field's type, `Option` peeled: what `-` becomes.
     field_type: Type,
@@ -52,7 +53,7 @@ struct EditorAttr {
 /// One `#[couture(prompt)]` or `#[couture(confirm)]`, with or without `= "..."`.
 struct PromptAttr {
     /// The clap id of the arg it is on.
-    arg_id: String,
+    arg_id: ClapName,
     /// `prompt(dash)`: asked only when `-` is its value.
     dash: Option<DashAttr>,
     /// `Some` for `#[couture(prompt, editor)]`.
@@ -74,8 +75,8 @@ enum Purpose {
 /// A field's `#[couture(stdin)]`.
 struct StdinAttr {
     /// The clap id of the arg it is on.
-    arg_id: String,
-    /// `stdin(dash)`: stdin is read only when `-` is its value.
+    arg_id: ClapName,
+    /// Stdin is read only when `-` is its value; `None` for `stdin(piped)`.
     dash: Option<DashAttr>,
 }
 
@@ -175,7 +176,7 @@ impl PromptedArgBranch {
 
     /// `field_type`'s prompted args, or none when `field_type` does not implement `Couture`.
     fn prompted_args_of(field_type: &Type) -> TokenStream2 {
-        quote!(<::clap_couture::MaybeCouture<#field_type>>::PROMPTED_ARGS)
+        quote!(<#Runtime::__private::MaybeCouture<#field_type>>::PROMPTED_ARGS)
     }
 }
 
@@ -350,7 +351,7 @@ impl ToTokens for PromptedArgTree {
             |StdinAttr { arg_id, dash }| {
                 let dash = OptionalDash(dash.as_ref());
                 quote! {
-                    ::core::option::Option::Some(::clap_couture::interactive::StdinAttr {
+                    ::core::option::Option::Some(#Runtime::__private::StdinAttr {
                         arg_id: #arg_id,
                         dash: #dash,
                     })
@@ -358,7 +359,7 @@ impl ToTokens for PromptedArgTree {
             },
         );
         tokens.extend(quote! {
-            ::clap_couture::interactive::PromptedArgTree {
+            #Runtime::__private::PromptedArgTree {
                 branches: &[#(#branches),*],
                 own_args: &[#(#own_args),*],
                 stdin_arg: #stdin_arg,
@@ -372,10 +373,10 @@ impl ToTokens for PromptedArgBranch {
         tokens.extend(match self {
             Self::Flattened(flattened_type) => {
                 let tree = Self::prompted_args_of(flattened_type);
-                quote!(::clap_couture::interactive::PromptedArgBranch::Flattened(#tree))
+                quote!(#Runtime::__private::PromptedArgBranch::Flattened(#tree))
             }
             Self::Inline(subcommand_name, tree) => quote! {
-                ::clap_couture::interactive::PromptedArgBranch::Subcommand(
+                #Runtime::__private::PromptedArgBranch::Subcommand(
                     #subcommand_name,
                     &#tree,
                 )
@@ -383,7 +384,7 @@ impl ToTokens for PromptedArgBranch {
             Self::Subcommand(subcommand_name, subcommand_type) => {
                 let tree = Self::prompted_args_of(subcommand_type);
                 quote! {
-                    ::clap_couture::interactive::PromptedArgBranch::Subcommand(
+                    #Runtime::__private::PromptedArgBranch::Subcommand(
                         #subcommand_name,
                         #tree,
                     )
@@ -403,8 +404,8 @@ impl ToTokens for PromptAttr {
                 quote! {
                     ::core::option::Option::Some({
                         // Fails the build when clap-couture can't open an editor.
-                        const _: () = ::clap_couture::interactive::EditorAttr::FEATURE_CHECK;
-                        ::clap_couture::interactive::EditorAttr {
+                        const _: () = #Runtime::__private::EditorAttr::FEATURE_CHECK;
+                        #Runtime::__private::EditorAttr {
                             extension: #extension,
                             initial: #initial,
                         }
@@ -423,17 +424,17 @@ impl ToTokens for PromptAttr {
             |SecretAttr { allow_argv, secret_type }| {
                 quote! {
                     ::core::option::Option::Some(
-                        ::clap_couture::interactive::SecretAttr::new::<#secret_type>(#allow_argv)
+                        #Runtime::__private::SecretAttr::new::<#secret_type>(#allow_argv)
                     )
                 }
             },
         );
         tokens.extend(quote! {
-            ::clap_couture::interactive::PromptAttr {
+            #Runtime::__private::PromptAttr {
                 arg_id: #arg_id,
                 dash: #dash,
                 editor: #editor,
-                purpose: ::clap_couture::interactive::PromptPurpose::#purpose,
+                purpose: #Runtime::__private::PromptPurpose::#purpose,
                 question: #question,
                 secret: #secret,
             }
@@ -479,10 +480,8 @@ impl StdinAttr {
             return error("`#[couture(stdin)]` takes a single value");
         }
         let dash = match &**stdin {
-            Override::Explicit(StdinOptions { dash }) if dash.is_present() => {
-                Some(DashAttr::new(field, dash.span())?)
-            }
-            Override::Inherit | Override::Explicit(_) => None,
+            Override::Explicit(StdinOptions { piped }) if piped.is_present() => None,
+            Override::Inherit | Override::Explicit(_) => Some(DashAttr::new(field, span)?),
         };
         Ok(Self { arg_id, dash })
     }
@@ -514,7 +513,7 @@ impl ToTokens for OptionalDash<'_> {
             |DashAttr { field_type }| {
                 quote! {
                     ::core::option::Option::Some(
-                        ::clap_couture::interactive::DashAttr::new::<#field_type>()
+                        #Runtime::__private::DashAttr::new::<#field_type>()
                     )
                 }
             },

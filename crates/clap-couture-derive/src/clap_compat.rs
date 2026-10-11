@@ -27,9 +27,10 @@ use heck::{
     ToUpperCamelCase as _,
 };
 use proc_macro2::{Span, TokenStream as TokenStream2};
+use quote::ToTokens;
 use syn::{
-    Attribute, LitStr, Token, Type, ext::IdentExt as _, meta::ParseNestedMeta,
-    spanned::Spanned as _,
+    Attribute, Expr, ExprLit, GenericArgument, Lit, LitStr, PathArguments, PathSegment, Token,
+    Type, TypePath, ext::IdentExt as _, meta::ParseNestedMeta, spanned::Spanned as _,
 };
 
 use crate::input::VariantInput;
@@ -118,11 +119,37 @@ impl SubcommandNaming {
     /// The name clap gives `variant`: `ls` for `#[command(name = "ls")] List`, otherwise the
     /// variant's or the enum's casing applied to the ident with any `r#` stripped (`r#Type` is
     /// `type`).
-    pub(crate) fn name_of(&self, variant: &VariantInput) -> String {
+    pub(crate) fn name_of(&self, variant: &VariantInput) -> ClapName {
         variant.attrs.clap_name().unwrap_or_else(|| {
             let casing = CasingStyle::from_attrs(&variant.attrs).unwrap_or(self.casing);
-            casing.apply(&variant.ident.unraw().to_string())
+            ClapName::Literal(casing.apply(&variant.ident.unraw().to_string()))
         })
+    }
+}
+
+/// A subcommand's name or an arg's id, as clap gets it: a string literal, or any other expression,
+/// like `name = LIST_NAME`, which the generated code evaluates as clap does.
+#[derive(Clone)]
+pub(crate) enum ClapName {
+    Expr(Box<Expr>),
+    Literal(String),
+}
+
+impl From<Expr> for ClapName {
+    fn from(expr: Expr) -> Self {
+        if let Expr::Lit(ExprLit { attrs: _, lit: Lit::Str(literal) }) = &expr {
+            return Self::Literal(literal.value());
+        }
+        Self::Expr(Box::new(expr))
+    }
+}
+
+impl ToTokens for ClapName {
+    fn to_tokens(&self, tokens: &mut TokenStream2) {
+        match self {
+            Self::Expr(expr) => expr.to_tokens(tokens),
+            Self::Literal(name) => LitStr::new(name, Span::call_site()).to_tokens(tokens),
+        }
     }
 }
 
@@ -157,18 +184,17 @@ pub(crate) trait ClapAttrs {
     fn clap_default_span(&self) -> Option<Span>;
 
     /// The `zone` in `#[arg(id = "zone")]`, or in the deprecated `#[arg(name = "zone")]`, if any.
-    fn clap_id(&self) -> Option<String>;
+    fn clap_id(&self) -> Option<ClapName>;
 
     /// The `ls` in `#[command(name = "ls")]`, if any.
-    fn clap_name(&self) -> Option<String>;
+    fn clap_name(&self) -> Option<ClapName>;
 
     /// Walk the keys of every `#[command(...)]` / `#[arg(...)]` / `#[clap(...)]` attribute,
     /// calling `on_key` on each: `name` then `about` for `#[command(name = "ls", about)]`. Any
     /// value `on_key` leaves unconsumed is skipped, so a visitor only needs to handle the keys it
     /// cares about.
     ///
-    /// A parse error silently ends the walk of that attribute, so `name = SOME_CONST` reads as
-    /// no name.
+    /// A parse error silently ends the walk of that attribute; `clap_derive` reports it.
     fn for_each_clap_key(&self, on_key: impl FnMut(&ParseNestedMeta<'_>) -> syn::Result<()>);
 
     /// Check for `key` with or without a value, as `subcommand` in `#[command(subcommand)]`.
@@ -191,22 +217,22 @@ impl ClapAttrs for [Attribute] {
         found
     }
 
-    fn clap_id(&self) -> Option<String> {
+    fn clap_id(&self) -> Option<ClapName> {
         let mut found = None;
         self.for_each_clap_key(|meta| {
             if meta.path.is_ident("id") || meta.path.is_ident("name") {
-                found = Some(meta.value()?.parse::<LitStr>()?.value());
+                found = Some(meta.value()?.parse::<Expr>()?.into());
             }
             Ok(())
         });
         found
     }
 
-    fn clap_name(&self) -> Option<String> {
+    fn clap_name(&self) -> Option<ClapName> {
         let mut found = None;
         self.for_each_clap_key(|meta| {
             if meta.path.is_ident("name") {
-                found.get_or_insert(meta.value()?.parse::<LitStr>()?.value());
+                found.get_or_insert(meta.value()?.parse::<Expr>()?.into());
             }
             Ok(())
         });
@@ -277,29 +303,60 @@ pub(crate) trait ClapFieldType {
     fn peel_option(&self) -> &Self;
 }
 
+/// `clap_derive`'s type matching (`src/utils/ty.rs`), ported as is: a type counts only as a
+/// single-segment path, so `std::option::Option<T>` is a plain value to clap, not an `Option`.
+trait ClapTypeShape {
+    /// The path's one segment, seen through the invisible group a `macro_rules!` `$t:ty` wraps
+    /// it in; `None` for a qualified, `::`-led or multi-segment path, or any other type.
+    fn only_last_segment(&self) -> Option<&PathSegment>;
+
+    /// The `T` of `name<T>`, with exactly one generic argument.
+    fn subtype_if_named(&self, name: &str) -> Option<&Self>;
+}
+
 impl ClapFieldType for Type {
     fn is_bool(&self) -> bool {
-        // As clap's derive decides it: a bare `bool`, not `std::primitive::bool`.
-        matches!(self, Self::Path(type_path) if type_path.qself.is_none() && type_path.path.is_ident("bool"))
+        self.only_last_segment().is_some_and(|segment| {
+            matches!(segment.arguments, PathArguments::None) && segment.ident == "bool"
+        })
     }
 
     fn is_multi_value(&self) -> bool {
-        let Self::Path(type_path) = self.peel_option() else { return false };
-        type_path.path.segments.last().is_some_and(|last_segment| last_segment.ident == "Vec")
+        self.subtype_if_named("Vec").is_some()
+            || self.subtype_if_named("Option").is_some_and(|wrapped_type| {
+                wrapped_type.subtype_if_named("Option").is_none()
+                    && wrapped_type.subtype_if_named("Vec").is_some()
+            })
     }
 
     fn peel_option(&self) -> &Self {
-        let Self::Path(type_path) = self else { return self };
-        let Some(last_segment) = type_path.path.segments.last() else { return self };
-        if last_segment.ident != "Option" {
-            return self;
+        self.subtype_if_named("Option").unwrap_or(self)
+    }
+}
+
+impl ClapTypeShape for Type {
+    fn only_last_segment(&self) -> Option<&PathSegment> {
+        let mut ty = self;
+        while let Self::Group(group) = ty {
+            ty = &group.elem;
         }
-        let syn::PathArguments::AngleBracketed(generic_arguments) = &last_segment.arguments else {
-            return self;
+        let Self::Path(TypePath { attrs: _, qself: None, path }) = ty else { return None };
+        if path.leading_colon.is_some() {
+            return None;
+        }
+        let mut segments = path.segments.iter();
+        segments.next().filter(|_| segments.next().is_none())
+    }
+
+    fn subtype_if_named(&self, name: &str) -> Option<&Self> {
+        let segment = self.only_last_segment().filter(|segment| segment.ident == name)?;
+        let PathArguments::AngleBracketed(generic_arguments) = &segment.arguments else {
+            return None;
         };
-        match generic_arguments.args.first() {
-            Some(syn::GenericArgument::Type(wrapped_type)) => wrapped_type,
-            _ => self,
+        let mut arguments = generic_arguments.args.iter();
+        match (arguments.next(), arguments.next()) {
+            (Some(GenericArgument::Type(wrapped_type)), None) => Some(wrapped_type),
+            _ => None,
         }
     }
 }

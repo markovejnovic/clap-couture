@@ -239,6 +239,31 @@
 //! | `Vec<T>`, possible values | `envs: Vec<Env>`        | Multi-picker   | Which envs? **dev, stage**                      |
 //! | `Vec<T>`, arbitrary type  | `tags: Vec<String>`     | Repeated input | Which tags `(<enter> to finish)`: **`<enter>`** |
 //!
+//! ### Confirmation
+//!
+//! `#[couture(confirm = "...")]` on a `bool` flag asks before going ahead, after every prompt. A
+//! yes sets the flag, a no exits with status 1. Passing the flag skips the question, and without a
+//! terminal it must be passed, so a parse that returns always has the flag set. `{arg}` in the
+//! question stands for that arg's value; `{{` and `}}` are literal braces.
+//!
+//! ```
+//! use clap::Parser;
+//! use clap_couture::{Couture, CoutureParser as _};
+//!
+//! #[derive(Parser, Couture)]
+//! struct Cli {
+//!     #[arg(long)]
+//!     name: String,
+//!
+//!     #[arg(long)]
+//!     #[couture(confirm = "Delete {name} for good?")]
+//!     force: bool,
+//! }
+//!
+//! let cli = Cli::couture_parse_from(["delete", "--name", "web", "--force"]);
+//! assert!(cli.force);
+//! ```
+//!
 //! ### Backends
 //!
 //! You can pick from three interactive backends:
@@ -581,7 +606,7 @@ pub trait Couture {
     /// The text couture prints itself, from `#[couture(messages = { ... })]`.
     const MESSAGES: Messages = Messages::DEFAULT;
 
-    /// The args marked `#[couture(prompt)]`, and where they sit.
+    /// The args marked `#[couture(prompt)]` or `#[couture(confirm)]`, and where they sit.
     #[cfg(feature = "interactive")]
     #[doc(hidden)]
     const PROMPTED_ARGS: interactive::PromptedArgTree = interactive::PromptedArgTree::EMPTY;

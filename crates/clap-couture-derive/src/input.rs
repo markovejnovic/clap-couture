@@ -32,6 +32,8 @@ pub(crate) struct CoutureInput {
 #[darling(attributes(couture), forward_attrs(arg, clap, command))]
 pub(crate) struct FieldInput {
     pub(crate) attrs: Vec<Attribute>,
+    /// `Inherit` for `#[couture(confirm)]`, `Explicit` for `#[couture(confirm = ...)]`.
+    pub(crate) confirm: Option<SpannedValue<Override<TextExpr>>>,
     pub(crate) ident: Option<Ident>,
     /// `Inherit` for `#[couture(prompt)]`, `Explicit` for `#[couture(prompt = ...)]`.
     pub(crate) prompt: Option<SpannedValue<Override<TextExpr>>>,

@@ -169,15 +169,18 @@ force: bool,
 ### Piped input
 
 `#[couture(accept_stdin)]` lets an arg come from a pipe, so `echo hi | post`
-works like `post --message hi`. Stdin is only read when it is a pipe and the
-arg was left out, so a terminal or a file never blocks the parse. One arg per
-command may take it: stdin can only be read once.
+works like `post --message hi`.
 
 ```rust
 #[arg(long)]
-#[couture(prompt, accept_stdin)] // piped, else asked
+#[couture(prompt, accept_stdin)]
 message: String,
 ```
+
+<picture>
+  <source media="(prefers-color-scheme: light)" srcset="assets/10-interactive-stdin-light.gif">
+  <img src="assets/10-interactive-stdin-dark.gif" alt="piping release notes into orbit-release, which takes them without asking, then running orbit-release alone, which asks for the notes" width="640">
+</picture>
 
 ## Markdown
 

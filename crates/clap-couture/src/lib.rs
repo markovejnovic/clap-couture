@@ -313,6 +313,13 @@
 //! # assert_eq!(cli.message, "hi");
 //! ```
 //!
+//! An example of this interaction is:
+//!
+//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/10-interactive-stdin-dark.gif" alt="piping release notes into orbit-release, which takes them without asking, then running orbit-release alone, which asks for the notes">
+//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/10-interactive-stdin-light.gif" alt="piping release notes into orbit-release, which takes them without asking, then running orbit-release alone, which asks for the notes">
+//!
+//! See [`examples/10-interactive-stdin.rs`](https://github.com/markovejnovic/clap-couture/blob/main/crates/clap-couture/examples/10-interactive-stdin.rs).
+//!
 //! Only one arg on a command may take stdin, as stdin can only be read once. See
 //! [the `interactive` module](interactive#reading-piped-stdin) for the details.
 //!

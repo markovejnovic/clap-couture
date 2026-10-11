@@ -211,22 +211,21 @@ enum Cmd {
 
 **`clap-couture` is donationware.** That means that if you like `clap-couture`,
 if you like my work and if you want to support clap-couture or me, you *should*
-donate. I like money as much as the next person, but I don't need it. **There
-are people who do**. Here are some institutions you can consider:
+donate. Here are some institutions you can consider:
 
 - 🌍 [United World College](https://uwc.org/support-us/) transformed my life by
-  taking me from a backwater swamp and opening my eyes to different cultures,
-  worldly cultures of thought and helping me be financially secure. **Help
-  provide kids the same opportunity.** My cohort are all amazing people who are
-  all transforming the world.
+  taking me from a small town and opening my eyes to different cultures,
+  worldly perspectives and helping me be financially secure. **Help provide
+  kids the same opportunity.** My cohort are all amazing people who are all
+  transforming the world.
 - 🇮🇷 [Children of Persia](https://www.childrenofpersia.org/) is a fund which
   provides sustainable healthcare and education support to children in Iran.
   With the ongoing war, **children need our support more than ever**. Iran is
   is one of the west's most important cultures and the hell children have to
-  experience in Iran is a disgrace and an insult to Persia's **critical impact**
-  to the Greco-Roman legacy. **Help kids in Iran have the opportunity to
-  survive.** (_Note this is one of the few charities which directly supports
-  Iran and UN donors can support._)
+  experience in Iran is a disgrace and an insult to Persia's **critical
+  impact** to the Greco-Roman legacy. **Help kids in Iran have the opportunity
+  to survive.** (_Note this is one of the few charities which directly supports
+  Iran and that UN donors can donate to._)
 - 🇵🇸 [Palestine Children's Relief Fund](https://www.pcrf.net/) provides medical
   care to injured and ill children who need access to medical care. **Help kids
   survive war.** The ugly reality is many won't and we have to help as many as

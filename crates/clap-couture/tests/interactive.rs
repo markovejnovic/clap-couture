@@ -14,7 +14,8 @@ use core::{
 };
 
 use clap::{
-    ArgGroup, Args, Parser, Subcommand, ValueEnum, builder::ArgPredicate, error::ErrorKind,
+    ArgAction, ArgGroup, Args, Parser, Subcommand, ValueEnum, builder::ArgPredicate,
+    error::ErrorKind,
 };
 use clap_couture::{Couture, CoutureParser as _, ParseError};
 use common::{Asked, Kind, Reply, ScriptedBackend};
@@ -298,6 +299,35 @@ struct Split {
     #[arg(long, value_delimiter = ',', default_value = "a,b")]
     #[couture(prompt = "Which labels?")]
     labels: Vec<String>,
+}
+
+#[derive(Parser, Couture, Debug)]
+struct Pair {
+    #[arg(long, num_args = 2)]
+    #[couture(prompt = "Which pair?")]
+    pair: Vec<String>,
+}
+
+/// `Pair`, but passed only once, and optional.
+#[derive(Parser, Couture, Debug)]
+struct PairOnce {
+    #[arg(long, num_args = 2, action = ArgAction::Set)]
+    #[couture(prompt = "Which pair?")]
+    pair: Option<Vec<String>>,
+}
+
+#[derive(Parser, Couture, Debug)]
+struct UpToThree {
+    #[arg(long, num_args = 1..=3, required = true)]
+    #[couture(prompt = "Which labels?")]
+    labels: Vec<String>,
+}
+
+#[derive(Parser, Couture, Debug)]
+struct UpToTwoEnvs {
+    #[arg(long, value_enum, num_args = 1..=2)]
+    #[couture(prompt = "Which envs?")]
+    envs: Vec<Env>,
 }
 
 #[derive(Parser, Couture, Debug)]
@@ -804,6 +834,83 @@ fn splits_a_delimited_default_into_its_values() {
     assert_eq!(backend.asked(), [
         text("Which labels?", Some("a"), true),
         text("Which labels?", Some("b"), true),
+    ]);
+}
+
+#[rstest]
+fn stops_asking_once_num_args_is_reached() {
+    let backend = ScriptedBackend::new([Reply::Text(Some("a")), Reply::Text(Some("b"))]);
+    let pair = Pair::couture_try_parse_from_with(&backend, ["pair"]);
+    assert_eq!(pair.map(|pair| pair.pair).ok(), Some(["a", "b"].map(str::to_owned).into()));
+    assert_eq!(backend.asked(), [
+        text("Which pair?", None, true),
+        text("Which pair?", None, false),
+    ]);
+}
+
+#[rstest]
+fn finishing_short_of_num_args_asks_again_with_claps_message() {
+    let backend =
+        ScriptedBackend::new([Reply::Text(Some("a")), Reply::Text(None), Reply::Text(Some("b"))]);
+    let pair = Pair::couture_try_parse_from_with(&backend, ["pair"]);
+    assert_eq!(pair.map(|pair| pair.pair).ok(), Some(["a", "b"].map(str::to_owned).into()));
+    let errors: Vec<_> = backend.asked().into_iter().map(|asked| asked.error).collect();
+    assert_eq!(errors, [
+        None,
+        None,
+        Some("2 values required for '--pair <PAIR> <PAIR>' but 1 was provided".to_owned()),
+    ]);
+}
+
+#[rstest]
+fn an_optional_arg_taking_num_args_values_may_be_left_unset() {
+    let backend = ScriptedBackend::new([Reply::Text(None)]);
+    let pair = PairOnce::couture_try_parse_from_with(&backend, ["pair"]);
+    assert_eq!(pair.map(|pair| pair.pair).ok(), Some(None));
+    assert_eq!(backend.asked(), [text("Which pair?", None, true)]);
+}
+
+#[rstest]
+fn an_arg_passed_once_stops_at_num_args_too() {
+    let backend = ScriptedBackend::new([Reply::Text(Some("a")), Reply::Text(Some("b"))]);
+    let pair = PairOnce::couture_try_parse_from_with(&backend, ["pair"]);
+    assert_eq!(pair.map(|pair| pair.pair).ok(), Some(Some(["a", "b"].map(str::to_owned).into())));
+}
+
+#[rstest]
+fn offers_to_finish_within_the_num_args_range() {
+    let backend = ScriptedBackend::new([
+        Reply::Text(Some("a")),
+        Reply::Text(Some("b")),
+        Reply::Text(Some("c")),
+    ]);
+    let labels = UpToThree::couture_try_parse_from_with(&backend, ["labels"]);
+    assert_eq!(
+        labels.map(|labels| labels.labels).ok(),
+        Some(["a", "b", "c"].map(str::to_owned).into())
+    );
+    assert_eq!(backend.asked(), [
+        text("Which labels?", None, false),
+        text("Which labels?", None, true),
+        text("Which labels?", None, true),
+    ]);
+}
+
+#[rstest]
+fn picking_more_than_num_args_asks_again_with_claps_message() {
+    let backend = ScriptedBackend::new([
+        Reply::MultiSelect(&["dev", "prod", "stage"]),
+        Reply::MultiSelect(&["dev", "prod"]),
+    ]);
+    let envs = UpToTwoEnvs::couture_try_parse_from_with(&backend, ["envs"]);
+    assert_eq!(envs.map(|envs| envs.envs).ok(), Some(Vec::from([Env::Dev, Env::Prod])));
+    let errors: Vec<_> = backend.asked().into_iter().map(|asked| asked.error).collect();
+    assert_eq!(errors, [
+        None,
+        Some(
+            "unexpected value 'stage' for '--envs <ENVS>...' found; no more were expected"
+                .to_owned()
+        ),
     ]);
 }
 

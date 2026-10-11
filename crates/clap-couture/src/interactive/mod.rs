@@ -24,7 +24,8 @@
 //! A prompted arg that has a default is asked with the default pre-filled. An optional arg answered
 //! with nothing stays unset. An arg that takes many values, like a `Vec<T>`, is asked as a
 //! multi-select when it has possible values, and otherwise one value at a time until an empty
-//! answer. An arg passed on the command line or through its env var is never
+//! answer, or until its `num_args` is reached; fewer than `num_args` asks for more.
+//! An arg passed on the command line or through its env var is never
 //! asked, and neither is one that conflicts with a passed arg or an earlier answer. An arg
 //! required through `required_unless_present` or a required `ArgGroup` is asked as required, and
 //! an empty answer is refused; in a group of prompted args, only the last one asked is. clap can't

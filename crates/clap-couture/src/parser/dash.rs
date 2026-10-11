@@ -1,7 +1,8 @@
 //! `prompt(dash)` and `accept_stdin(dash)`: `-` as an arg's value asks for it, or reads stdin.
 //!
 //! The `-` comes out of argv before anything else, so every later parse sees the arg left out,
-//! and it is asked for or read like one the user never passed.
+//! and it is asked for or read like one the user never passed. An arg with both asks when it can,
+//! at a terminal, and reads stdin otherwise, as when it is piped.
 
 use std::ffi::{OsStr, OsString};
 
@@ -17,23 +18,37 @@ use crate::interactive::{PromptedArg, StdinArg};
 type ArgAt = (Vec<&'static str>, &'static str);
 
 /// The args the user passed `-` to, taken out of argv by [`take`].
-pub(super) struct Dashed(Vec<ArgAt>);
+pub(super) struct Dashed {
+    /// Those to ask for.
+    asked: Vec<ArgAt>,
+    /// Those to read stdin into.
+    read: Vec<ArgAt>,
+}
 
 impl Dashed {
-    /// Check whether arg `id` of the command at `path` was passed `-`.
-    pub(super) fn contains(&self, path: &[&str], id: &str) -> bool {
-        self.0.iter().any(|(dashed_path, dashed_id)| dashed_path == path && *dashed_id == id)
+    /// Check whether arg `id` of the command at `path` was passed `-` to be asked for.
+    pub(super) fn asks(&self, path: &[&str], id: &str) -> bool {
+        holds(&self.asked, path, id)
+    }
+
+    /// Check whether arg `id` of the command at `path` was passed `-` to read stdin.
+    pub(super) fn reads(&self, path: &[&str], id: &str) -> bool {
+        holds(&self.read, path, id)
     }
 
     /// `cmd` with no env var on any of these args.
     pub(super) fn without_env(&self, cmd: Command) -> Command {
-        self.0.iter().fold(cmd, |cmd, (path, id)| with_arg_at(cmd, path, id, |arg| arg.env(None)))
+        self.asked
+            .iter()
+            .chain(&self.read)
+            .fold(cmd, |cmd, (path, id)| with_arg_at(cmd, path, id, |arg| arg.env(None)))
     }
 }
 
 /// `argv` without the `-` passed to each `prompt(dash)` arg in `prompted_args` and
-/// `accept_stdin(dash)` arg in `stdin_args`, and the args it was taken from. `argv` that `cmd`
-/// rejects, eg. for `--help`, is left to clap as is.
+/// `accept_stdin(dash)` arg in `stdin_args`, and the args it was taken from. An arg with both is
+/// asked for when `can_ask`, and reads stdin otherwise. `argv` that `cmd` rejects, eg. for
+/// `--help`, is left to clap as is.
 ///
 /// # Errors
 /// A `-` that can't be taken out without changing another arg, as in `-vn-`.
@@ -42,22 +57,25 @@ pub(super) fn take(
     prompted_args: &[PromptedArg],
     stdin_args: &[StdinArg],
     argv: &[OsString],
+    can_ask: bool,
 ) -> Result<(Vec<OsString>, Dashed), Failure> {
     let relaxed = stdin_args.iter().fold(relax(cmd.clone(), prompted_args), |cmd, stdin_arg| {
         unrequire(cmd, &stdin_arg.subcommand_path, stdin_arg.attr.arg_id)
     });
-    let dash_args = prompted_args
+    let asking: Vec<ArgAt> = prompted_args
         .iter()
         .filter(|prompted_arg| prompted_arg.attr.dash)
         .map(|prompted_arg| (prompted_arg.subcommand_path.clone(), prompted_arg.attr.arg_id))
-        .chain(
-            stdin_args
-                .iter()
-                .filter(|stdin_arg| stdin_arg.attr.dash)
-                .map(|stdin_arg| (stdin_arg.subcommand_path.clone(), stdin_arg.attr.arg_id)),
-        );
+        .collect();
+    let reading: Vec<ArgAt> = stdin_args
+        .iter()
+        .filter(|stdin_arg| stdin_arg.attr.dash)
+        .map(|stdin_arg| (stdin_arg.subcommand_path.clone(), stdin_arg.attr.arg_id))
+        .collect();
+    let only_reading = reading.iter().filter(|(path, id)| !holds(&asking, path, id)).cloned();
+    let dash_args: Vec<ArgAt> = asking.iter().cloned().chain(only_reading).collect();
     let mut argv = argv.to_vec();
-    let mut dashed = Vec::new();
+    let mut dashed = Dashed { asked: Vec::new(), read: Vec::new() };
     for (path, id) in dash_args {
         let Ok(matches) = relaxed.clone().try_get_matches_from(&argv) else { break };
         let Some(level) = matches_at(&matches, &path) else { continue };
@@ -75,9 +93,15 @@ pub(super) fn take(
             ));
         };
         argv = rest;
-        dashed.push((path, id));
+        let asks = holds(&asking, &path, id) && (can_ask || !holds(&reading, &path, id));
+        if asks { dashed.asked.push((path, id)) } else { dashed.read.push((path, id)) }
     }
-    Ok((argv, Dashed(dashed)))
+    Ok((argv, dashed))
+}
+
+/// Check whether `args` holds arg `id` of the command at `path`.
+fn holds(args: &[ArgAt], path: &[&str], id: &str) -> bool {
+    args.iter().any(|(held_path, held_id)| held_path == path && *held_id == id)
 }
 
 /// The error for a `-` that asks for arg `id` of the command at `path` with no terminal to ask on.

@@ -88,7 +88,7 @@ impl PromptedArgTree {
     /// - A `#[couture(confirm)]` on a field that is not a `bool`.
     /// - A `#[couture(accept_stdin)]` on more than one field, or on one that is not a single named
     ///   arg taking one value.
-    /// - A `dash` on an arg that does not take one value, or on both `prompt` and `accept_stdin`.
+    /// - A `dash` on an arg that does not take one value.
     pub(crate) fn of_fields(fields: &[FieldInput]) -> darling::Result<Self> {
         let mut errors = Error::accumulator();
         let own_args = fields
@@ -239,12 +239,6 @@ impl PromptAttr {
         }
         if let Some(dash) = dash {
             check_dash(field, dash)?;
-            if field.accept_stdin.as_ref().is_some_and(|attr| stdin_dash(attr).is_some()) {
-                return Err(Error::custom(
-                    "`-` can't both ask for the arg and read stdin; drop one of the `dash`es",
-                )
-                .with_span(&dash));
-            }
         }
         let editor =
             field.editor.as_ref().map(|editor| EditorAttr::new(field, editor)).transpose()?;
@@ -477,7 +471,11 @@ impl StdinAttr {
         if field.ty.is_multi_value() {
             return error("`#[couture(accept_stdin)]` takes a single value");
         }
-        Ok(Self { arg_id, dash: stdin_dash(accept_stdin).is_some() })
+        let dash = matches!(
+            &**accept_stdin,
+            Override::Explicit(StdinOptions { dash }) if dash.is_present()
+        );
+        Ok(Self { arg_id, dash })
     }
 }
 
@@ -493,12 +491,4 @@ fn check_dash(field: &FieldInput, span: Span) -> darling::Result<()> {
         return Err(Error::custom("`dash` needs an arg that takes a single value").with_span(&span));
     }
     Ok(())
-}
-
-/// The span of `accept_stdin(dash)`'s `dash`, if given.
-fn stdin_dash(accept_stdin: &BareOr<StdinOptions>) -> Option<Span> {
-    match &**accept_stdin {
-        Override::Explicit(StdinOptions { dash }) if dash.is_present() => Some(dash.span()),
-        Override::Inherit | Override::Explicit(_) => None,
-    }
 }

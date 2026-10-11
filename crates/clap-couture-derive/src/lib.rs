@@ -39,8 +39,8 @@ use crate::{couture_impl::CoutureImpl, input::CoutureInput};
 /// - With the `interactive` feature, `#[couture(accept_stdin)]` on a field takes what is piped into
 ///   stdin when the user leaves the arg out. One arg per command path may take it.
 /// - `dash` gives `-` as the arg's value a meaning, and nothing else does: `prompt(dash)` asks for
-///   the arg, and `accept_stdin(dash)` reads all of stdin into it. `prompt(dash, question = ...)`
-///   asks its own question.
+///   the arg, and `accept_stdin(dash)` reads all of stdin into it; with both, it asks at a terminal
+///   and reads stdin otherwise. `prompt(dash, question = ...)` asks its own question.
 /// - `#[couture(messages = { usage = ..., options = ..., none = ... })]` replaces the text couture
 ///   prints itself, eg. to localize it; see `clap_couture::Messages` for every key. Any of them may
 ///   be left out. It applies on the type you parse, or the one you pass to `with_couture`.

@@ -94,7 +94,7 @@ pub trait CoutureParser: Parser + Couture {
             &Self::MESSAGES,
             &itr.into_iter().map(Into::into).collect::<Vec<OsString>>(),
             backend,
-            crate::os::stdin::read,
+            &crate::os::stdin::ProcessStdin,
         )
         .map_err(Failure::into_clap)
     }
@@ -207,7 +207,7 @@ where
             &T::MESSAGES,
             argv,
             &backend,
-            crate::os::stdin::read,
+            &crate::os::stdin::ProcessStdin,
         )
     }
     #[cfg(not(feature = "interactive"))]

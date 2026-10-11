@@ -1,7 +1,7 @@
 //! `#[couture(accept_stdin)]`: an arg the user left out takes what is piped into stdin, and
 //! `accept_stdin(dash)` one passed `-` takes all of stdin.
 
-use std::{ffi::OsString, io};
+use std::ffi::OsString;
 
 use clap::{Command, error::ErrorKind};
 
@@ -12,12 +12,11 @@ use super::{
 };
 use crate::{
     interactive::{PromptedArg, StdinArg},
-    os::stdin::ReadWhen,
+    os::stdin::{ReadWhen, Stdin},
 };
 
-/// The arg in `stdin_args` that takes stdin, and its text: the one the user passed `-`, else the
-/// one [`piped`] fills. A `-` passed to a `prompt(dash)` arg asks for it, so no pipe fills
-/// that one.
+/// The arg in `stdin_args` that takes stdin, and its text: the one `dashed` reads, else the one
+/// [`piped`] fills. A `-` that asks for an arg leaves it to be asked, so no pipe fills that one.
 ///
 /// # Errors
 /// As [`piped`].
@@ -27,20 +26,22 @@ pub(super) fn read<'stdin_arg>(
     stdin_args: &'stdin_arg [StdinArg],
     dashed: &Dashed,
     argv: &[OsString],
-    read_stdin: impl FnOnce(ReadWhen) -> io::Result<Option<Vec<u8>>>,
+    stdin: &impl Stdin,
 ) -> Result<Option<(&'stdin_arg StdinArg, String)>, Failure> {
-    let (passed_dash, implicit): (Vec<&StdinArg>, Vec<&StdinArg>) = stdin_args
+    if let Some(stdin_arg) = stdin_args
+        .iter()
+        .find(|stdin_arg| dashed.reads(&stdin_arg.subcommand_path, stdin_arg.attr.arg_id))
+    {
+        let text = stdin.read(ReadWhen::Always).map_err(Failure::Io)?.unwrap_or_default();
+        return decode(cmd, stdin_arg, text).map(|text| Some((stdin_arg, text)));
+    }
+    let implicit: Vec<&StdinArg> = stdin_args
         .iter()
         .filter(|stdin_arg| {
-            stdin_arg.attr.dash
-                == dashed.contains(&stdin_arg.subcommand_path, stdin_arg.attr.arg_id)
+            !stdin_arg.attr.dash && !dashed.asks(&stdin_arg.subcommand_path, stdin_arg.attr.arg_id)
         })
-        .partition(|stdin_arg| stdin_arg.attr.dash);
-    if let Some(stdin_arg) = passed_dash.first() {
-        let stdin = read_stdin(ReadWhen::Always).map_err(Failure::Io)?.unwrap_or_default();
-        return decode(cmd, stdin_arg, stdin).map(|text| Some((*stdin_arg, text)));
-    }
-    piped(cmd, prompted_args, &implicit, argv, read_stdin)
+        .collect();
+    piped(cmd, prompted_args, &implicit, argv, stdin)
 }
 
 /// The stdin arg on the path the user took, if it got no value, and the text piped in for it.
@@ -57,7 +58,7 @@ fn piped<'stdin_arg>(
     prompted_args: &[PromptedArg],
     stdin_args: &[&'stdin_arg StdinArg],
     argv: &[OsString],
-    read_stdin: impl FnOnce(ReadWhen) -> io::Result<Option<Vec<u8>>>,
+    stdin: &impl Stdin,
 ) -> Result<Option<(&'stdin_arg StdinArg, String)>, Failure> {
     if stdin_args.is_empty() {
         return Ok(None);
@@ -76,7 +77,7 @@ fn piped<'stdin_arg>(
         return Ok(None);
     };
     let Some(piped) =
-        read_stdin(ReadWhen::Piped).map_err(Failure::Io)?.filter(|piped| !piped.is_empty())
+        stdin.read(ReadWhen::Piped).map_err(Failure::Io)?.filter(|piped| !piped.is_empty())
     else {
         return Ok(None);
     };

@@ -328,7 +328,8 @@
 //!
 //! `dash` gives `-` a meaning: `#[couture(prompt(dash))]` asks for an arg passed `-`, like `git
 //! commit -m -` opening the editor, and `#[couture(accept_stdin(dash))]` reads stdin into it,
-//! like `docker login --password-stdin`. Without `-`, neither asks nor reads.
+//! like `docker login --password-stdin`. With both, `-` asks at a terminal and reads stdin when
+//! piped. Without `-`, neither asks nor reads.
 //!
 //! An example of this interaction is:
 //!

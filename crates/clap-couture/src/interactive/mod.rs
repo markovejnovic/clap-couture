@@ -262,20 +262,25 @@
 //! # assert_eq!(cli.message.as_deref(), Some("Fix login"));
 //! ```
 //! 
-//! With no terminal to ask on, a `-` that asks fails the parse. `-` means one thing per arg:
-//! ```compile_fail
+//! With no terminal to ask on, a `-` that asks fails the parse.
+//!
+//! With both, `-` asks at a terminal and reads stdin otherwise, so `--password -` asks masked when
+//! typed, and takes the password when it is piped in. A terminal there is no asking on, as with
+//! [`NonInteractive`], is read until end of input.
+//! ```
 //! use clap::Parser;
-//! use clap_couture::Couture;
+//! use clap_couture::{Couture, interactive::secrecy::SecretString};
 //!
 //! #[derive(Parser, Couture)]
 //! struct Cli {
+//!     /// Password; `-` asks for it, or reads it from a pipe.
 //!     #[arg(long)]
-//!     #[couture(prompt(dash), accept_stdin(dash))]
-//!     message: Option<String>,
+//!     #[couture(prompt(dash), secret, accept_stdin(dash))]
+//!     password: Option<SecretString>,
 //! }
 //! ```
 //! 
-//! and stands for its one value, so a flag or a `Vec` can't take it:
+//! `-` stands for the arg's one value, so a flag or a `Vec` can't take it:
 //! ```compile_fail
 //! use clap::Parser;
 //! use clap_couture::Couture;

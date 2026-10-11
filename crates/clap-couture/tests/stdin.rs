@@ -75,6 +75,13 @@ struct Note {
     body: Option<String>,
 }
 
+#[derive(Parser, Couture, Debug)]
+struct Draft {
+    #[arg(long)]
+    #[couture(prompt(dash), accept_stdin(dash))]
+    message: Option<String>,
+}
+
 #[derive(Parser, Couture)]
 struct DockerLogin {
     #[arg(long)]
@@ -126,6 +133,14 @@ fn child() {
         }
         "note" => Note::couture_try_parse_from_with(&NonInteractive, argv)
             .map(|note| format!("body={:?}", note.body)),
+        "draft" => {
+            // Available, yet stdin is no terminal: a `-` reads it.
+            let backend = ScriptedBackend::new([]);
+            Draft::couture_try_parse_from_with(&backend, argv).map(|draft| {
+                assert_eq!(backend.asked(), []);
+                format!("message={:?}", draft.message)
+            })
+        }
         "docker-login" => DockerLogin::couture_try_parse_from_with(&NonInteractive, argv)
             .map(|login| format!("password={}", login.password.expose_secret())),
         "login" => {
@@ -290,4 +305,12 @@ fn without_a_dash_stdin_is_left_unread(#[case] argv: &[&str], #[case] parsed: &s
 fn a_dash_reads_a_secret_the_command_line_may_not_pass() {
     let result = run("docker-login", &["--password", "-"], Stdin::Piped(b"hunter2\n"));
     assert_eq!(result.as_deref(), Ok("password=hunter2"));
+}
+
+#[rstest]
+#[case::piped(Stdin::Piped(b"hello\n"), "message=Some(\"hello\")")]
+#[case::from_a_file(Stdin::File(b"hello\n"), "message=Some(\"hello\")")]
+#[case::from_the_null_device(Stdin::Null, "message=Some(\"\")")]
+fn a_dash_that_may_ask_reads_stdin_that_is_no_terminal(#[case] stdin: Stdin, #[case] parsed: &str) {
+    assert_eq!(run("draft", &["--message", "-"], stdin).as_deref(), Ok(parsed));
 }

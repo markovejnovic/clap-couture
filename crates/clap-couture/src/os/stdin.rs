@@ -1,6 +1,6 @@
 //! Stdin, read when something is piped into it or the user asked for it with `-`.
 
-use std::io::{self, Read as _};
+use std::io::{self, IsTerminal as _, Read as _};
 
 /// Which stdin [`read`] reads.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -12,17 +12,34 @@ pub(crate) enum ReadWhen {
     Piped,
 }
 
-/// Everything on stdin; `None` when `when` leaves it unread.
-///
-/// # Errors
-/// Reading stdin failed.
-pub(crate) fn read(when: ReadWhen) -> io::Result<Option<Vec<u8>>> {
-    if when == ReadWhen::Piped && !is_pipe() {
-        return Ok(None);
+/// The process's stdin, as a parse reads it.
+pub(crate) struct ProcessStdin;
+
+/// Stdin as a parse sees it: the process's own, [`ProcessStdin`], or a stand-in in tests.
+pub(crate) trait Stdin {
+    /// Check whether stdin is a terminal.
+    fn is_terminal(&self) -> bool;
+
+    /// Everything on stdin; `None` when `when` leaves it unread.
+    ///
+    /// # Errors
+    /// Reading stdin failed.
+    fn read(&self, when: ReadWhen) -> io::Result<Option<Vec<u8>>>;
+}
+
+impl Stdin for ProcessStdin {
+    fn is_terminal(&self) -> bool {
+        io::stdin().is_terminal()
     }
-    let mut piped = Vec::new();
-    io::stdin().lock().read_to_end(&mut piped)?;
-    Ok(Some(piped))
+
+    fn read(&self, when: ReadWhen) -> io::Result<Option<Vec<u8>>> {
+        if when == ReadWhen::Piped && !is_pipe() {
+            return Ok(None);
+        }
+        let mut stdin = Vec::new();
+        io::stdin().lock().read_to_end(&mut stdin)?;
+        Ok(Some(stdin))
+    }
 }
 
 #[cfg(unix)]

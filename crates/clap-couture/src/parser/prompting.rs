@@ -18,7 +18,7 @@
 //! `-`, else what is piped, if it got no value. It is then no longer asked.
 
 use core::iter;
-use std::{ffi::OsString, io};
+use std::ffi::OsString;
 
 use clap::{
     Arg, ArgAction, ArgGroup, ArgMatches, Command, FromArgMatches, Id,
@@ -38,7 +38,7 @@ use crate::{
         Backend, CommandStyles, ConfirmPrompt, MultiSelectPrompt, PromptError, PromptPurpose,
         PromptedArg, PromptedArgTree, SecretPrompt, SelectPrompt, TextPrompt,
     },
-    os::{signal::Signal, stdin::ReadWhen},
+    os::{signal::Signal, stdin::Stdin},
 };
 #[cfg(feature = "interactive-editor")]
 use crate::{
@@ -386,14 +386,14 @@ impl Session<'_> {
 }
 
 /// Parse `argv` against `cmd`, taking out each `-` a dash arg in `prompted_arg_tree` got, filling
-/// its stdin arg from `read_stdin` and asking `backend` for the prompted args that got no value.
+/// its stdin arg from `stdin` and asking `backend` for the prompted args that got no value.
 pub(super) fn parse<T>(
     cmd: Command,
     prompted_arg_tree: &'static PromptedArgTree,
     messages: &Messages,
     argv: &[OsString],
     backend: &dyn Backend,
-    read_stdin: impl FnOnce(ReadWhen) -> io::Result<Option<Vec<u8>>>,
+    stdin: &impl Stdin,
 ) -> Result<T, Failure>
 where
     T: FromArgMatches,
@@ -407,12 +407,15 @@ where
     {
         return parse_unprompted(cmd, &prompted_args, argv);
     }
-    let (argv, dashed) = dash::take(&cmd, &prompted_args, &stdin_args, argv)?;
+    // Prompts read the terminal, so a `-` that may ask or read stdin reads it when it is no
+    // terminal, as when piped.
+    let can_ask = stdin.is_terminal() && backend.is_available();
+    let (argv, dashed) = dash::take(&cmd, &prompted_args, &stdin_args, argv, can_ask)?;
     let argv = argv.as_slice();
     // `-` is the only way to ask a `prompt(dash)` arg.
     prompted_args.retain(|prompted_arg| {
         !prompted_arg.attr.dash
-            || dashed.contains(&prompted_arg.subcommand_path, prompted_arg.attr.arg_id)
+            || dashed.asks(&prompted_arg.subcommand_path, prompted_arg.attr.arg_id)
     });
     // A `-` asks over the arg's env var, as it does over its default.
     let mut cmd = dashed.without_env(cmd);
@@ -424,7 +427,7 @@ where
     // Re-guarded with the vault this parse's answers go into; trial and final parses share it.
     let vault = Vault::default();
     cmd = secrets::guard(cmd, &prompted_args, &stdin_args, &vault, &messages.environment.get());
-    let stdin = stdin::read(&cmd, &prompted_args, &stdin_args, &dashed, argv, read_stdin)?;
+    let stdin = stdin::read(&cmd, &prompted_args, &stdin_args, &dashed, argv, stdin)?;
     if let Some((stdin_arg, text)) = stdin {
         let is_stdin_arg = |prompted_arg: &PromptedArg| {
             prompted_arg.subcommand_path == stdin_arg.subcommand_path
@@ -814,4 +817,113 @@ where
             level
         }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{ffi::OsString, io};
+
+    use clap::{CommandFactory as _, Parser};
+    use rstest::rstest;
+    use secrecy::SecretString;
+
+    use super::parse;
+    use crate::{
+        Messages,
+        interactive::{
+            Backend, ConfirmPrompt, MultiSelectPrompt, PromptAttr, PromptError, PromptPurpose,
+            PromptedArgTree, SecretPrompt, SelectPrompt, StdinAttr, TextPrompt,
+        },
+        os::stdin::{ReadWhen, Stdin},
+    };
+
+    /// `#[couture(prompt(dash), accept_stdin(dash))]` on `--message`.
+    static ASKED_OR_READ: PromptedArgTree = PromptedArgTree {
+        branches: &[],
+        own_args: &[PromptAttr {
+            arg_id: "message",
+            dash: true,
+            editor: None,
+            purpose: PromptPurpose::Value,
+            question: None,
+            secret: None,
+        }],
+        stdin_arg: Some(StdinAttr { arg_id: "message", dash: true }),
+    };
+
+    /// Answers every text prompt with `"asked"`, when available.
+    struct Answering {
+        available: bool,
+    }
+
+    #[derive(Parser)]
+    struct Draft {
+        #[arg(long)]
+        message: Option<String>,
+    }
+
+    /// Stdin holding `"read"`, a terminal or not.
+    struct FakeStdin {
+        terminal: bool,
+    }
+
+    impl Backend for Answering {
+        fn confirm(&self, _prompt: &ConfirmPrompt<'_>) -> Result<bool, PromptError> {
+            Err(PromptError::NotATerminal)
+        }
+
+        fn is_available(&self) -> bool {
+            self.available
+        }
+
+        fn multi_select(
+            &self,
+            _prompt: &MultiSelectPrompt<'_>,
+        ) -> Result<Vec<String>, PromptError> {
+            Err(PromptError::NotATerminal)
+        }
+
+        fn secret(&self, _prompt: &SecretPrompt<'_>) -> Result<Option<SecretString>, PromptError> {
+            Err(PromptError::NotATerminal)
+        }
+
+        fn select(&self, _prompt: &SelectPrompt<'_>) -> Result<Option<String>, PromptError> {
+            Err(PromptError::NotATerminal)
+        }
+
+        fn text(&self, _prompt: &TextPrompt<'_>) -> Result<Option<String>, PromptError> {
+            Ok(Some("asked".to_owned()))
+        }
+    }
+
+    impl Stdin for FakeStdin {
+        fn is_terminal(&self) -> bool {
+            self.terminal
+        }
+
+        fn read(&self, when: ReadWhen) -> io::Result<Option<Vec<u8>>> {
+            Ok((when == ReadWhen::Always || !self.terminal).then(|| b"read\n".to_vec()))
+        }
+    }
+
+    #[rstest]
+    #[case::asks_at_a_terminal(true, true, "asked")]
+    #[case::reads_stdin_that_is_no_terminal(false, true, "read")]
+    #[case::reads_a_terminal_it_cannot_ask_on(true, false, "read")]
+    fn a_dash_that_may_ask_or_read(
+        #[case] terminal: bool,
+        #[case] available: bool,
+        #[case] message: &str,
+    ) {
+        let argv: Vec<OsString> = ["draft", "--message", "-"].map(OsString::from).into();
+        let draft: Result<Draft, _> = parse(
+            Draft::command(),
+            &ASKED_OR_READ,
+            &Messages::DEFAULT,
+            &argv,
+            &Answering { available },
+            &FakeStdin { terminal },
+        );
+        assert_eq!(draft.ok().and_then(|draft| draft.message).as_deref(), Some(message));
+    }
 }

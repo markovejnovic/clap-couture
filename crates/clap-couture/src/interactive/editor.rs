@@ -29,6 +29,11 @@ use windows_sys::{
 
 use super::{EditorPrompt, PromptError};
 
+/// The signals that reach both us and the editor, and that we leave to the editor while it is
+/// open: Ctrl-C, Ctrl-\\, and the terminal hanging up. Dying of one cancels the prompt.
+#[cfg(unix)]
+const LEFT_TO_EDITOR: [libc::c_int; 3] = [libc::SIGINT, libc::SIGQUIT, libc::SIGHUP];
+
 /// What every header line starts with. Markdown headings take `# ` and shell comments `# `, so
 /// a user's own line almost never starts with `#|`.
 const HEADER: &str = "#|";
@@ -120,7 +125,7 @@ impl Editor {
     /// editor and is not run.
     ///
     /// # Errors
-    /// - [`PromptError::Cancelled`] when the editor dies of Ctrl-C.
+    /// - [`PromptError::Cancelled`] when the editor dies of Ctrl-C, or of the terminal closing.
     /// - [`PromptError::Io`] when the editor cannot be found or started, or exits unsuccessfully.
     fn run(&self, path: &Path, waiting: &str) -> Result<bool, PromptError> {
         if self.command == ":" {
@@ -143,12 +148,15 @@ impl Editor {
             } else {
                 "\n".to_owned()
             };
-            write!(io::stderr(), "{tail}").map_err(PromptError::Io)?;
+            // Best effort: after a hang-up there is no terminal left to write to, and the editor's
+            // status still decides the outcome.
+            drop(write!(io::stderr(), "{tail}"));
         }
         let editor = self.command.to_string_lossy();
         match status {
             Ok(status) if status.success() => Ok(true),
-            // The user pressed Ctrl-C in the editor: back out like any cancelled prompt.
+            // The user pressed Ctrl-C in the editor, or closed the terminal: back out like any
+            // cancelled prompt, removing the temp file.
             Ok(status) if interrupted(status) => Err(PromptError::Cancelled),
             Err(err) if err.kind() == io::ErrorKind::NotFound => Err(PromptError::Io(
                 io::Error::new(err.kind(), format!("Could not find the editor '{editor}'.")),
@@ -201,10 +209,13 @@ impl Editor {
     }
 }
 
-/// Ctrl-C ignored in this process while alive; the previous handling is restored on drop.
+/// [`LEFT_TO_EDITOR`] ignored in this process while alive; the previous handling is restored on
+/// drop.
 ///
 /// Ctrl-C reaches both us and the editor. Ignoring it here, like git does, leaves the editor to
-/// decide: a terminal editor uses it, `code --wait` dies of it and the prompt is cancelled.
+/// decide: a terminal editor uses it, `code --wait` dies of it and the prompt is cancelled. A
+/// closed terminal hangs up both too; ignoring that lets the editor die first, so we live to
+/// remove the temp file, which git's own signal handlers do instead.
 #[cfg(unix)]
 struct IgnoredInterrupts {
     /// Each signal ignored, with the action it had before.
@@ -260,10 +271,9 @@ impl IgnoredInterrupts {
         (status == 0).then_some(previous)
     }
 
-    /// Ignore `SIGINT` and `SIGQUIT`, as git does around its editor. Best effort: a signal that
-    /// can't be ignored keeps its handling.
+    /// Ignore [`LEFT_TO_EDITOR`]. Best effort: a signal that can't be ignored keeps its handling.
     fn new() -> Self {
-        let previous = [libc::SIGINT, libc::SIGQUIT]
+        let previous = LEFT_TO_EDITOR
             .into_iter()
             .filter_map(|signal| Self::ignore(signal).map(|action| (signal, action)))
             .collect();
@@ -338,13 +348,13 @@ impl IgnoredInterrupts {
     }
 }
 
-/// Check whether the editor died of Ctrl-C (or Ctrl-\\). It is our own child, so its status
+/// Check whether the editor died of one of [`LEFT_TO_EDITOR`]. It is our own child, so its status
 /// carries the signal itself.
 #[cfg(unix)]
 fn interrupted(status: ExitStatus) -> bool {
     use std::os::unix::process::ExitStatusExt as _;
 
-    status.signal().is_some_and(|signal| [libc::SIGINT, libc::SIGQUIT].contains(&signal))
+    status.signal().is_some_and(|signal| LEFT_TO_EDITOR.contains(&signal))
 }
 
 /// Check whether the editor died of Ctrl-C.
@@ -378,7 +388,8 @@ const fn interrupted(_status: ExitStatus) -> bool {
 /// when it is a known one. A yes reads the file, a no reopens the editor.
 ///
 /// # Errors
-/// - [`PromptError::Cancelled`] when the editor dies of Ctrl-C, or `confirm_done` is cancelled.
+/// - [`PromptError::Cancelled`] when the editor dies of Ctrl-C or of the terminal closing, or
+///   `confirm_done` is cancelled.
 /// - [`PromptError::Io`] when the temp file cannot be written or read, or the editor cannot be
 ///   found or started, or exits unsuccessfully.
 pub fn edit<F>(
@@ -885,12 +896,12 @@ mod tests {
     #[test]
     fn interrupts_are_ignored_until_dropped() {
         let _signal_handling = lock_signal_handling();
-        let before = [libc::SIGINT, libc::SIGQUIT].map(handler_of);
+        let before = LEFT_TO_EDITOR.map(handler_of);
         let ignored = IgnoredInterrupts::new();
-        let during = [libc::SIGINT, libc::SIGQUIT].map(handler_of);
+        let during = LEFT_TO_EDITOR.map(handler_of);
         drop(ignored);
-        let after = [libc::SIGINT, libc::SIGQUIT].map(handler_of);
-        assert_eq!(during, [Some(libc::SIG_IGN); 2]);
+        let after = LEFT_TO_EDITOR.map(handler_of);
+        assert_eq!(during, [Some(libc::SIG_IGN); 3]);
         assert_eq!(after, before);
     }
 
@@ -924,6 +935,7 @@ mod tests {
     #[rstest]
     #[case::killed_by_sigint(libc::SIGINT, true)]
     #[case::killed_by_sigquit(libc::SIGQUIT, true)]
+    #[case::killed_by_sighup(libc::SIGHUP, true)]
     #[case::killed_by_sigterm(libc::SIGTERM, false)]
     #[case::exits_130(130i32 << 8i32, false)]
     #[case::exits_1(1i32 << 8i32, false)]

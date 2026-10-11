@@ -170,12 +170,34 @@ fn the_default_backend_spawns_the_editor_itself() {
         Ok("caf\u{FFFD}\n\nerror: The file is not UTF-8. Save it as UTF-8.")
     );
 
+    signals_are_left_to_the_editor(dir);
+
+    // An editor exiting 130 on its own is a failure: only a signal it dies of means Ctrl-C.
+    let exit_130 = script(dir, "exit-130", "exit 130");
+    let failed = notes_with(&exit_130.display().to_string(), &quiet()).err().unwrap_or_default();
+    assert!(failed.contains("There was a problem with the editor"), "{failed}");
+
+    let failed = notes_with("false", &quiet()).err().unwrap_or_default();
+    assert!(failed.contains("There was a problem with the editor 'false'."), "{failed}");
+
+    let missing = notes_with("clap-couture-no-such-editor", &quiet()).err().unwrap_or_default();
+    assert!(
+        missing.contains("Could not find the editor 'clap-couture-no-such-editor'."),
+        "{missing}"
+    );
+    fs::remove_dir_all(&editors).ok();
+}
+
+/// Ctrl-C and a hang-up reach the CLI and the editor alike; the CLI leaves them to the editor,
+/// and the editor dying of one cancels the prompt.
+fn signals_are_left_to_the_editor(dir: &Path) {
+    let quiet = DefaultEditor::default;
     // Ctrl-C reaches the CLI too, which ignores it while the editor is open. Without that, this
     // test process would die here.
     let interrupt_parent =
         script(dir, "interrupt-parent", r#"kill -INT "$PPID"; printf 'Survived.\n' > "$1""#);
     let notes = notes_with(&interrupt_parent.display().to_string(), &quiet());
-    assert_eq!(notes.as_deref(), Ok("Survived."));
+    assert_eq!(notes.as_deref(), Ok("Survived."), "Ctrl-C reached the editor, not just us");
 
     // The editor dying of Ctrl-C cancels the prompt, and the temp file goes with it, in a
     // directory of its own that goes too.
@@ -192,18 +214,20 @@ fn the_default_backend_spawns_the_editor_itself() {
         temp_file.display()
     );
 
-    // An editor exiting 130 on its own is a failure, not Ctrl-C: no `sh` reports it any more.
-    let exit_130 = script(dir, "exit-130", "exit 130");
-    let failed = notes_with(&exit_130.display().to_string(), &quiet()).err().unwrap_or_default();
-    assert!(failed.contains("There was a problem with the editor"), "{failed}");
+    // A closed terminal hangs up the CLI too, which outlives it while the editor is open.
+    let hang_up_parent =
+        script(dir, "hang-up-parent", r#"kill -HUP "$PPID"; printf 'Still here.\n' > "$1""#);
+    let notes = notes_with(&hang_up_parent.display().to_string(), &quiet());
+    assert_eq!(notes.as_deref(), Ok("Still here."), "the hang-up reached the editor, not just us");
 
-    let failed = notes_with("false", &quiet()).err().unwrap_or_default();
-    assert!(failed.contains("There was a problem with the editor 'false'."), "{failed}");
-
-    let missing = notes_with("clap-couture-no-such-editor", &quiet()).err().unwrap_or_default();
-    assert!(
-        missing.contains("Could not find the editor 'clap-couture-no-such-editor'."),
-        "{missing}"
+    // The editor dying of the hang-up cancels the prompt, and the temp directory goes.
+    let hung_up = script(
+        dir,
+        "hung-up",
+        &format!(r#"printf '%s' "$1" > '{}'; kill -HUP $$"#, seen.display()),
     );
-    fs::remove_dir_all(&editors).ok();
+    let cancelled = notes_with(&hung_up.display().to_string(), &quiet());
+    assert!(cancelled.as_ref().is_err_and(|err| err.contains("prompt cancelled")), "{cancelled:?}");
+    let temp_file = PathBuf::from(fs::read_to_string(&seen).unwrap_or_default());
+    assert!(temp_file.parent().is_some_and(|dir| !dir.exists()), "{}", temp_file.display());
 }

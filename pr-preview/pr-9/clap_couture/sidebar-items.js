@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"derive":["Couture"],"enum":["Text"],"mod":["interactive"],"struct":["Category","CommandCategoryEntries","CommandCategoryMap","CommandName","Messages"],"trait":["CommandExt","Couture","CoutureParser"]};

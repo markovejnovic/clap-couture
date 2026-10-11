@@ -6,10 +6,7 @@ use secrecy::SecretString;
 
 #[cfg(feature = "interactive-editor")]
 use super::builtin::Edited;
-use super::{
-    Backend, CommandStyles,
-    builtin::{ClapStyle, into_secret},
-};
+use super::{Backend, CommandStyles, builtin::ClapStyle};
 #[cfg(feature = "interactive-editor")]
 use crate::interactive::EditorPrompt;
 use crate::interactive::{
@@ -93,7 +90,7 @@ impl Backend for Cliclack {
             let mut input = if prompt.optional { input.allow_empty() } else { input };
             input.interact()
         })?;
-        Ok(into_secret(answer))
+        Ok((!answer.is_empty()).then(|| SecretString::from(answer)))
     }
 
     fn select(&self, prompt: &SelectPrompt<'_>) -> Result<Option<String>, PromptError> {

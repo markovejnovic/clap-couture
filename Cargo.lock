@@ -112,7 +112,6 @@ dependencies = [
  "unicode-width",
  "which",
  "windows-sys",
- "zeroize",
 ]
 
 [[package]]

@@ -1,8 +1,5 @@
 //! What the built-in backends share.
 
-use secrecy::SecretString;
-use zeroize::Zeroizing;
-
 #[cfg(feature = "interactive-editor")]
 use crate::interactive::PromptError;
 
@@ -42,14 +39,3 @@ pub(super) struct ClapColor(pub(super) clap::builder::styling::Color);
 
 /// A clap style, for a backend to convert into its own style type.
 pub(super) struct ClapStyle<'style>(pub(super) &'style clap::builder::styling::Style);
-
-/// Move a backend's answer into a `SecretString`, `None` when empty.
-///
-/// Best effort: this adds no stale copy of its own. `SecretString::from(String)` shrinks the
-/// buffer, which may reallocate and leave the old one behind; a `Box<str>` has no spare capacity,
-/// so the answer is copied into one and the original zeroized, spare capacity included. Copies the
-/// backend made while reading are out of reach.
-pub(super) fn into_secret(answer: String) -> Option<SecretString> {
-    let answer = Zeroizing::new(answer);
-    (!answer.is_empty()).then(|| SecretString::from(Box::<str>::from(answer.as_str())))
-}

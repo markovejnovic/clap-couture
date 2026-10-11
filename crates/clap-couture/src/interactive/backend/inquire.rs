@@ -15,7 +15,7 @@ use secrecy::SecretString;
 
 use super::{
     Backend, CommandStyles,
-    builtin::{ClapColor, ClapStyle, NamedColor, into_secret},
+    builtin::{ClapColor, ClapStyle, NamedColor},
 };
 #[cfg(feature = "interactive-editor")]
 use crate::interactive::EditorPrompt;
@@ -101,7 +101,8 @@ impl Backend for Inquire {
         } else {
             input.with_validator(ValueRequiredValidator::default())
         };
-        Ok(into_secret(input.prompt().map_err(InquireError)?))
+        let answer = input.prompt().map_err(InquireError)?;
+        Ok((!answer.is_empty()).then(|| SecretString::from(answer)))
     }
 
     fn select(&self, prompt: &SelectPrompt<'_>) -> Result<Option<String>, PromptError> {

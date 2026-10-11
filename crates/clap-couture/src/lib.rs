@@ -367,7 +367,6 @@ impl CommandName {
 ///
 /// Cli::couture_command().print_help().unwrap();
 /// ```
-///
 /// `tool --help` renders
 /// ```text
 /// 用法：
@@ -380,7 +379,6 @@ impl CommandName {
 ///       --region <REGION>  部署区域 [possible values: eu, us]
 ///   -h, --help             Print help
 /// ```
-///
 /// and `tool ship`, run on a terminal without `--region`, asks for the optional region with
 /// `none` as its last choice. Picking it leaves `region` unset. With the
 /// `interactive-cliclack` backend:
@@ -391,7 +389,6 @@ impl CommandName {
 /// │  ○ 无
 /// └
 /// ```
-///
 /// `Print help` and `[possible values: ...]` are clap's own text; for the help flag, disable
 /// clap's and add your own.
 #[derive(Clone, Copy, Debug)]

@@ -78,6 +78,26 @@ fn an_about_keeps_its_placeholders() {
     assert!(help.contains("delete  Delete <id> from the store\n"), "{help}");
 }
 
+#[cfg(feature = "markdown")]
+/// Copy **files**.
+///
+/// Reads _every_ source first.
+#[derive(Parser, Couture)]
+struct Described {
+    #[command(subcommand)]
+    cmd: Option<Cmd>,
+
+    /// Overwrite **what** is there.
+    ///
+    /// Even _read-only_ files.
+    #[arg(long)]
+    force: bool,
+
+    /// Copy into <DEST>.
+    #[arg(long)]
+    into: Option<String>,
+}
+
 #[rstest]
 fn positional_arguments_are_listed() {
     let help = Copy::couture_command().render_help().to_string();
@@ -140,4 +160,41 @@ fn long_help_shows_the_long_text_and_short_help_the_short() {
     assert!(!short.contains("Read in full"), "{short}");
     assert!(long.contains("Read in full before anything is written."), "{long}");
     assert!(long.contains("Everyday:\n  plan"), "{long}");
+}
+
+#[cfg(feature = "markdown")]
+#[rstest]
+fn short_help_renders_markdown_in_the_about_and_arg_help() {
+    let help = Described::couture_command().render_help().to_string();
+    assert!(help.starts_with("Copy files\n"), "{help}");
+    assert!(help.contains("--force        Overwrite what is there\n"), "{help}");
+    assert!(!help.contains("**") && !help.contains("_every_"), "{help}");
+}
+
+#[cfg(feature = "markdown")]
+#[rstest]
+fn long_help_renders_markdown_in_the_long_about_and_arg_help() {
+    let help = Described::couture_command().render_long_help().to_string();
+    assert!(help.starts_with("Copy files.\n\nReads every source first.\n"), "{help}");
+    // clap indents the blank line between the paragraphs too.
+    assert!(
+        help.contains("Overwrite what is there.\n          \n          Even read-only files."),
+        "{help}"
+    );
+    assert!(!help.contains("**") && !help.contains('_'), "{help}");
+}
+
+#[cfg(feature = "markdown")]
+#[rstest]
+fn markdown_is_styled_on_a_terminal() {
+    let help = Described::couture_command().render_help().ansi().to_string();
+    assert!(help.contains("\u{1b}[1mfiles\u{1b}[0m"), "{help}");
+    assert!(help.contains("\u{1b}[1mwhat\u{1b}[0m"), "{help}");
+}
+
+#[cfg(feature = "markdown")]
+#[rstest]
+fn an_angle_bracketed_placeholder_is_kept() {
+    let help = Described::couture_command().render_help().to_string();
+    assert!(help.contains("Copy into <DEST>\n"), "{help}");
 }

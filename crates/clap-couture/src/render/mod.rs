@@ -10,7 +10,10 @@ use core::{
     iter,
 };
 
-use clap::{Command, builder::Styles};
+use clap::{
+    Command,
+    builder::{Resettable, StyledStr, Styles},
+};
 #[cfg(feature = "markdown")]
 use md::MdTextRenderer as Renderer;
 #[cfg(not(feature = "markdown"))]
@@ -30,6 +33,9 @@ pub(crate) trait TextRenderer {
     fn render_str<W>(&self, out: &mut W, text: &str) -> fmt::Result
     where
         W: fmt::Write;
+
+    /// `text` as this renderer shows it, as text clap writes as is.
+    fn restyle(&self, text: &StyledStr) -> StyledStr;
 }
 
 pub(crate) trait CommandRenderExt {
@@ -38,6 +44,14 @@ pub(crate) trait CommandRenderExt {
     /// clap's build hands a command's `term_width` and `max_term_width` to each subcommand, so
     /// the built root's width is every built command's.
     fn help_width(&self) -> Option<usize>;
+
+    /// This command with its about and long about rendered.
+    #[must_use]
+    fn with_rendered_about(self) -> Self;
+
+    /// This command with each arg's help and long help rendered.
+    #[must_use]
+    fn with_rendered_arg_help(self) -> Self;
 
     /// Writes this command's visible subcommands to `out`, wrapped to `width`.
     fn write_command_sections<W>(
@@ -70,6 +84,23 @@ impl CommandRenderExt for Command {
             |letter: char| help.lines().find(|line| line.starts_with(letter)).map_or(0, str::len);
         let width = first_line('a').max(first_line('b'));
         (width < unwrapped).then_some(width)
+    }
+
+    fn with_rendered_about(self) -> Self {
+        let renderer = Renderer::new(self.get_styles());
+        let about = self.get_about().map(|text| renderer.restyle(text));
+        let long_about = self.get_long_about().map(|text| renderer.restyle(text));
+        self.about(Resettable::from(about)).long_about(Resettable::from(long_about))
+    }
+
+    fn with_rendered_arg_help(self) -> Self {
+        let styles = self.get_styles().clone();
+        let renderer = Renderer::new(&styles);
+        self.mut_args(|arg| {
+            let help = arg.get_help().map(|text| renderer.restyle(text));
+            let long_help = arg.get_long_help().map(|text| renderer.restyle(text));
+            arg.help(Resettable::from(help)).long_help(Resettable::from(long_help))
+        })
     }
 
     fn write_command_sections<W>(

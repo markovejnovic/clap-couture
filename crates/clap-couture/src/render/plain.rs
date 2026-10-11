@@ -1,6 +1,6 @@
 use core::fmt::{self, Display};
 
-use clap::builder::Styles;
+use clap::builder::{StyledStr, Styles};
 
 use super::TextRenderer;
 
@@ -26,5 +26,9 @@ impl TextRenderer for PlainTextRenderer {
         W: fmt::Write,
     {
         out.write_str(text)
+    }
+
+    fn restyle(&self, text: &StyledStr) -> StyledStr {
+        text.clone()
     }
 }

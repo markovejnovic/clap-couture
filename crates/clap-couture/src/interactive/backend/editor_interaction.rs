@@ -32,9 +32,9 @@ impl<'run, B: Backend + ?Sized> EditorInteraction<'run, B> {
     ///   found or started, or exits unsuccessfully.
     pub fn answer(mut self) -> Result<Option<String>, PromptError> {
         let Some(opened) = self.opened.as_mut() else {
-            // `:` is git's no-op editor: the default is taken as written.
-            let default = self.prompt.default.map(str::trim).filter(|default| !default.is_empty());
-            return Ok(default.map(ToOwned::to_owned));
+            // `:` is git's no-op editor: the initial text is taken as written.
+            let initial = self.prompt.initial.map(str::trim).filter(|initial| !initial.is_empty());
+            return Ok(initial.map(ToOwned::to_owned));
         };
 
         loop {
@@ -88,7 +88,7 @@ impl<'run, B: Backend + ?Sized> EditorInteraction<'run, B> {
         file_name.push(prompt.extension);
 
         let options = EditorSpawnOptions::builder()
-            .contents(prompt.default.unwrap_or_default())
+            .contents(prompt.initial.unwrap_or_default())
             .prompt(&header)
             .tmpfile(file_name)
             .hint(prompt.waiting)

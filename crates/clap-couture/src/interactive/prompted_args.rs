@@ -10,6 +10,8 @@ use crate::Text;
 pub struct EditorAttr {
     /// The temp file's extension, without the dot.
     pub extension: &'static str,
+    /// The text the file starts with when the arg has no default.
+    pub initial: Option<Text>,
 }
 
 impl EditorAttr {

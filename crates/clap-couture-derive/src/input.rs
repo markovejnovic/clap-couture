@@ -32,6 +32,8 @@ pub(crate) struct CoutureInput {
 pub(crate) struct EditorOptions {
     /// The temp file's extension, without the dot; `txt` when left out.
     pub(crate) extension: Option<SpannedValue<String>>,
+    /// The text the file starts with when the arg has no default.
+    pub(crate) initial: Option<TextExpr>,
 }
 
 /// What `#[couture(prompt)]` or `#[couture(confirm)]` asks: `Inherit` when bare, the arg's help

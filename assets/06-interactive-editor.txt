@@ -7,37 +7,7 @@
 │  ○ Yes  / ● No
 └
 ────────────────────────────────────────────────────────────────────────────────
-> deploy
-◇  Tail the logs afterwards
-│  Yes
-│
-│  hint: Waiting for your editor to close the file...
-────────────────────────────────────────────────────────────────────────────────
-
-#| Release notes for this deploy
-#|
-#| These lines are removed. Leave the file empty to leave it unset.
-~
-~
-~
-~
-~
-~
-~
-~
-~
-~
-~
-~
-~
-~
-~
-~
-~
-~
-~
-</06-interactive-editor-uxPvgS/deploy-notes.md" 4L, 105B           1,0-1         All
-────────────────────────────────────────────────────────────────────────────────
+## Changes
 
 
 #| Release notes for this deploy
@@ -60,10 +30,11 @@
 ~
 ~
 ~
-~
--- INSERT --                                                       1,1           All
+<28dy_91h40000gn/T/06-interactive-editor-NxPXeh/deploy-notes.md" 6L, 117B
 ────────────────────────────────────────────────────────────────────────────────
-Ships the new billing page.
+## Changes
+
+
 
 #| Release notes for this deploy
 #|
@@ -84,11 +55,11 @@ Ships the new billing page.
 ~
 ~
 ~
-~
-~
--- INSERT --                                                       1,28          All
+-- INSERT --
 ────────────────────────────────────────────────────────────────────────────────
-Ships the new billing page.
+## Changes
+- Ships the new billing page.
+
 
 #| Release notes for this deploy
 #|
@@ -109,11 +80,11 @@ Ships the new billing page.
 ~
 ~
 ~
-~
-~
-                                                         ^[
+-- INSERT --
 ────────────────────────────────────────────────────────────────────────────────
-Ships the new billing page.
+## Changes
+- Ships the new billing page.
+
 
 #| Release notes for this deploy
 #|
@@ -134,17 +105,15 @@ Ships the new billing page.
 ~
 ~
 ~
-~
-~
-                                                                   1,27          All
+                                                                          ^[
 ────────────────────────────────────────────────────────────────────────────────
-Ships the new billing page.
+## Changes
+- Ships the new billing page.
+
 
 #| Release notes for this deploy
 #|
 #| These lines are removed. Leave the file empty to leave it unset.
-~
-~
 ~
 ~
 ~
@@ -167,14 +136,8 @@ Ships the new billing page.
 ◇  Tail the logs afterwards
 │  Yes
 │
-│  hint: Waiting for your editor to close the file...
-────────────────────────────────────────────────────────────────────────────────
-> deploy
-◇  Tail the logs afterwards
-│  Yes
-│
 ◇  Release notes for this deploy
-│  Ships the new billing page.
+│  ## Changes…
 │
 ◆  Region to deploy to
 │
@@ -185,7 +148,7 @@ Ships the new billing page.
 │  Yes
 │
 ◇  Release notes for this deploy
-│  Ships the new billing page.
+│  ## Changes…
 │
 ◆  Region to deploy to
 │  us-east
@@ -196,7 +159,7 @@ Ships the new billing page.
 │  Yes
 │
 ◇  Release notes for this deploy
-│  Ships the new billing page.
+│  ## Changes…
 │
 ◇  Region to deploy to
 │  us-east
@@ -212,7 +175,7 @@ Ships the new billing page.
 │  Yes
 │
 ◇  Release notes for this deploy
-│  Ships the new billing page.
+│  ## Changes…
 │
 ◇  Region to deploy to
 │  us-east
@@ -222,6 +185,7 @@ Ships the new billing page.
 │
 deploying to us-east (rolling), following logs: true
 notes:
-Ships the new billing page.
+## Changes
+- Ships the new billing page.
 >
 ────────────────────────────────────────────────────────────────────────────────

@@ -38,6 +38,8 @@ enum PromptedArgBranch {
 struct EditorAttr {
     /// The temp file's extension, without the dot.
     extension: String,
+    /// The text the file starts with when the arg has no default.
+    initial: Option<TextExpr>,
 }
 
 /// One `#[couture(prompt)]` or `#[couture(confirm)]`, with or without `= "..."`.
@@ -176,8 +178,9 @@ impl EditorAttr {
             Override::Inherit => EditorOptions::default(),
             Override::Explicit(options) => options.clone(),
         };
+        let initial = options.initial;
         let Some(extension) = options.extension else {
-            return Ok(Self { extension: "txt".to_owned() });
+            return Ok(Self { extension: "txt".to_owned(), initial });
         };
         if extension.is_empty() || extension.starts_with('.') || extension.contains(['/', '\\']) {
             return Err(Error::custom(
@@ -185,7 +188,7 @@ impl EditorAttr {
             )
             .with_span(&extension.span()));
         }
-        Ok(Self { extension: extension.into_inner() })
+        Ok(Self { extension: extension.into_inner(), initial })
     }
 }
 
@@ -338,12 +341,16 @@ impl ToTokens for PromptAttr {
         let arg_id = &self.arg_id;
         let editor = self.editor.as_ref().map_or_else(
             || quote!(::core::option::Option::None),
-            |EditorAttr { extension }| {
+            |EditorAttr { extension, initial }| {
+                let initial = OptionalText::from(initial);
                 quote! {
                     ::core::option::Option::Some({
                         // Fails the build when clap-couture can't open an editor.
                         const _: () = ::clap_couture::interactive::EditorAttr::FEATURE_CHECK;
-                        ::clap_couture::interactive::EditorAttr { extension: #extension }
+                        ::clap_couture::interactive::EditorAttr {
+                            extension: #extension,
+                            initial: #initial,
+                        }
                     })
                 }
             },

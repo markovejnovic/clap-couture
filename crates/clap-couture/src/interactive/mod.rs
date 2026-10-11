@@ -168,6 +168,7 @@
 mod backend;
 mod prompted_args;
 mod sealed;
+mod prompter;
 
 use std::io;
 
@@ -191,6 +192,7 @@ pub use prompted_args::{
 pub use secrecy;
 
 pub use crate::os::signal::Signal;
+pub use prompter::Prompter;
 
 /// Why a prompt produced no answer.
 #[derive(Debug, thiserror::Error)]
@@ -227,6 +229,7 @@ impl From<io::Error> for PromptError {
 
 /// A yes/no question.
 #[derive(Debug)]
+#[non_exhaustive]
 pub struct ConfirmPrompt<'prompt> {
     /// The answer Enter accepts.
     pub default: bool,
@@ -266,6 +269,7 @@ pub struct EditorPrompt<'prompt> {
 
 /// A pick of any number of an arg's possible values.
 #[derive(Debug)]
+#[non_exhaustive]
 pub struct MultiSelectPrompt<'prompt> {
     /// The names of the options picked to begin with.
     pub defaults: &'prompt [String],
@@ -294,6 +298,7 @@ pub struct SecretPrompt<'prompt> {
 
 /// A pick among an arg's possible values.
 #[derive(Debug)]
+#[non_exhaustive]
 pub struct SelectPrompt<'prompt> {
     /// The name of the option Enter accepts, if any.
     pub default: Option<&'prompt str>,
@@ -311,6 +316,7 @@ pub struct SelectPrompt<'prompt> {
 
 /// A free-text question.
 #[derive(Debug)]
+#[non_exhaustive]
 pub struct TextPrompt<'prompt> {
     /// The answer Enter accepts, if any.
     pub default: Option<&'prompt str>,

@@ -10,7 +10,7 @@ use std::ffi::OsString;
 use clap::{Command, FromArgMatches, Parser};
 
 #[cfg(feature = "interactive")]
-use crate::interactive::Backend;
+use crate::interactive::{Backend, DefaultBackend, Prompter};
 #[cfg(feature = "interactive")]
 use crate::os::signal::Signal;
 use crate::{CommandExt as _, Couture};
@@ -92,6 +92,24 @@ pub trait CoutureParser: Parser + Couture {
             backend,
         )
         .map_err(Failure::into_clap)
+    }
+
+    /// A [`Prompter`] asking through [`DefaultBackend`], in this command's styles and
+    /// [`Messages`](crate::Messages); `None` without a terminal.
+    #[cfg(feature = "interactive")]
+    #[must_use]
+    fn prompter() -> Option<Prompter> {
+        Self::prompter_with(DefaultBackend::default())
+    }
+
+    /// Equivalent to [`prompter`](Self::prompter), asking through `backend`.
+    #[cfg(feature = "interactive")]
+    #[must_use]
+    fn prompter_with<B>(backend: B) -> Option<Prompter<B>>
+    where
+        B: Backend,
+    {
+        Prompter::new(backend, Self::MESSAGES, Self::couture_command().get_styles().clone())
     }
 }
 

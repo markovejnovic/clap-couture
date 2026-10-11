@@ -301,6 +301,41 @@
 //!
 //! See [`examples/07-interactive-secret.rs`](https://github.com/markovejnovic/clap-couture/blob/main/crates/clap-couture/examples/07-interactive-secret.rs).
 //!
+//! ### Your own questions
+//!
+//! Some questions only make sense after the parse. [`CoutureParser::prompter`] asks them in the
+//! same UI, styles and [`Messages`] as the prompted args, and is `None` without a terminal.
+//!
+//! ```
+//! use clap::{Parser, ValueEnum};
+//! use clap_couture::{Couture, CoutureParser as _};
+//!
+//! #[derive(Parser, Couture)]
+//! struct Cli;
+//!
+//! #[derive(Clone, ValueEnum)]
+//! enum Engine {
+//!     Postgres,
+//!     Sqlite,
+//! }
+//!
+//! # fn main() -> Result<(), clap_couture::interactive::PromptError> {
+//! if let Some(prompter) = Cli::prompter()
+//!     && prompter.confirm("Add a database?", true)?
+//! {
+//!     let engine = prompter.select::<Engine>("Which engine?")?;
+//! }
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! An example of this interaction is:
+//!
+//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/06-interactive-prompter-dark.gif" alt="running orbit-create with no flags: it asks for the app, then whether to add a database, and on a yes, which engine" width="600">
+//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/06-interactive-prompter-light.gif" alt="running orbit-create with no flags: it asks for the app, then whether to add a database, and on a yes, which engine" width="600">
+//!
+//! See [`examples/06-interactive-prompter.rs`](https://github.com/markovejnovic/clap-couture/blob/main/crates/clap-couture/examples/06-interactive-prompter.rs).
+//!
 //! ### Backends
 //!
 //! You can pick from three interactive backends:

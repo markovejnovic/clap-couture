@@ -1,0 +1,61 @@
+>
+────────────────────────────────────────────────────────────────────────────────
+> orbit-create
+────────────────────────────────────────────────────────────────────────────────
+> orbit-create
+◆  Application name
+│
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit-create
+◆  Application name
+│  web
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit-create
+◇  Application name
+│  web
+│
+◆  Add a database?
+│  ● Yes  / ○ No
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit-create
+◇  Application name
+│  web
+│
+◇  Add a database?
+│  Yes
+│
+◆  Which engine?
+│  ● mysql
+│  ○ postgres
+│  ○ sqlite
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit-create
+◇  Application name
+│  web
+│
+◇  Add a database?
+│  Yes
+│
+◆  Which engine?
+│  ○ mysql
+│  ● postgres
+│  ○ sqlite
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit-create
+◇  Application name
+│  web
+│
+◇  Add a database?
+│  Yes
+│
+◇  Which engine?
+│  postgres
+│
+creating web with postgres
+>
+────────────────────────────────────────────────────────────────────────────────

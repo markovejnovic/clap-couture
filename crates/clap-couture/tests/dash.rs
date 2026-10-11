@@ -33,15 +33,15 @@ struct Commit {
 
 #[derive(Parser, Couture, Debug)]
 struct Serve {
-    /// Port to listen on.
-    #[arg(long)]
-    #[couture(prompt(dash))]
-    port: Option<u16>,
-
     /// Log level.
     #[arg(long, value_enum)]
     #[couture(prompt(dash))]
     level: Option<Level>,
+
+    /// Port to listen on.
+    #[arg(long)]
+    #[couture(prompt(dash))]
+    port: Option<u16>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]

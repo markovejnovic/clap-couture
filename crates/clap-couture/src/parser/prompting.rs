@@ -33,7 +33,7 @@ use super::{
     Failure,
     dash::{DashArgs, Dashed},
     secrets::{self, Vault},
-    stdin,
+    stdin::{StdinArgs, StdinValue},
 };
 use crate::{
     Messages,
@@ -421,7 +421,7 @@ where
     T: FromArgMatches,
 {
     let mut prompted_args = prompted_arg_tree.prompted_args();
-    let stdin_args = prompted_arg_tree.stdin_args();
+    let stdin_args = StdinArgs::of(prompted_arg_tree);
     let dash_args = DashArgs::of(&prompted_args, &stdin_args);
     let nothing_to_ask = prompted_args.is_empty() || !backend.is_available();
     if nothing_to_ask && stdin_args.is_empty() && dash_args.is_empty() {
@@ -430,11 +430,7 @@ where
     // Re-guarded with the vault this parse's answers go into; trial and final parses share it.
     let vault = Vault::default();
     let mut cmd = secrets::guard(cmd, &prompted_args, &vault, &messages.environment.get());
-    let relaxed = stdin_args
-        .iter()
-        .fold(relax(dash_args.checking(cmd.clone()), &prompted_args), |cmd, stdin_arg| {
-            unrequire(cmd, &stdin_arg.subcommand_path, stdin_arg.attr.arg_id)
-        });
+    let relaxed = stdin_args.unrequired(relax(dash_args.checking(cmd.clone()), &prompted_args));
     // Prompts read the terminal, so a `-` that may ask or read stdin reads it when it is no
     // terminal, as when piped.
     let can_ask = stdin.is_terminal() && backend.is_available();
@@ -452,8 +448,8 @@ where
         return Err(asked.unaskable(&cmd));
     }
     let checking = dash_args.checking(cmd.clone());
-    if let Some((stdin_arg, text)) =
-        stdin::read(&checking, &prompted_args, &stdin_args, &dashed, argv, stdin)?
+    if let Some(StdinValue { stdin_arg, text }) =
+        stdin_args.read(&checking, &prompted_args, &dashed, argv, stdin)?
     {
         let (path, id) = (stdin_arg.subcommand_path.as_slice(), stdin_arg.attr.arg_id);
         let is_stdin_arg = |prompted_arg: &PromptedArg| {

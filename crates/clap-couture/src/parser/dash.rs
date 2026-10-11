@@ -24,8 +24,9 @@ use clap::{
 use super::{
     Failure,
     prompting::{arg_at, matches_at, raw_values, with_arg_at},
+    stdin::StdinArgs,
 };
-use crate::interactive::{DashAttr, PromptedArg, StdinArg};
+use crate::interactive::{DashAttr, PromptedArg};
 
 /// The id of the one arg of [`DashValueParser::parse_alone`]'s command.
 const VALUE: &str = "value";
@@ -143,7 +144,7 @@ impl DashArgs {
     }
 
     /// The dash args of `prompted_args` and `stdin_args`, each once.
-    pub(super) fn of(prompted_args: &[PromptedArg], stdin_args: &[StdinArg]) -> Self {
+    pub(super) fn of(prompted_args: &[PromptedArg], stdin_args: &StdinArgs) -> Self {
         let mut dash_args: Vec<DashArg> = Vec::new();
         let asking = prompted_args.iter().filter_map(|prompted_arg| {
             let attr = prompted_arg.attr.dash?;

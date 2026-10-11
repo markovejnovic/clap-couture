@@ -1,10 +1,22 @@
 //! The static tree of prompted and stdin args that `#[derive(Couture)]` emits as
 //! `Couture::PROMPTED_ARGS`.
 
+use clap::builder::ValueParser;
 use secrecy::SecretString;
 
 use super::sealed::Sealed;
-use crate::Text;
+use crate::{
+    Text,
+    parser::dash::{DashValueParser, TypedDashValueParser},
+};
+
+/// The `dash` of `prompt(dash)` or `stdin(dash)`: `-` as the arg's value stands for what is asked
+/// or read for it.
+#[derive(Clone, Copy, Debug)]
+pub struct DashAttr {
+    /// The arg's value parser for the final parse, giving the field's type.
+    typed_parser: fn(DashValueParser) -> ValueParser,
+}
 
 /// The `editor` beside a `#[couture(prompt)]`: ask in the user's editor.
 #[derive(Debug)]
@@ -13,6 +25,22 @@ pub struct EditorAttr {
     pub extension: &'static str,
     /// The text the file starts with when the arg has no default.
     pub initial: Option<Text>,
+}
+
+impl DashAttr {
+    /// The attr of a dash arg whose field holds a `T`, `Option` peeled.
+    #[must_use]
+    pub const fn new<T>() -> Self
+    where
+        T: Clone + Send + Sync + 'static,
+    {
+        Self { typed_parser: TypedDashValueParser::<T>::value_parser }
+    }
+
+    /// `dash` as the value parser of the final parse.
+    pub(crate) fn typed_parser(self, dash: DashValueParser) -> ValueParser {
+        (self.typed_parser)(dash)
+    }
 }
 
 impl EditorAttr {
@@ -32,6 +60,8 @@ impl EditorAttr {
 pub struct PromptAttr {
     /// The clap id of the arg it is on.
     pub arg_id: &'static str,
+    /// `prompt(dash)`: asked only when `-` is its value.
+    pub dash: Option<DashAttr>,
     /// `Some` for `#[couture(prompt, editor)]`; only set with the `interactive-editor` feature.
     pub editor: Option<EditorAttr>,
     /// What the answer is for.
@@ -79,15 +109,24 @@ pub struct PromptedArgTree {
     pub branches: &'static [PromptedArgBranch],
     /// The args prompted for at this level.
     pub own_args: &'static [PromptAttr],
-    /// The clap id of this level's `#[couture(accept_stdin)]` arg, if any.
-    pub stdin_arg: Option<&'static str>,
+    /// This level's `#[couture(stdin)]` arg, if any.
+    pub stdin_arg: Option<StdinAttr>,
 }
 
-/// An arg marked `#[couture(accept_stdin)]`, and the subcommand path to the command that owns it.
+/// One `#[couture(stdin)]`.
+#[derive(Debug)]
+pub struct StdinAttr {
+    /// The clap id of the arg it is on.
+    pub arg_id: &'static str,
+    /// `stdin(dash)`: stdin is read only when `-` is its value.
+    pub dash: Option<DashAttr>,
+}
+
+/// An arg marked `#[couture(stdin)]`, and the subcommand path to the command that owns it.
 #[derive(Debug)]
 pub(crate) struct StdinArg {
-    /// The clap id of the arg.
-    pub(crate) arg_id: &'static str,
+    /// Its `#[couture(stdin)]`.
+    pub(crate) attr: &'static StdinAttr,
     /// Subcommand names from the root, empty for a root arg.
     pub(crate) subcommand_path: Vec<&'static str>,
 }
@@ -113,15 +152,15 @@ impl PromptedArgTree {
     pub const EMPTY: Self = Self { branches: &[], own_args: &[], stdin_arg: None };
 
     /// Evaluated beside every derived tree: fails the build when one command path holds more than
-    /// one `#[couture(accept_stdin)]` arg, as stdin can only be read once.
+    /// one `#[couture(stdin)]` arg, as stdin can only be read once.
     ///
     /// # Panics
     /// When it fails the build.
     pub const fn assert_stdin_read_once(&self) {
         assert!(
             self.most_stdin_args_on_a_path() <= 1,
-            "`#[couture(accept_stdin)]` marks more than one arg on one command path; stdin can \
-             only be read once"
+            "`#[couture(stdin)]` marks more than one arg on one command path; stdin can only be \
+             read once"
         );
     }
 
@@ -161,14 +200,15 @@ impl PromptedArgTree {
         prompted_args
     }
 
-    /// Every `#[couture(accept_stdin)]` arg in the tree, in declaration order. At most one of them
+    /// Every `#[couture(stdin)]` arg in the tree, in declaration order. At most one of them
     /// sits on any one subcommand chain.
     pub(crate) fn stdin_args(&'static self) -> Vec<StdinArg> {
         let mut stdin_args = Vec::new();
         self.walk(&mut Vec::new(), &mut |tree, subcommand_path| {
             stdin_args.extend(
                 tree.stdin_arg
-                    .map(|arg_id| StdinArg { arg_id, subcommand_path: subcommand_path.to_vec() }),
+                    .as_ref()
+                    .map(|attr| StdinArg { attr, subcommand_path: subcommand_path.to_vec() }),
             );
         });
         stdin_args

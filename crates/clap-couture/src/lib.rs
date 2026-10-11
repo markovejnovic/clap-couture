@@ -293,7 +293,7 @@
 //!
 //! ### Piped input
 //!
-//! `#[couture(accept_stdin)]` lets an arg come from a pipe: `echo hi | post` works like `post
+//! `#[couture(stdin)]` lets an arg come from a pipe: `echo hi | post` works like `post
 //! --message hi`. Stdin is read only when it is a pipe and the arg was left out, so a terminal, a
 //! file or `/dev/null` on stdin never blocks the parse. Beside `prompt`, the arg is asked when
 //! nothing is piped; beside `secret`, it works like `docker login --password-stdin`.
@@ -306,7 +306,7 @@
 //! struct Cli {
 //!     /// Message to post.
 //!     #[arg(long)]
-//!     #[couture(prompt, accept_stdin)]
+//!     #[couture(prompt, stdin)]
 //!     message: String,
 //! }
 //!
@@ -323,6 +323,27 @@
 //!
 //! Only one arg on a command may take stdin, as stdin can only be read once. See
 //! [the `interactive` module](interactive#reading-piped-stdin) for the details.
+//!
+//! ### Dash input
+//!
+//! `#[couture(prompt(dash))]` asks for an argument interactively if the user passes `-` as the
+//! command line flag.
+//!
+//! ```rust,ignore
+//! #[arg(short, long)]
+//! #[couture(prompt(dash), editor)] // `commit -m -` opens your $EDITOR
+//! message: Option<String>,
+//!
+//! #[arg(long)]
+//! #[couture(prompt, secret, stdin(dash))] // `login --password -` reads stdin
+//! password: SecretString,
+//! ```
+//!
+//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/11-interactive-dash-dark.gif" alt="running orbit-release --title -, which asks for the title, then piping release notes into orbit-release --notes -, which reads them from stdin" width="623">
+//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/11-interactive-dash-light.gif" alt="running orbit-release --title -, which asks for the title, then piping release notes into orbit-release --notes -, which reads them from stdin" width="623">
+//!
+//! See [`examples/11-interactive-dash.rs`](https://github.com/markovejnovic/clap-couture/blob/main/crates/clap-couture/examples/11-interactive-dash.rs),
+//! and [the `interactive` module](interactive#dash-as-a-value) for the details.
 //!
 //! ### Custom interactive input
 //!

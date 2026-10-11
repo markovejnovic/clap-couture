@@ -225,6 +225,7 @@ mod tests {
 
     static TOKEN: PromptAttr = PromptAttr {
         arg_id: "token",
+        dash: None,
         editor: None,
         purpose: PromptPurpose::Value,
         question: None,
@@ -233,6 +234,7 @@ mod tests {
 
     static SCRIPTED_TOKEN: PromptAttr = PromptAttr {
         arg_id: "token",
+        dash: None,
         editor: None,
         purpose: PromptPurpose::Value,
         question: None,

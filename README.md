@@ -106,7 +106,7 @@ enum Cmd {
 }
 ```
 
-### Prompts
+## Prompts
 
 Clap isn't really interactive. clap-couture fills that gap! Mark an arg with
 `#[couture(prompt)]`, and when the user leaves it out, couture asks for it
@@ -153,7 +153,7 @@ again.
 ### Confirmations
 
 `#[couture(confirm = "...")]` on a `bool` asks before doing something you can't
-take back.
+revert.
 
 ```rust
 #[arg(long)]
@@ -168,18 +168,40 @@ force: bool,
 
 ### Piped input
 
-`#[couture(accept_stdin)]` lets an arg come from a pipe, so `echo hi | post`
+`#[couture(stdin)]` lets an arg come from a pipe, so `echo hi | post`
 works like `post --message hi`.
 
 ```rust
 #[arg(long)]
-#[couture(prompt, accept_stdin)]
+#[couture(prompt, stdin)]
 message: String,
 ```
 
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="assets/10-interactive-stdin-light.gif">
   <img src="assets/10-interactive-stdin-dark.gif" alt="piping release notes into orbit-release, which takes them without asking, then running orbit-release alone, which asks for the notes" width="623">
+</picture>
+
+You can only set it on one field!
+
+### Dash inputs
+
+`#[couture(prompt(dash))]` asks for an argument interactively if the user
+passes `-` as the command line flag.
+
+```rust
+#[arg(short, long)]
+#[couture(prompt(dash), editor)] // `commit -m -` opens your $EDITOR
+message: Option<String>,
+
+#[arg(long)]
+#[couture(prompt, secret, stdin(dash))] // `login --password -` reads stdin
+password: SecretString,
+```
+
+<picture>
+  <source media="(prefers-color-scheme: light)" srcset="assets/11-interactive-dash-light.gif">
+  <img src="assets/11-interactive-dash-dark.gif" alt="running orbit-release --title -, which asks for the title, then piping release notes into orbit-release --notes -, which reads them from stdin" width="623">
 </picture>
 
 ## Markdown

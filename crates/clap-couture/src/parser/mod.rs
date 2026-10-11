@@ -1,6 +1,8 @@
 //! Parse entry points with couture installed.
 
 #[cfg(feature = "interactive")]
+pub(crate) mod dash;
+#[cfg(feature = "interactive")]
 mod prompting;
 #[cfg(feature = "interactive")]
 mod secrets;
@@ -92,7 +94,7 @@ pub trait CoutureParser: Parser + Couture {
             &Self::MESSAGES,
             &itr.into_iter().map(Into::into).collect::<Vec<OsString>>(),
             backend,
-            crate::os::stdin::read_piped,
+            &crate::os::stdin::ProcessStdin,
         )
         .map_err(Failure::into_clap)
     }
@@ -204,7 +206,7 @@ where
             &T::MESSAGES,
             argv,
             &backend,
-            crate::os::stdin::read_piped,
+            &crate::os::stdin::ProcessStdin,
         )
     }
     #[cfg(not(feature = "interactive"))]

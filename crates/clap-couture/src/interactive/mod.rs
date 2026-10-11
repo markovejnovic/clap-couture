@@ -168,7 +168,7 @@
 //! 
 //! # Reading piped stdin
 //!
-//! `#[couture(accept_stdin)]` on an arg the user left out takes everything piped into stdin as its
+//! `#[couture(stdin)]` on an arg the user left out takes everything piped into stdin as its
 //! value, with one trailing line ending dropped, so `echo eu |` reads as `eu`. It applies only
 //! when stdin is a pipe (or a socket, as some runtimes pipe through one); a terminal, a file or
 //! the null device is never read. Nothing piped, or an arg passed on the command line or through
@@ -187,7 +187,7 @@
 //! struct Cli {
 //!     /// Password
 //!     #[arg(long)]
-//!     #[couture(prompt, secret, accept_stdin)]
+//!     #[couture(prompt, secret, stdin)]
 //!     password: SecretString,
 //! }
 //! ```
@@ -201,7 +201,7 @@
 //! #[derive(Parser, Couture)]
 //! struct Cli {
 //!     #[arg(long)]
-//!     #[couture(accept_stdin)]
+//!     #[couture(stdin)]
 //!     subject: Option<String>,
 //!     #[command(subcommand)]
 //!     cmd: Cmd,
@@ -211,7 +211,7 @@
 //! enum Cmd {
 //!     Send {
 //!         #[arg(long)]
-//!         #[couture(accept_stdin)]
+//!         #[couture(stdin)]
 //!         body: String,
 //!     },
 //! }
@@ -227,7 +227,68 @@
 //! #[derive(Parser, Couture)]
 //! struct Cli {
 //!     #[arg(long)]
-//!     #[couture(accept_stdin)]
+//!     #[couture(stdin)]
+//!     tags: Vec<String>,
+//! }
+//! ```
+//! 
+//! # Dash as a value
+//!
+//! `dash` makes `-` as an arg's value stand for something, as in `git commit -F -`.
+//! `#[couture(prompt(dash))]` asks for the arg when its value is `-`, and only then: left out, it
+//! stays unset. `#[couture(stdin(dash))]` reads all of stdin into the arg when its value is
+//! `-`, whatever stdin is, a pipe, a file or a terminal (read until end of input), and leaves
+//! stdin alone otherwise. Either works for a flag's value (`--message -`, `--message=-`, `-m-`,
+//! `-vm -`) or a positional, beside `secret` too: the `-` is no secret on the command line.
+//! `prompt(dash, question = "...")` asks its own question.
+//! ```
+//! use clap::Parser;
+//! use clap_couture::{Couture, CoutureParser as _, interactive::secrecy::SecretString};
+//!
+//! #[derive(Parser, Couture)]
+//! struct Cli {
+//!     /// Commit message; `-` asks for it.
+//!     #[arg(short, long)]
+//!     #[couture(prompt(dash), editor)]
+//!     message: Option<String>,
+//!
+//!     /// Password; `-` reads it from stdin.
+//!     #[arg(long)]
+//!     #[couture(prompt, secret, stdin(dash))]
+//!     password: Option<SecretString>,
+//! }
+//!
+//! let cli = Cli::couture_parse_from(["commit", "-m", "Fix login"]);
+//! # assert_eq!(cli.message.as_deref(), Some("Fix login"));
+//! ```
+//! 
+//! With no terminal to ask on, a `-` that asks fails the parse.
+//!
+//! With both, `-` asks at a terminal and reads stdin otherwise, so `--password -` asks masked when
+//! typed, and takes the password when it is piped in. A terminal there is no asking on, as with
+//! [`NonInteractive`], is read until end of input.
+//! ```
+//! use clap::Parser;
+//! use clap_couture::{Couture, interactive::secrecy::SecretString};
+//!
+//! #[derive(Parser, Couture)]
+//! struct Cli {
+//!     /// Password; `-` asks for it, or reads it from a pipe.
+//!     #[arg(long)]
+//!     #[couture(prompt(dash), secret, stdin(dash))]
+//!     password: Option<SecretString>,
+//! }
+//! ```
+//! 
+//! `-` stands for the arg's one value, so a flag or a `Vec` can't take it:
+//! ```compile_fail
+//! use clap::Parser;
+//! use clap_couture::Couture;
+//!
+//! #[derive(Parser, Couture)]
+//! struct Cli {
+//!     #[arg(long)]
+//!     #[couture(prompt(dash))]
 //!     tags: Vec<String>,
 //! }
 //! ```
@@ -252,8 +313,8 @@ use clap::builder::PossibleValue;
 pub(crate) use prompted_args::StdinArg;
 #[doc(hidden)]
 pub use prompted_args::{
-    EditorAttr, PromptAttr, PromptPurpose, PromptedArg, PromptedArgBranch, PromptedArgTree,
-    SecretAttr, SecretField,
+    DashAttr, EditorAttr, PromptAttr, PromptPurpose, PromptedArg, PromptedArgBranch,
+    PromptedArgTree, SecretAttr, SecretField, StdinAttr,
 };
 pub use prompter::Prompter;
 /// The [`secrecy`](https://docs.rs/secrecy) crate couture's secret args are typed with, so the app

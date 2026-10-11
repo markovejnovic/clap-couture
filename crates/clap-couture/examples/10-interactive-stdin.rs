@@ -1,7 +1,7 @@
 //! Example demonstrating clap-couture's piped input.
 //!
 //! clap-couture can take an arg's value from a pipe. You do so by decorating a field with
-//! `#[couture(accept_stdin)]`.
+//! `#[couture(stdin)]`.
 //!
 //!   - `echo "Fix login" | orbit-release` works like `orbit-release --notes "Fix login"`.
 //!   - Stdin is read only when it is a pipe and `--notes` was left out.
@@ -37,7 +37,7 @@ use clap_couture::{Couture, CoutureParser as _};
 struct Cli {
     /// Release notes.
     #[arg(long)]
-    #[couture(prompt, accept_stdin)]
+    #[couture(prompt, stdin)]
     notes: String,
 }
 

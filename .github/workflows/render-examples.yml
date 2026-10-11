@@ -1,0 +1,108 @@
+name: Render examples
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Two pushes in quick succession would otherwise race to commit the same assets.
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  FREEZE_VERSION: 0.2.2
+  TTYD_VERSION: 1.7.7
+  VHS_VERSION: 0.12.1
+
+jobs:
+  render:
+    name: render
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # The scripts run through `uv run`, in the environment `uv.lock` pins.
+      - uses: astral-sh/setup-uv@v10.3.0
+
+      # freeze's SVGs differ across OSes, so only re-render when the `.ansi` captures change.
+      - run: ./scripts/render-examples.sh --ansi-only
+      - name: Check for changed captures
+        id: captures
+        run: |
+          if [[ -n $(git status --porcelain -- 'assets/*.ansi') ]]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "assets are up to date"
+          fi
+
+      - name: Install freeze
+        if: steps.captures.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          archive="freeze_${FREEZE_VERSION}_Linux_x86_64"
+          gh release download "v${FREEZE_VERSION}" -R charmbracelet/freeze -p "$archive.tar.gz" -D "$RUNNER_TEMP"
+          tar -xzf "$RUNNER_TEMP/$archive.tar.gz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/$archive" >> "$GITHUB_PATH"
+
+      - if: steps.captures.outputs.changed == 'true'
+        run: ./scripts/render-examples.sh
+
+      # vhs renders the `.txt` captures along with the GIFs, so it always records, and the GIFs are
+      # kept only when the captures change.
+      - name: Install vhs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-jetbrains-mono
+          bin="$RUNNER_TEMP/bin"
+          mkdir -p "$bin"
+          gh release download "$TTYD_VERSION" -R tsl0922/ttyd -p ttyd.x86_64 -O "$bin/ttyd"
+          chmod +x "$bin/ttyd"
+          archive="vhs_${VHS_VERSION}_Linux_x86_64"
+          gh release download "v${VHS_VERSION}" -R charmbracelet/vhs -p "$archive.tar.gz" -D "$RUNNER_TEMP"
+          tar -xzf "$RUNNER_TEMP/$archive.tar.gz" -C "$RUNNER_TEMP"
+          mv "$RUNNER_TEMP/$archive/vhs" "$bin/"
+          echo "$bin" >> "$GITHUB_PATH"
+
+      # Records every example, then fills the examples' "Example Output" doc blocks.
+      - run: ./scripts/enrich-examples.py
+      - name: Check for changed recordings
+        id: recordings
+        run: |
+          if [[ -n $(git status --porcelain -- 'assets/*.txt') ]]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "recordings are up to date"
+            git checkout -- 'assets/*.gif'
+          fi
+
+      - name: Check for changed example docs
+        id: enriched
+        run: |
+          if [[ -n $(git status --porcelain -- crates/clap-couture/examples) ]]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "example docs are up to date"
+          fi
+
+      # Pushes made with `GITHUB_TOKEN` don't trigger workflows, so this commit can't loop.
+      - name: Commit changed assets
+        if: >-
+          steps.captures.outputs.changed == 'true' ||
+          steps.recordings.outputs.changed == 'true' ||
+          steps.enriched.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/ crates/clap-couture/examples/
+          git commit -m "chore: re-render example assets"
+          git pull --rebase
+          git push

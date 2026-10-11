@@ -4,3 +4,16 @@ target
 *.pdb
 **/mutants.out*/
 rustc-ice-*.txt
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+build/
+dist/
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+.coverage
+htmlcov/

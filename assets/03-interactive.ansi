@@ -1,0 +1,9 @@
+[1m[4mUsage:[0m
+  [1minteractive[0m [OPTIONS] [1m--app[0m <APP> [1m--region[0m <REGION>
+
+[1m[4mOptions:[0m
+      [1m--app[0m <APP>            Application name
+      [1m--follow[0m               Enable log following
+      [1m--region[0m <REGION>      Application region [possible values: apac, eu, us]
+      [1m--replicas[0m <REPLICAS>  Replica count [default: 2]
+  [1m-h[0m, [1m--help[0m                 Print help

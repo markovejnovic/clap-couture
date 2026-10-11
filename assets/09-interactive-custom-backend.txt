@@ -1,0 +1,29 @@
+>
+────────────────────────────────────────────────────────────────────────────────
+> 09-interactive-custom-backend --help
+────────────────────────────────────────────────────────────────────────────────
+> 09-interactive-custom-backend --help
+Deploy and manage your apps from the terminal
+
+Usage:
+  09-interactive-custom-backend <COMMAND>
+
+  status    Show recent activity
+
+Everyday:        What you'll reach for daily
+  logs      Tail live logs
+  search    Search your deployment history
+
+Deploy:          Ship code to production
+  deploy    Ship the current project
+  rollback  Roll back to a previous release
+  secrets   Manage environment secrets
+
+Account & sync:
+  login     Sign in to your account
+  sync      Sync settings across machines
+
+Flags:
+  -h, --help  Print help
+>
+────────────────────────────────────────────────────────────────────────────────

@@ -1,0 +1,63 @@
+>
+────────────────────────────────────────────────────────────────────────────────
+> 04-interactive-i18n
+────────────────────────────────────────────────────────────────────────────────
+> 04-interactive-i18n
+◆  Welche App?
+│
+└
+────────────────────────────────────────────────────────────────────────────────
+> 04-interactive-i18n
+◆  Welche App?
+│  web
+└
+────────────────────────────────────────────────────────────────────────────────
+> 04-interactive-i18n
+◇  Welche App?
+│  web
+│
+◆  Danach die Logs verfolgen?
+│  ○ Yes  / ● No
+└
+────────────────────────────────────────────────────────────────────────────────
+> 04-interactive-i18n
+◇  Welche App?
+│  web
+│
+◇  Danach die Logs verfolgen?
+│  Yes
+│
+◆  In welche Region?
+│  ● apac
+│  ○ eu
+│  ○ us
+│  ○ (keine)
+└
+────────────────────────────────────────────────────────────────────────────────
+> 04-interactive-i18n
+◇  Welche App?
+│  web
+│
+◇  Danach die Logs verfolgen?
+│  Yes
+│
+◆  In welche Region?
+│  ○ apac
+│  ○ eu
+│  ○ us
+│  ● (keine)
+└
+────────────────────────────────────────────────────────────────────────────────
+> 04-interactive-i18n
+◇  Welche App?
+│  web
+│
+◇  Danach die Logs verfolgen?
+│  Yes
+│
+◇  In welche Region?
+│  (keine)
+│
+deploying web to every region (follow: true)
+>
+────────────────────────────────────────────────────────────────────────────────

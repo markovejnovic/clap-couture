@@ -1,0 +1,10 @@
+Deploy the current project.
+
+[1m[4mUsage:[0m
+  [1minteractive[0m [OPTIONS] [1m--app[0m <APP>
+
+[1m[4mOptions:[0m
+      [1m--app[0m <APP>        The app to deploy
+      [1m--follow[0m           Tail the logs afterwards
+      [1m--region[0m <REGION>  The region to deploy to [possible values: apac, eu, us]
+  [1m-h[0m, [1m--help[0m             Print help

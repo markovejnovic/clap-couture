@@ -1,6 +1,7 @@
 # `deploy` asking for its release notes in `$EDITOR`. See `scripts/record-examples.py`.
 
-Set Height 620
+Set Width 1692
+Set Height 1210
 
 Hide
 Type "unset VISUAL && export EDITOR=vim && alias deploy=06-interactive-editor && clear" Enter

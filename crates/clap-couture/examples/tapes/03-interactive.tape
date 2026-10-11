@@ -1,6 +1,7 @@
 # `orbit-deploy` answering each kind of prompt. See `scripts/record-examples.py`.
 
-Set Height 960
+Set Width 1692
+Set Height 1766
 
 Hide
 Type "alias orbit-deploy=03-interactive && clear" Enter

@@ -1,6 +1,7 @@
 # `04-interactive-i18n` asking in German. See `scripts/record-examples.py`.
 
-Set Height 760
+Set Width 1246
+Set Height 866
 Env ORBIT_LANG "de"
 
 Type "04-interactive-i18n" Sleep 400ms Enter

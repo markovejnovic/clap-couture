@@ -27,7 +27,8 @@
 //!   :root[data-theme="light"] .couture-light { display: revert; }
 //!   :root[data-theme="light"] .couture-dark { display: none; }
 //!   .docblock img.couture-dark, .docblock img.couture-light {
-//!     width: 100%;
+//!     max-width: 100%;
+//!     height: auto;
 //!     border-radius: var(--code-block-border-radius, 6px);
 //!   }
 //! </style>
@@ -198,8 +199,8 @@
 //!
 //! This results in support for interactive input:
 //!
-//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/03-interactive-dark.gif" alt="running orbit-deploy with no flags: it asks for the app as text, whether to tail the logs as yes/no, and the region from a list, then asks for the replicas again after an answer that isn't a number">
-//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/03-interactive-light.gif" alt="running orbit-deploy with no flags: it asks for the app as text, whether to tail the logs as yes/no, and the region from a list, then asks for the replicas again after an answer that isn't a number">
+//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/03-interactive-dark.gif" alt="running orbit-deploy with no flags: it asks for the app as text, whether to tail the logs as yes/no, and the region from a list, then asks for the replicas again after an answer that isn't a number" width="846">
+//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/03-interactive-light.gif" alt="running orbit-deploy with no flags: it asks for the app as text, whether to tail the logs as yes/no, and the region from a list, then asks for the replicas again after an answer that isn't a number" width="846">
 //!
 //! ### Neat features
 //!
@@ -255,8 +256,8 @@
 //!
 //! An example of this interaction is:
 //!
-//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/05-interactive-confirm-dark.gif" alt="running orbit-destroy with no flags: it asks for the app and the region, then asks whether to destroy web in eu, and goes ahead on a yes">
-//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/05-interactive-confirm-light.gif" alt="running orbit-destroy with no flags: it asks for the app and the region, then asks whether to destroy web in eu, and goes ahead on a yes">
+//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/05-interactive-confirm-dark.gif" alt="running orbit-destroy with no flags: it asks for the app and the region, then asks whether to destroy web in eu, and goes ahead on a yes" width="623">
+//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/05-interactive-confirm-light.gif" alt="running orbit-destroy with no flags: it asks for the app and the region, then asks whether to destroy web in eu, and goes ahead on a yes" width="623">
 //!
 //! See [`examples/05-interactive-confirm.rs`](https://github.com/markovejnovic/clap-couture/blob/main/crates/clap-couture/examples/05-interactive-confirm.rs).
 //!
@@ -285,8 +286,8 @@
 //!
 //! An example of this interaction is:
 //!
-//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/07-interactive-secret-dark.gif" alt="running orbit-deploy with no flags: it asks for the app, then for the deploy token, showing only a mask as it is typed, and deploys">
-//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/07-interactive-secret-light.gif" alt="running orbit-deploy with no flags: it asks for the app, then for the deploy token, showing only a mask as it is typed, and deploys">
+//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/07-interactive-secret-dark.gif" alt="running orbit-deploy with no flags: it asks for the app, then for the deploy token, showing only a mask as it is typed, and deploys" width="623">
+//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/07-interactive-secret-light.gif" alt="running orbit-deploy with no flags: it asks for the app, then for the deploy token, showing only a mask as it is typed, and deploys" width="623">
 //!
 //! See [`examples/07-interactive-secret.rs`](https://github.com/markovejnovic/clap-couture/blob/main/crates/clap-couture/examples/07-interactive-secret.rs).
 //!
@@ -315,8 +316,8 @@
 //!
 //! An example of this interaction is:
 //!
-//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/10-interactive-stdin-dark.gif" alt="piping release notes into orbit-release, which takes them without asking, then running orbit-release alone, which asks for the notes">
-//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/10-interactive-stdin-light.gif" alt="piping release notes into orbit-release, which takes them without asking, then running orbit-release alone, which asks for the notes">
+//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/10-interactive-stdin-dark.gif" alt="piping release notes into orbit-release, which takes them without asking, then running orbit-release alone, which asks for the notes" width="623">
+//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/10-interactive-stdin-light.gif" alt="piping release notes into orbit-release, which takes them without asking, then running orbit-release alone, which asks for the notes" width="623">
 //!
 //! See [`examples/10-interactive-stdin.rs`](https://github.com/markovejnovic/clap-couture/blob/main/crates/clap-couture/examples/10-interactive-stdin.rs).
 //!
@@ -356,8 +357,8 @@
 //!
 //! An example of this interaction is:
 //!
-//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/08-interactive-prompter-dark.gif" alt="running orbit-create with no flags: it asks for the app, then whether to add a database, and on a yes, which engine">
-//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/08-interactive-prompter-light.gif" alt="running orbit-create with no flags: it asks for the app, then whether to add a database, and on a yes, which engine">
+//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/08-interactive-prompter-dark.gif" alt="running orbit-create with no flags: it asks for the app, then whether to add a database, and on a yes, which engine" width="623">
+//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/08-interactive-prompter-light.gif" alt="running orbit-create with no flags: it asks for the app, then whether to add a database, and on a yes, which engine" width="623">
 //!
 //! See [`examples/08-interactive-prompter.rs`](https://github.com/markovejnovic/clap-couture/blob/main/crates/clap-couture/examples/08-interactive-prompter.rs).
 //!

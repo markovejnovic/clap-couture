@@ -1,6 +1,7 @@
 # `09-interactive-custom-backend --help`. See `scripts/record-examples.py`.
 
-Set Height 800
+Set Width 1246
+Set Height 1338
 
 Type "09-interactive-custom-backend --help" Sleep 500ms Enter
 Wait+Screen /Print help/

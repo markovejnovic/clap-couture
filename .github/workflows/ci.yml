@@ -85,8 +85,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       # `ansi-to-html.py` runs through `uv run`, in the environment `uv.lock` pins.
       - uses: astral-sh/setup-uv@v10.3.0
-      # The SVGs differ across OSes; the `.ansi` captures they're rendered from don't.
-      - run: ./scripts/render-examples.sh --ansi-only
+      - run: ./scripts/render-examples.sh
       - name: Check captures are committed
         run: |
           stale=$(git status --porcelain -- 'assets/*.ansi' crates/clap-couture/docs)

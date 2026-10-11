@@ -1,6 +1,7 @@
 # `orbit-deploy` asking for its token without echoing it. See `scripts/record-examples.py`.
 
-Set Height 520
+Set Width 1246
+Set Height 694
 
 Hide
 Type "alias orbit-deploy=07-interactive-secret && clear" Enter

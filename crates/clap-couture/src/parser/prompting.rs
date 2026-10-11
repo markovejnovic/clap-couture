@@ -14,7 +14,7 @@
 //! nothing to ask again.
 //!
 //! Before any of it, each `-` passed to a `dash` arg comes out of argv, and the
-//! `#[couture(accept_stdin)]` arg on the path the user took takes stdin: all of it when passed
+//! `#[couture(stdin)]` arg on the path the user took takes stdin: all of it when passed
 //! `-`, else what is piped, if it got no value. It is then no longer asked.
 
 use core::iter;
@@ -837,7 +837,7 @@ mod tests {
         os::stdin::{ReadWhen, Stdin},
     };
 
-    /// `#[couture(prompt(dash), accept_stdin(dash))]` on `--message`.
+    /// `#[couture(prompt(dash), stdin(dash))]` on `--message`.
     static ASKED_OR_READ: PromptedArgTree = PromptedArgTree {
         branches: &[],
         own_args: &[PromptAttr {

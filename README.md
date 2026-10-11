@@ -168,12 +168,12 @@ force: bool,
 
 ### Piped input
 
-`#[couture(accept_stdin)]` lets an arg come from a pipe, so `echo hi | post`
+`#[couture(stdin)]` lets an arg come from a pipe, so `echo hi | post`
 works like `post --message hi`.
 
 ```rust
 #[arg(long)]
-#[couture(prompt, accept_stdin)]
+#[couture(prompt, stdin)]
 message: String,
 ```
 
@@ -185,7 +185,7 @@ message: String,
 ### Dash as a value
 
 `dash` makes `-` mean something, and only `-`: `prompt(dash)` asks for the arg,
-`accept_stdin(dash)` reads stdin into it.
+`stdin(dash)` reads stdin into it.
 
 ```rust
 #[arg(short, long)]
@@ -193,7 +193,7 @@ message: String,
 message: Option<String>,
 
 #[arg(long)]
-#[couture(prompt, secret, accept_stdin(dash))] // `login --password -` reads stdin
+#[couture(prompt, secret, stdin(dash))] // `login --password -` reads stdin
 password: SecretString,
 ```
 

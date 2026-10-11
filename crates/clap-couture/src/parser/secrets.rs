@@ -63,7 +63,7 @@ struct SecretValueParser {
     /// The command line may carry this secret: `secret(allow_argv)`.
     allow_argv: bool,
     /// The command line may pass `-`, which the prompting parse takes out before it gets here:
-    /// `prompt(dash)` or `accept_stdin(dash)`.
+    /// `prompt(dash)` or `stdin(dash)`.
     dash: bool,
     vault: Vault,
 }

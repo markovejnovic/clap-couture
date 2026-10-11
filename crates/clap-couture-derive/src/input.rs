@@ -63,8 +63,6 @@ pub(crate) type Question = BareOr<TextExpr>;
 #[derive(FromField)]
 #[darling(attributes(couture), forward_attrs(arg, clap, command))]
 pub(crate) struct FieldInput {
-    /// `Inherit` for `#[couture(accept_stdin)]`, `Explicit` for `#[couture(accept_stdin(dash))]`.
-    pub(crate) accept_stdin: Option<BareOr<StdinOptions>>,
     pub(crate) attrs: Vec<Attribute>,
     pub(crate) confirm: Option<Question>,
     /// `Inherit` for `#[couture(editor)]`, `Explicit` for `#[couture(editor(...))]`.
@@ -73,6 +71,8 @@ pub(crate) struct FieldInput {
     pub(crate) prompt: Option<SpannedValue<PromptOptions>>,
     /// `Inherit` for `#[couture(secret)]`, `Explicit` for `#[couture(secret(allow_argv))]`.
     pub(crate) secret: Option<BareOr<SecretOptions>>,
+    /// `Inherit` for `#[couture(stdin)]`, `Explicit` for `#[couture(stdin(dash))]`.
+    pub(crate) stdin: Option<BareOr<StdinOptions>>,
     pub(crate) ty: Type,
 }
 
@@ -83,7 +83,7 @@ pub(crate) struct SecretOptions {
     pub(crate) allow_argv: Flag,
 }
 
-/// The options of `#[couture(accept_stdin(...))]`.
+/// The options of `#[couture(stdin(...))]`.
 #[derive(FromMeta)]
 pub(crate) struct StdinOptions {
     /// Stdin is read only when `-` is the arg's value, whatever stdin is.

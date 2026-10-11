@@ -168,7 +168,7 @@
 //! 
 //! # Reading piped stdin
 //!
-//! `#[couture(accept_stdin)]` on an arg the user left out takes everything piped into stdin as its
+//! `#[couture(stdin)]` on an arg the user left out takes everything piped into stdin as its
 //! value, with one trailing line ending dropped, so `echo eu |` reads as `eu`. It applies only
 //! when stdin is a pipe (or a socket, as some runtimes pipe through one); a terminal, a file or
 //! the null device is never read. Nothing piped, or an arg passed on the command line or through
@@ -187,7 +187,7 @@
 //! struct Cli {
 //!     /// Password
 //!     #[arg(long)]
-//!     #[couture(prompt, secret, accept_stdin)]
+//!     #[couture(prompt, secret, stdin)]
 //!     password: SecretString,
 //! }
 //! ```
@@ -201,7 +201,7 @@
 //! #[derive(Parser, Couture)]
 //! struct Cli {
 //!     #[arg(long)]
-//!     #[couture(accept_stdin)]
+//!     #[couture(stdin)]
 //!     subject: Option<String>,
 //!     #[command(subcommand)]
 //!     cmd: Cmd,
@@ -211,7 +211,7 @@
 //! enum Cmd {
 //!     Send {
 //!         #[arg(long)]
-//!         #[couture(accept_stdin)]
+//!         #[couture(stdin)]
 //!         body: String,
 //!     },
 //! }
@@ -227,7 +227,7 @@
 //! #[derive(Parser, Couture)]
 //! struct Cli {
 //!     #[arg(long)]
-//!     #[couture(accept_stdin)]
+//!     #[couture(stdin)]
 //!     tags: Vec<String>,
 //! }
 //! ```
@@ -236,7 +236,7 @@
 //!
 //! `dash` makes `-` as an arg's value stand for something, as in `git commit -F -`.
 //! `#[couture(prompt(dash))]` asks for the arg when its value is `-`, and only then: left out, it
-//! stays unset. `#[couture(accept_stdin(dash))]` reads all of stdin into the arg when its value is
+//! stays unset. `#[couture(stdin(dash))]` reads all of stdin into the arg when its value is
 //! `-`, whatever stdin is, a pipe, a file or a terminal (read until end of input), and leaves
 //! stdin alone otherwise. Either works for a flag's value (`--message -`, `--message=-`, `-m-`,
 //! `-vm -`) or a positional, beside `secret` too: the `-` is no secret on the command line.
@@ -254,7 +254,7 @@
 //!
 //!     /// Password; `-` reads it from stdin.
 //!     #[arg(long)]
-//!     #[couture(prompt, secret, accept_stdin(dash))]
+//!     #[couture(prompt, secret, stdin(dash))]
 //!     password: Option<SecretString>,
 //! }
 //!
@@ -275,7 +275,7 @@
 //! struct Cli {
 //!     /// Password; `-` asks for it, or reads it from a pipe.
 //!     #[arg(long)]
-//!     #[couture(prompt(dash), secret, accept_stdin(dash))]
+//!     #[couture(prompt(dash), secret, stdin(dash))]
 //!     password: Option<SecretString>,
 //! }
 //! ```

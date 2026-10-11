@@ -81,23 +81,23 @@ pub struct PromptedArgTree {
     pub branches: &'static [PromptedArgBranch],
     /// The args prompted for at this level.
     pub own_args: &'static [PromptAttr],
-    /// This level's `#[couture(accept_stdin)]` arg, if any.
+    /// This level's `#[couture(stdin)]` arg, if any.
     pub stdin_arg: Option<StdinAttr>,
 }
 
-/// One `#[couture(accept_stdin)]`.
+/// One `#[couture(stdin)]`.
 #[derive(Debug)]
 pub struct StdinAttr {
     /// The clap id of the arg it is on.
     pub arg_id: &'static str,
-    /// `accept_stdin(dash)`: stdin is read only when `-` is its value.
+    /// `stdin(dash)`: stdin is read only when `-` is its value.
     pub dash: bool,
 }
 
-/// An arg marked `#[couture(accept_stdin)]`, and the subcommand path to the command that owns it.
+/// An arg marked `#[couture(stdin)]`, and the subcommand path to the command that owns it.
 #[derive(Debug)]
 pub(crate) struct StdinArg {
-    /// Its `#[couture(accept_stdin)]`.
+    /// Its `#[couture(stdin)]`.
     pub(crate) attr: &'static StdinAttr,
     /// Subcommand names from the root, empty for a root arg.
     pub(crate) subcommand_path: Vec<&'static str>,
@@ -124,15 +124,15 @@ impl PromptedArgTree {
     pub const EMPTY: Self = Self { branches: &[], own_args: &[], stdin_arg: None };
 
     /// Evaluated beside every derived tree: fails the build when one command path holds more than
-    /// one `#[couture(accept_stdin)]` arg, as stdin can only be read once.
+    /// one `#[couture(stdin)]` arg, as stdin can only be read once.
     ///
     /// # Panics
     /// When it fails the build.
     pub const fn assert_stdin_read_once(&self) {
         assert!(
             self.most_stdin_args_on_a_path() <= 1,
-            "`#[couture(accept_stdin)]` marks more than one arg on one command path; stdin can \
-             only be read once"
+            "`#[couture(stdin)]` marks more than one arg on one command path; stdin can only be \
+             read once"
         );
     }
 
@@ -172,7 +172,7 @@ impl PromptedArgTree {
         prompted_args
     }
 
-    /// Every `#[couture(accept_stdin)]` arg in the tree, in declaration order. At most one of them
+    /// Every `#[couture(stdin)]` arg in the tree, in declaration order. At most one of them
     /// sits on any one subcommand chain.
     pub(crate) fn stdin_args(&'static self) -> Vec<StdinArg> {
         let mut stdin_args = Vec::new();

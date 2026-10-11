@@ -1,4 +1,4 @@
-//! `prompt(dash)` and `accept_stdin(dash)`: `-` as an arg's value asks for it, or reads stdin.
+//! `prompt(dash)` and `stdin(dash)`: `-` as an arg's value asks for it, or reads stdin.
 //!
 //! The `-` comes out of argv before anything else, so every later parse sees the arg left out,
 //! and it is asked for or read like one the user never passed. An arg with both asks when it can,
@@ -46,7 +46,7 @@ impl Dashed {
 }
 
 /// `argv` without the `-` passed to each `prompt(dash)` arg in `prompted_args` and
-/// `accept_stdin(dash)` arg in `stdin_args`, and the args it was taken from. An arg with both is
+/// `stdin(dash)` arg in `stdin_args`, and the args it was taken from. An arg with both is
 /// asked for when `can_ask`, and reads stdin otherwise. `argv` that `cmd` rejects, eg. for
 /// `--help`, is left to clap as is.
 ///

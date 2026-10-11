@@ -1,5 +1,5 @@
-//! `#[couture(accept_stdin)]`: an arg the user left out takes what is piped into stdin, and
-//! `accept_stdin(dash)` one passed `-` takes all of stdin.
+//! `#[couture(stdin)]`: an arg the user left out takes what is piped into stdin, and
+//! `stdin(dash)` one passed `-` takes all of stdin.
 
 use std::ffi::OsString;
 

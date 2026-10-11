@@ -293,7 +293,7 @@
 //!
 //! ### Piped input
 //!
-//! `#[couture(accept_stdin)]` lets an arg come from a pipe: `echo hi | post` works like `post
+//! `#[couture(stdin)]` lets an arg come from a pipe: `echo hi | post` works like `post
 //! --message hi`. Stdin is read only when it is a pipe and the arg was left out, so a terminal, a
 //! file or `/dev/null` on stdin never blocks the parse. Beside `prompt`, the arg is asked when
 //! nothing is piped; beside `secret`, it works like `docker login --password-stdin`.
@@ -306,7 +306,7 @@
 //! struct Cli {
 //!     /// Message to post.
 //!     #[arg(long)]
-//!     #[couture(prompt, accept_stdin)]
+//!     #[couture(prompt, stdin)]
 //!     message: String,
 //! }
 //!
@@ -327,7 +327,7 @@
 //! ### Dash as a value
 //!
 //! `dash` gives `-` a meaning: `#[couture(prompt(dash))]` asks for an arg passed `-`, like `git
-//! commit -m -` opening the editor, and `#[couture(accept_stdin(dash))]` reads stdin into it,
+//! commit -m -` opening the editor, and `#[couture(stdin(dash))]` reads stdin into it,
 //! like `docker login --password-stdin`. With both, `-` asks at a terminal and reads stdin when
 //! piped. Without `-`, neither asks nor reads.
 //!

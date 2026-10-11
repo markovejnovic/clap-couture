@@ -1,4 +1,4 @@
-//! `#[couture(accept_stdin)]` takes piped stdin as the value of an arg the user left out, and
+//! `#[couture(stdin)]` takes piped stdin as the value of an arg the user left out, and
 //! leaves any other stdin alone. Each case runs this binary again as a child, so its stdin can be
 //! a pipe, a file or the null device.
 #![cfg(feature = "interactive")]
@@ -41,7 +41,7 @@ const RESULT: &str = "stdin-test-result: ";
 #[derive(Parser, Couture, Debug)]
 struct Post {
     #[arg(long)]
-    #[couture(accept_stdin)]
+    #[couture(stdin)]
     message: String,
 
     #[arg(long, conflicts_with = "message")]
@@ -58,11 +58,11 @@ struct Codec {
 enum CodecCmd {
     Decode {
         #[arg(long)]
-        #[couture(accept_stdin)]
+        #[couture(stdin)]
         input: String,
     },
     Encode {
-        #[couture(accept_stdin)]
+        #[couture(stdin)]
         input: String,
     },
     Version,
@@ -71,21 +71,21 @@ enum CodecCmd {
 #[derive(Parser, Couture, Debug)]
 struct Note {
     #[arg(long)]
-    #[couture(accept_stdin(dash))]
+    #[couture(stdin(dash))]
     body: Option<String>,
 }
 
 #[derive(Parser, Couture, Debug)]
 struct Draft {
     #[arg(long)]
-    #[couture(prompt(dash), accept_stdin(dash))]
+    #[couture(prompt(dash), stdin(dash))]
     message: Option<String>,
 }
 
 #[derive(Parser, Couture)]
 struct DockerLogin {
     #[arg(long)]
-    #[couture(prompt, secret, accept_stdin(dash))]
+    #[couture(prompt, secret, stdin(dash))]
     password: SecretString,
 }
 
@@ -93,7 +93,7 @@ struct DockerLogin {
 struct Login {
     /// Password.
     #[arg(long)]
-    #[couture(prompt, secret, accept_stdin)]
+    #[couture(prompt, secret, stdin)]
     password: SecretString,
 
     #[arg(long)]

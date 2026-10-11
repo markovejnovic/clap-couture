@@ -31,7 +31,8 @@ impl Backend for Dialoguer {
             .iter()
             .map(|option| prompt.defaults.iter().any(|default| default == option.get_name()))
             .collect();
-        // dialoguer cannot require a pick, so a required prompt answered with none is asked again.
+        // dialoguer's `MultiSelect` has no way to demand at least one selection, so when a required
+        // prompt comes back empty, it's shown again (without a message saying why).
         loop {
             let picked = MultiSelect::with_theme(&theme)
                 .with_prompt(prompt.question)

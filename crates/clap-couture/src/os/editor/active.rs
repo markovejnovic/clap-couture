@@ -96,9 +96,18 @@ impl Opened {
                 if let Some(prefix) = &prefix {
                     builder.prefix(prefix);
                 }
+                // Private from creation: the draft, and the editor's swap files beside it, would
+                // otherwise be readable by anyone sharing the temporary directory.
+                #[cfg(unix)]
+                builder.permissions(std::os::unix::fs::PermissionsExt::from_mode(0o700));
                 let dir = builder.tempdir()?;
                 let name = name.file_name().map_or_else(default_file_name, Into::into);
                 let path = dir.path().join(name);
+                let mut new_file = fs::OpenOptions::new();
+                new_file.write(true).create_new(true);
+                #[cfg(unix)]
+                std::os::unix::fs::OpenOptionsExt::mode(&mut new_file, 0o600);
+                new_file.open(&path)?;
                 (Some(dir), path)
             }
         };
@@ -287,6 +296,16 @@ mod tests {
         let path = opened.map(|opened| opened.path.clone());
         assert!(path.is_ok_and(|path| path.file_name() == Some("escaped.txt".as_ref())
             && path.parent().is_some_and(|dir| dir.starts_with(std::env::temp_dir()))));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn the_temporary_file_is_private_while_the_editor_is_open() {
+        let _handling = crate::os::signal::tests::lock_handling();
+        let modes = r#"sh -c '{ ls -ld "$(dirname "$0")"; ls -l "$0"; } | cut -c1-10 > "$0"'"#;
+        let opened = editor(modes).spawn(EditorSpawnOptions::builder().contents("x").build());
+        let saved = opened.ok().and_then(|mut opened| opened.wait().ok());
+        assert_eq!(saved.as_deref(), Some(b"drwx------\n-rw-------\n".as_slice()));
     }
 
     #[cfg(unix)]

@@ -7,6 +7,12 @@
 │  ○ Yes  / ● No
 └
 ────────────────────────────────────────────────────────────────────────────────
+> deploy
+◇  Tail the logs afterwards
+│  Yes
+│
+│  hint: Waiting for your editor to close the file...
+────────────────────────────────────────────────────────────────────────────────
 ## Changes
 
 
@@ -30,7 +36,7 @@
 ~
 ~
 ~
-<28dy_91h40000gn/T/06-interactive-editor-NxPXeh/deploy-notes.md" 6L, 117B
+</06-interactive-editor-zR7gkn/deploy-notes.md" 6L, 117B           1,1           All
 ────────────────────────────────────────────────────────────────────────────────
 ## Changes
 
@@ -55,32 +61,7 @@
 ~
 ~
 ~
--- INSERT --
-────────────────────────────────────────────────────────────────────────────────
-## Changes
-- Ships the new billing page.
-
-
-#| Release notes for this deploy
-#|
-#| These lines are removed. Leave the file empty to leave it unset.
-~
-~
-~
-~
-~
-~
-~
-~
-~
-~
-~
-~
-~
-~
-~
-~
--- INSERT --
+-- INSERT --                                                       2,1           All
 ────────────────────────────────────────────────────────────────────────────────
 ## Changes
 - Ships the new billing page.
@@ -105,7 +86,57 @@
 ~
 ~
 ~
-                                                                          ^[
+-- INSERT --                                                       2,30          All
+────────────────────────────────────────────────────────────────────────────────
+## Changes
+- Ships the new billing page.
+
+
+#| Release notes for this deploy
+#|
+#| These lines are removed. Leave the file empty to leave it unset.
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+                                                         ^[
+────────────────────────────────────────────────────────────────────────────────
+## Changes
+- Ships the new billing page.
+
+
+#| Release notes for this deploy
+#|
+#| These lines are removed. Leave the file empty to leave it unset.
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+                                                                   2,29          All
 ────────────────────────────────────────────────────────────────────────────────
 ## Changes
 - Ships the new billing page.

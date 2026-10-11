@@ -25,6 +25,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      # `enrich-examples.py` formats with a nightly rustfmt, as `rustfmt.toml` is unstable; stable
+      # comes second so it stays the default.
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rustfmt
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       # The scripts run through `uv run`, in the environment `uv.lock` pins.

@@ -13,7 +13,8 @@ The fence gets what that run printed, recorded by `record-examples.py` with the
 features the caption picks, e.g. another prompt backend. The caption is rewritten to
 the real command, with the args the tape typed; `cargo run ...` stands for the example
 with its default features. The output is plain text, without color, so it reads well
-in an editor. Afterwards `cargo fmt --all` runs, so the docs are wrapped as CI checks.
+in an editor. Afterwards `cargo +nightly fmt --all` runs, so the docs are wrapped as CI
+checks.
 
     scripts/enrich-examples.py [EXAMPLE]...
 """
@@ -143,8 +144,8 @@ def main(names: tuple[str, ...]) -> None:
         )
 
     # A filled caption is one line, however long; rustfmt wraps doc comments the way
-    # CI checks they're wrapped.
-    _ = workspace.run("fmt", "--all").check()
+    # CI checks they're wrapped. `rustfmt.toml` is unstable, so it takes a nightly.
+    _ = workspace.run("+nightly", "fmt", "--all").check()
 
     for example, source in originals.items():
         if example.source.source() != source:

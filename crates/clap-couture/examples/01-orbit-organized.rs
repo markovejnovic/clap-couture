@@ -16,7 +16,7 @@
 //!   search    Search your deployment history
 //!   status    Show recent activity
 //!
-//! deploy:
+//! Deploy:
 //!   deploy    Ship the current project
 //!   rollback  Roll back to a previous release
 //!   secrets   Manage environment secrets
@@ -46,8 +46,8 @@ struct Cli {
 // You also need to decorate all your subcommands with `#[derive(Couture)]`.
 #[derive(Subcommand, Couture)]
 #[couture(categories = {
-    "deploy" = {},
-    // `title` replaces the `account:` heading, and `description` goes beside it.
+    "deploy" = { title = "Deploy:" },
+    // `title` replaces the default `deploy:`/`account:` heading, and `description` goes beside it.
     "account" = { title = "Account & sync:", description = "Who you are, on every machine" }
 })]
 enum Cmd {

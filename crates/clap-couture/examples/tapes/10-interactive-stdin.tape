@@ -1,7 +1,8 @@
 # `orbit-release` taking its notes from a pipe, then asking for them when nothing is piped. See
 # `scripts/record-examples.py`.
 
-Set Height 320
+Set Width 1246
+Set Height 566
 
 Hide
 Type "alias orbit-release=10-interactive-stdin && clear" Enter

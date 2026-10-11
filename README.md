@@ -33,14 +33,14 @@
   <tr>
     <td valign="top">
       <picture>
-        <source media="(prefers-color-scheme: light)" srcset="assets/01-orbit-disorganized-light.svg">
-        <img src="assets/01-orbit-disorganized-dark.svg" alt="clap's default --help: one long, flat list of commands" width="430">
+        <source media="(prefers-color-scheme: light)" srcset="assets/01-orbit-disorganized-light.png">
+        <img src="assets/01-orbit-disorganized-dark.png" alt="clap's default --help: one long, flat list of commands" width="466">
       </picture>
     </td>
     <td valign="top">
       <picture>
-        <source media="(prefers-color-scheme: light)" srcset="assets/01-orbit-organized-light.svg">
-        <img src="assets/01-orbit-organized-dark.svg" alt="the same CLI with clap-couture: commands grouped into categories" width="430">
+        <source media="(prefers-color-scheme: light)" srcset="assets/01-orbit-organized-light.png">
+        <img src="assets/01-orbit-organized-dark.png" alt="the same CLI with clap-couture: commands grouped into categories" width="346">
       </picture>
     </td>
   </tr>
@@ -52,7 +52,7 @@ it from the CLI.
 <div align="center">
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="assets/03-interactive-light.gif">
-  <img src="assets/03-interactive-dark.gif" alt="running orbit-deploy with no flags: it asks for the app as text, whether to tail the logs as yes/no, the region from a list, the replicas again after an answer that isn't a number, the sidecars from a multi-select, and environment variables one at a time" width="860">
+  <img src="assets/03-interactive-dark.gif" alt="running orbit-deploy with no flags: it asks for the app as text, whether to tail the logs as yes/no, the region from a list, the replicas again after an answer that isn't a number, the sidecars from a multi-select, and environment variables one at a time" width="846">
 </picture>
 </div>
 
@@ -163,7 +163,7 @@ force: bool,
 
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="assets/05-interactive-confirm-light.gif">
-  <img src="assets/05-interactive-confirm-dark.gif" alt="running orbit-destroy with no flags: it asks for the app and the region, then asks whether to destroy web in eu, and goes ahead on a yes" width="640">
+  <img src="assets/05-interactive-confirm-dark.gif" alt="running orbit-destroy with no flags: it asks for the app and the region, then asks whether to destroy web in eu, and goes ahead on a yes" width="623">
 </picture>
 
 ### Piped input
@@ -179,7 +179,7 @@ message: String,
 
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="assets/10-interactive-stdin-light.gif">
-  <img src="assets/10-interactive-stdin-dark.gif" alt="piping release notes into orbit-release, which takes them without asking, then running orbit-release alone, which asks for the notes" width="640">
+  <img src="assets/10-interactive-stdin-dark.gif" alt="piping release notes into orbit-release, which takes them without asking, then running orbit-release alone, which asks for the notes" width="623">
 </picture>
 
 ## Markdown
@@ -197,8 +197,8 @@ enum Cmd {
 ```
 
 <picture>
-  <source media="(prefers-color-scheme: light)" srcset="assets/02-markdown-simple-light.svg">
-  <img src="assets/02-markdown-simple-dark.svg" alt="--help output where 'current' is bold and 'your' is italic" width="430">
+  <source media="(prefers-color-scheme: light)" srcset="assets/02-markdown-simple-light.png">
+  <img src="assets/02-markdown-simple-dark.png" alt="--help output where 'current' is bold and 'your' is italic" width="521">
 </picture>
 
 # Learn more

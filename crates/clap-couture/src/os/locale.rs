@@ -5,7 +5,7 @@ use core::ffi::CStr;
 
 #[cfg(unix)]
 use encoding_rs::REPLACEMENT;
-use encoding_rs::{Encoding, UTF_8};
+use encoding_rs::{DecoderResult, Encoding, UTF_8};
 
 /// The ASCII codesets, as the `C` and `POSIX` locales report them. [`Encoding::for_label`] reads
 /// them as windows-1252, which takes any byte, so they name no encoding to fall back to.
@@ -25,7 +25,39 @@ const CODESET_LABELS: &[(&str, &str)] = &[
 
 /// Text in no encoding that could be read, decoded as best it could be.
 #[derive(Debug)]
-pub(crate) struct NotUnicode(pub(crate) String);
+pub(crate) struct NotUnicode {
+    /// How many U+FFFD in `text` mark bytes that couldn't be read, not text that was there.
+    pub(crate) marks: usize,
+    pub(crate) text: String,
+}
+
+impl NotUnicode {
+    /// `bytes` as UTF-8, or as the encoding their byte order mark names, each malformed sequence
+    /// marked with a U+FFFD.
+    fn read(bytes: &[u8]) -> Self {
+        let mut decoder = UTF_8.new_decoder();
+        let mut unread = bytes;
+        let mut readable = Self { marks: 0, text: String::new() };
+        loop {
+            readable.text.reserve(
+                decoder
+                    .max_utf8_buffer_length_without_replacement(unread.len())
+                    .unwrap_or_default(),
+            );
+            let (result, read) =
+                decoder.decode_to_string_without_replacement(unread, &mut readable.text, true);
+            unread = unread.get(read..).unwrap_or_default();
+            match result {
+                DecoderResult::InputEmpty => return readable,
+                DecoderResult::OutputFull => {}
+                DecoderResult::Malformed(..) => {
+                    readable.text.push(char::REPLACEMENT_CHARACTER);
+                    readable.marks = readable.marks.saturating_add(1);
+                }
+            }
+        }
+    }
+}
 
 /// Representation of the system's locale.
 #[derive(Debug)]
@@ -42,7 +74,7 @@ pub(crate) struct Locale {
 impl Locale {
     pub(crate) fn decode(bytes: &[u8]) -> Result<String, NotUnicode> {
         let legacy = Self::read().and_then(|locale| locale.encoding());
-        decode_with(bytes, legacy).ok_or_else(|| NotUnicode(UTF_8.decode(bytes).0.into_owned()))
+        decode_with(bytes, legacy).ok_or_else(|| NotUnicode::read(bytes))
     }
 
     /// The encoding the locale uses for text that isn't Unicode. `None` for a locale that names
@@ -209,6 +241,19 @@ mod tests {
     #[test]
     fn decode_keeps_what_it_could_read() {
         let decoded = Locale::decode(b"\xFF\xFEh\x00\x00\xD8");
-        assert!(matches!(decoded, Err(NotUnicode(text)) if text.starts_with('h')));
+        assert!(matches!(decoded, Err(NotUnicode { marks: _, text }) if text.starts_with('h')));
+    }
+
+    #[rstest]
+    #[case::latin1(b"caf\xE9", "caf\u{FFFD}", 1)]
+    #[case::own_mark_kept(b"\xEF\xBF\xBD caf\xE9", "\u{FFFD} caf\u{FFFD}", 1)]
+    #[case::utf16_lone_surrogate(b"\xFF\xFEh\x00\x00\xD8", "h\u{FFFD}", 1)]
+    fn not_unicode_counts_only_its_own_marks(
+        #[case] bytes: &[u8],
+        #[case] text: &str,
+        #[case] marks: usize,
+    ) {
+        let decoded = NotUnicode::read(bytes);
+        assert_eq!((decoded.text.as_str(), decoded.marks), (text, marks));
     }
 }

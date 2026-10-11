@@ -23,6 +23,7 @@ impl Messages {
         "editor_instructions_optional",
         "editor_not_utf8",
         "editor_returned_early",
+        "editor_unreadable",
         "editor_waiting",
         "environment",
         "finish_hint",

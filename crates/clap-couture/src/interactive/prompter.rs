@@ -65,6 +65,7 @@ where
             question,
             returned_early: &self.messages.editor_returned_early.get(),
             styles: self.styles(),
+            unreadable: &self.messages.editor_unreadable.get(),
             waiting: &self.messages.editor_waiting.get(),
         })?;
         answer.ok_or_else(|| {

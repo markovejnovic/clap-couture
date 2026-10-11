@@ -240,6 +240,7 @@ impl Session<'_> {
             question,
             returned_early: &self.messages.editor_returned_early.get(),
             styles,
+            unreadable: &self.messages.editor_unreadable.get(),
             waiting: &self.messages.editor_waiting.get(),
         })?;
         if answer.is_none() && !optional {

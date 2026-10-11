@@ -3,7 +3,7 @@
 Set Height 440
 
 Hide
-Type "alias orbit-create=06-interactive-prompter && clear" Enter
+Type "alias orbit-create=07-interactive-prompter && clear" Enter
 Show
 
 Type "orbit-create" Sleep 400ms Enter

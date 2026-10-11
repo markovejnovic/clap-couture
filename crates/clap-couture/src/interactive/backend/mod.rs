@@ -144,6 +144,11 @@ where
         (**self).confirm(prompt)
     }
 
+    #[cfg(feature = "interactive-editor")]
+    fn editor(&self, prompt: &EditorPrompt<'_>) -> Result<Option<String>, PromptError> {
+        (**self).editor(prompt)
+    }
+
     fn is_available(&self) -> bool {
         (**self).is_available()
     }

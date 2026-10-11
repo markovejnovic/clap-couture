@@ -190,9 +190,9 @@ pub use prompted_args::{
 /// The [`secrecy`](https://docs.rs/secrecy) crate couture's secret args are typed with, so the app
 /// names the same `SecretString`.
 pub use secrecy;
+pub use prompter::Prompter;
 
 pub use crate::os::signal::Signal;
-pub use prompter::Prompter;
 
 /// Why a prompt produced no answer.
 #[derive(Debug, thiserror::Error)]
@@ -242,6 +242,7 @@ pub struct ConfirmPrompt<'prompt> {
 /// A question answered in the user's editor, for `#[couture(prompt, editor)]`.
 #[cfg(feature = "interactive-editor")]
 #[derive(Debug)]
+#[non_exhaustive]
 pub struct EditorPrompt<'prompt> {
     /// The text the file starts with: the arg's default, or the previous rejected answer.
     pub default: Option<&'prompt str>,

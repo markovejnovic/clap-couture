@@ -4,7 +4,7 @@
 use core::cell::RefCell;
 use std::io;
 
-use clap::{ArgAction, Parser, Subcommand, error::ErrorKind};
+use clap::{ArgAction, ArgGroup, Parser, Subcommand, error::ErrorKind};
 use clap_couture::{
     Couture, CoutureParser as _,
     interactive::{Backend, ConfirmPrompt, EditorPrompt, PromptError, SelectPrompt, TextPrompt},
@@ -66,6 +66,43 @@ struct Flags {
     #[arg(short, action = ArgAction::Count)]
     #[couture(prompt, editor)]
     verbose: u8,
+}
+
+#[derive(Parser, Couture, Debug)]
+struct Unless {
+    #[arg(long)]
+    file: Option<String>,
+
+    /// Notes.
+    #[arg(long, required_unless_present = "file")]
+    #[couture(prompt, editor)]
+    notes: Option<String>,
+}
+
+#[derive(Parser, Couture, Debug)]
+#[command(group(ArgGroup::new("source").required(true).args(["notes", "file"])))]
+struct Grouped {
+    #[arg(long)]
+    file: Option<String>,
+
+    /// Notes.
+    #[arg(long)]
+    #[couture(prompt, editor)]
+    notes: Option<String>,
+}
+
+#[derive(Parser, Couture, Debug)]
+#[command(group(ArgGroup::new("message").required(true).args(["body", "summary"])))]
+struct TwoInGroup {
+    /// Body.
+    #[arg(long)]
+    #[couture(prompt, editor)]
+    body: Option<String>,
+
+    /// Summary.
+    #[arg(long)]
+    #[couture(prompt, editor)]
+    summary: Option<String>,
 }
 
 /// One `EditorPrompt`, owned.
@@ -306,4 +343,59 @@ fn a_rejected_multi_line_answer_keeps_the_reason() {
     let error = retry.and_then(|retry| retry.error.clone()).unwrap_or_default();
     assert!(error.contains("invalid value 'eighty\u{2026}'"), "{error}");
     assert!(error.contains("invalid digit"), "{error}");
+}
+
+/// Whether each editor opened allowed an empty answer, oldest first.
+fn optional(editor: &Editor) -> Vec<bool> {
+    editor.opened.take().iter().map(|opened| opened.optional).collect()
+}
+
+#[rstest]
+fn an_arg_required_unless_another_is_asked_as_required() {
+    let editor = Editor::new([Some("Notes.")]);
+    let unless = Unless::couture_try_parse_from_with(&editor, ["unless"]);
+    assert_eq!(unless.ok().and_then(|unless| unless.notes).as_deref(), Some("Notes."));
+    assert_eq!(optional(&editor), [false]);
+}
+
+#[rstest]
+fn an_arg_required_unless_a_passed_one_is_optional() {
+    let editor = Editor::new([None]);
+    let unless = Unless::couture_try_parse_from_with(&editor, ["unless", "--file", "f"]);
+    assert_eq!(unless.ok().map(|unless| unless.notes), Some(None));
+    assert_eq!(optional(&editor), [true]);
+}
+
+#[rstest]
+fn an_empty_answer_to_an_arg_required_by_a_rule_aborts() {
+    let editor = Editor::new([None]);
+    let unless = Unless::couture_try_parse_from_with(&editor, ["unless"]);
+    assert!(unless.is_err_and(|err| err.to_string().contains("prompt cancelled")));
+    assert_eq!(editor.reported.take(), ["Aborting due to an empty answer."]);
+}
+
+#[rstest]
+fn the_only_prompted_arg_of_a_required_group_is_asked_as_required() {
+    let editor = Editor::new([Some("Notes.")]);
+    let grouped = Grouped::couture_try_parse_from_with(&editor, ["grouped"]);
+    assert_eq!(grouped.ok().and_then(|grouped| grouped.notes).as_deref(), Some("Notes."));
+    assert_eq!(optional(&editor), [false]);
+}
+
+#[rstest]
+fn a_required_group_is_required_of_its_last_prompted_arg_only() {
+    let editor = Editor::new([None, Some("Summary.")]);
+    let message = TwoInGroup::couture_try_parse_from_with(&editor, ["message"]);
+    assert_eq!(message.ok().and_then(|message| message.summary).as_deref(), Some("Summary."));
+    // The body could be left for the summary; once it is, the summary can't.
+    assert_eq!(optional(&editor), [true, false]);
+}
+
+#[rstest]
+fn an_answered_group_member_satisfies_the_group() {
+    let editor = Editor::new([Some("Body.")]);
+    let message = TwoInGroup::couture_try_parse_from_with(&editor, ["message"]);
+    assert_eq!(message.ok().and_then(|message| message.body).as_deref(), Some("Body."));
+    // The group allows one member, so the summary isn't asked once the body is answered.
+    assert_eq!(optional(&editor), [true]);
 }

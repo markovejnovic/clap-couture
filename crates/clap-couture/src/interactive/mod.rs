@@ -23,8 +23,12 @@
 //!
 //! A prompted arg that has a default is asked with the default pre-filled. An optional arg answered
 //! with nothing stays unset. An arg passed on the command line or through its env var is never
-//! asked, and neither is one that conflicts with a passed arg or an earlier answer. Answers are
-//! not re-checked against `requires`, `required_if_eq` and similar rules between args.
+//! asked, and neither is one that conflicts with a passed arg or an earlier answer. An arg
+//! required through `required_unless_present` or a required `ArgGroup` is asked as required, and
+//! an empty answer is refused; in a group of prompted args, only the last one asked is. clap can't
+//! lift `required_unless_present_all` or `required_if_eq` from an arg, so when one of those
+//! fires, parsing fails with clap's error before anything is asked. Answers are not re-checked
+//! against `requires` and similar rules between args.
 //!
 //! # Answering in the editor
 //!
@@ -179,7 +183,7 @@ pub struct EditorPrompt<'prompt> {
     pub styles: CommandStyles<'prompt>,
     /// Put before the setting that makes an editor known to return at once wait.
     pub wait_hint: &'prompt str,
-    /// The hint shown while the editor is open.
+    /// The hint shown while the editor is open; empty shows none.
     pub waiting: &'prompt str,
 }
 

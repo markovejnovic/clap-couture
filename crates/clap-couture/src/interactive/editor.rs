@@ -28,6 +28,7 @@ use windows_sys::{
 };
 
 use super::{EditorPrompt, PromptError};
+use crate::os::term;
 
 /// The signals that reach both us and the editor, and that we leave to the editor while it is
 /// open: Ctrl-C, Ctrl-\\, and the terminal hanging up. Dying of one cancels the prompt.
@@ -94,8 +95,7 @@ impl Editor {
     /// Look the editor up as git does: `$VISUAL` unless the terminal is dumb, then `$EDITOR`,
     /// then `vi` (`notepad` on Windows). An empty variable counts as unset.
     ///
-    /// The terminal is dumb when `TERM` is `dumb`, or unset outside Windows. Windows terminals
-    /// don't set `TERM`; git for Windows sets it itself before looking.
+    /// Whether the terminal is dumb is [`term::is_dumb`]'s call.
     ///
     /// # Errors
     /// - [`PromptError::Io`] on a dumb terminal with no `$EDITOR`.
@@ -104,7 +104,7 @@ impl Editor {
         windows: bool,
     ) -> Result<Self, PromptError> {
         let set = |name: &str| var(name).filter(|value| !value.is_empty());
-        let dumb_terminal = set("TERM").map_or(!windows, |term| term == "dumb");
+        let dumb_terminal = term::is_dumb(set("TERM").as_deref(), windows);
         let visual = if dumb_terminal { None } else { set("VISUAL") };
         let (command, variable) = match visual
             .map(|command| (command, "VISUAL"))
@@ -121,6 +121,21 @@ impl Editor {
         Ok(Self { command, dumb_terminal, variable })
     }
 
+    /// Check whether the editor is one that runs outside the terminal and may print to it, as
+    /// emacsclient prints "Waiting for Emacs...": erasing the hint's line would then erase the
+    /// editor's instead. A terminal editor takes the whole screen and gives it back as it was.
+    fn prints_to_terminal(&self) -> bool {
+        self.program().is_some_and(|program| {
+            program == "emacsclient" || WAIT_FLAGS.iter().any(|(name, _)| *name == program)
+        })
+    }
+
+    /// The program's name, lowercased and without directory or extension, like `code`.
+    fn program(&self) -> Option<String> {
+        let words = self.words().ok()?;
+        Some(Path::new(words.first()?).file_stem()?.to_string_lossy().to_lowercase())
+    }
+
     /// Open `path` and wait for the editor to exit, returning whether it ran: `:` is git's no-op
     /// editor and is not run.
     ///
@@ -133,25 +148,29 @@ impl Editor {
             return Ok(false);
         }
         let mut command = self.command(path)?;
-        let hinted = io::stderr().is_terminal();
+        // An empty hint is the app turning it off, like git's `advice.waitingForEditor`.
+        let hinted = !waiting.is_empty() && io::stderr().is_terminal();
+        // The hint stays on its line, to be erased once the editor exits, unless the terminal
+        // can't erase or the editor may print below it.
+        let erased = hinted && !self.dumb_terminal && !self.prints_to_terminal();
         if hinted {
-            // On a smart terminal the hint stays on its line, to be erased once the editor exits.
-            let end = if self.dumb_terminal { '\n' } else { ' ' };
+            let end = if erased { ' ' } else { '\n' };
             write!(io::stderr(), "{waiting}{end}").map_err(PromptError::Io)?;
         }
         let status = wait(&mut command);
         let succeeded = status.as_ref().is_ok_and(ExitStatus::success);
-        if hinted && !self.dumb_terminal {
-            // Erase the hint after a clean exit; otherwise keep it, ending its line. Spaces erase
-            // it on every console, where `\x1b[K` needs VT processing on Windows.
-            let tail = if succeeded {
-                format!("\r{}\r", " ".repeat(waiting.width().saturating_add(1)))
+        if erased {
+            // Erase the hint and its trailing space after a clean exit; otherwise keep it, ending
+            // its line.
+            let mut stderr = io::stderr();
+            let erasing = if succeeded {
+                term::erase_line(&mut stderr, waiting.width().saturating_add(1))
             } else {
-                "\n".to_owned()
+                writeln!(stderr)
             };
             // Best effort: after a hang-up there is no terminal left to write to, and the editor's
             // status still decides the outcome.
-            drop(write!(io::stderr(), "{tail}"));
+            drop(erasing);
         }
         let editor = self.command.to_string_lossy();
         let problem = || {
@@ -174,9 +193,9 @@ impl Editor {
     /// The setting that would make an editor known to return at once wait, like
     /// `EDITOR="code --wait"`; `None` for any other editor, or one already given its flag.
     fn wait_fix(&self) -> Option<String> {
-        let words = self.words().ok()?;
-        let program = Path::new(words.first()?).file_stem()?.to_string_lossy().to_lowercase();
+        let program = self.program()?;
         let (_, flag) = WAIT_FLAGS.iter().find(|(name, _)| *name == program)?;
+        let words = self.words().ok()?;
         let given = words.iter().skip(1).any(|word| word == *flag || word == "--wait");
         (!given).then(|| {
             let variable = self.variable.unwrap_or("EDITOR");
@@ -853,6 +872,15 @@ mod tests {
         #[case] expected: Option<&str>,
     ) {
         assert_eq!(editor(command).wait_fix().as_deref(), expected);
+    }
+
+    #[rstest]
+    #[case::gui_editor("code --wait", true)]
+    #[case::emacsclient("/usr/bin/emacsclient -t", true)]
+    #[case::terminal_editor("vim", false)]
+    #[case::nano("nano -w", false)]
+    fn prints_to_terminal_for_editors_outside_it(#[case] command: &str, #[case] expected: bool) {
+        assert_eq!(editor(command).prints_to_terminal(), expected);
     }
 
     #[test]

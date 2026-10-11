@@ -88,6 +88,8 @@ extern crate alloc;
 #[cfg(feature = "interactive")]
 pub mod interactive;
 mod maybe_couture;
+#[cfg(feature = "interactive")]
+mod os;
 mod parser;
 mod render;
 mod text;
@@ -215,7 +217,7 @@ pub struct Messages {
     /// Put before the setting that makes a known editor wait, on a line after
     /// `editor_returned_early`. The default is `"To make it wait, set"`.
     pub editor_wait_hint: Text,
-    /// Shown while the editor is open. The default is
+    /// Shown while the editor is open; empty shows nothing. The default is
     /// `"hint: Waiting for your editor to close the file..."`.
     pub editor_waiting: Text,
     /// The select option that leaves an optional prompted arg unset. The default is `"(none)"`.

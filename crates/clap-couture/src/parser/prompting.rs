@@ -9,7 +9,9 @@ use core::iter;
 use std::ffi::OsString;
 
 use clap::{
-    Arg, ArgAction, ArgGroup, ArgMatches, Command, FromArgMatches, Id, builder::PossibleValue,
+    Arg, ArgAction, ArgGroup, ArgMatches, Command, FromArgMatches, Id,
+    builder::{PossibleValue, Resettable},
+    error::ErrorKind,
     parser::ValueSource,
 };
 
@@ -28,6 +30,16 @@ use crate::{
 struct Answer<'prompted_arg> {
     prompted_arg: &'prompted_arg PromptedArg,
     value: String,
+}
+
+/// A prompted arg about to be asked, and what is known about it.
+struct Asked<'ask> {
+    arg: &'ask Arg,
+    /// Its default's value, pre-filled.
+    current: Option<&'ask str>,
+    /// Leaving it unset passes clap, so an empty answer is allowed.
+    optional: bool,
+    prompted_arg: &'ask PromptedArg,
 }
 
 /// An answer clap turned down, and why; an editor prompt reopens with it.
@@ -51,20 +63,22 @@ struct Session<'run> {
 
 impl Session<'_> {
     /// Ask for `prompted_arg` until clap accepts the answer; `None` when an optional one is left
-    /// empty.
+    /// empty. `later` are the prompted args still to be asked after it.
     fn answer(
         &self,
         prompted_arg: &PromptedArg,
         current: Option<&str>,
         answers: &[Answer<'_>],
+        later: &[&PromptedArg],
     ) -> Result<Option<String>, PromptError> {
         let Some(arg) = arg_at(self.cmd, &prompted_arg.subcommand_path, prompted_arg.attr.arg_id)
         else {
             return Ok(None);
         };
+        let asked = Asked { arg, current, optional: !self.required(answers, later), prompted_arg };
         let mut rejected = None;
         loop {
-            let Some(value) = self.ask(arg, prompted_arg, current, rejected.as_ref())? else {
+            let Some(value) = self.ask(&asked, rejected.as_ref())? else {
                 return Ok(None);
             };
             match self.trial(answers, prompted_arg, &value) {
@@ -87,11 +101,10 @@ impl Session<'_> {
     )]
     fn ask(
         &self,
-        arg: &Arg,
-        prompted_arg: &PromptedArg,
-        current: Option<&str>,
+        asked: &Asked<'_>,
         rejected: Option<&Rejected>,
     ) -> Result<Option<String>, PromptError> {
+        let Asked { arg, current, optional, prompted_arg } = *asked;
         let question = prompted_arg.attr.question.as_ref().map_or_else(
             || {
                 arg.get_help()
@@ -105,7 +118,7 @@ impl Session<'_> {
         if let Some(editor) =
             prompted_arg.attr.editor.as_ref().filter(|_| arg.get_action().takes_values())
         {
-            return self.ask_in_editor(arg, prompted_arg, editor, &question, current, rejected);
+            return self.ask_in_editor(asked, editor, &question, rejected);
         }
         if let Some(negate) = flag_negation(arg.get_action()) {
             let set = self.backend.confirm(&ConfirmPrompt {
@@ -121,7 +134,7 @@ impl Session<'_> {
         if options.is_empty() {
             return self.backend.text(&TextPrompt {
                 default: current,
-                optional: !arg.is_required_set(),
+                optional,
                 question: &question,
                 styles,
             });
@@ -129,7 +142,7 @@ impl Session<'_> {
         self.backend.select(&SelectPrompt {
             default: current,
             none_option: &self.messages.none.get(),
-            optional: !arg.is_required_set(),
+            optional,
             options: &options,
             question: &question,
             styles,
@@ -142,15 +155,14 @@ impl Session<'_> {
     #[cfg(feature = "interactive-editor")]
     fn ask_in_editor(
         &self,
-        arg: &Arg,
-        prompted_arg: &PromptedArg,
+        asked: &Asked<'_>,
         editor: &EditorAttr,
         question: &str,
-        current: Option<&str>,
         rejected: Option<&Rejected>,
     ) -> Result<Option<String>, PromptError> {
+        let Asked { arg, current, optional: _, prompted_arg } = *asked;
         let styles = CommandStyles(self.cmd.get_styles());
-        let optional = !arg.is_required_set() && arg.get_default_values().is_empty();
+        let optional = asked.optional && arg.get_default_values().is_empty();
         let instructions = if optional {
             self.messages.editor_instructions_optional.get()
         } else {
@@ -181,6 +193,17 @@ impl Session<'_> {
         Ok(answer)
     }
 
+    /// Check whether leaving the arg being asked unset fails the parse: it is `required`, or
+    /// required through `required_unless_present` or a required group. The accepted answers go
+    /// in, and only the args still to be asked, `later`, stay relaxed, so a group another of them
+    /// can still satisfy doesn't make this one required.
+    fn required(&self, answers: &[Answer<'_>], later: &[&PromptedArg]) -> bool {
+        let accepted = answers.iter().map(|answer| (answer.prompted_arg, answer.value.as_str()));
+        let cmd = inject(relax(self.cmd.clone(), later.iter().copied()), accepted);
+        cmd.try_get_matches_from(self.argv)
+            .is_err_and(|err| err.kind() == ErrorKind::MissingRequiredArgument)
+    }
+
     /// Parse with `candidate` as `prompted_arg`'s answer on top of the accepted ones.
     fn trial(
         &self,
@@ -190,7 +213,7 @@ impl Session<'_> {
     ) -> Result<(), clap::Error> {
         let accepted = answers.iter().map(|answer| (answer.prompted_arg, answer.value.as_str()));
         let cmd = inject(
-            relax(self.cmd.clone(), self.prompted_args),
+            relax(self.cmd.clone(), self.prompted_args.iter()),
             accepted.chain(iter::once((prompted_arg, candidate))),
         );
         cmd.try_get_matches_from(self.argv).map(drop)
@@ -214,17 +237,20 @@ where
         return super::parse(cmd, argv);
     }
     // Help, usage and errors come from the command the user sees, not the relaxed one.
-    let Ok(matches) = relax(cmd.clone(), &prompted_args).try_get_matches_from(argv) else {
+    let Ok(matches) = relax(cmd.clone(), prompted_args.iter()).try_get_matches_from(argv) else {
         return super::parse(cmd, argv);
     };
 
     let session = Session { argv, backend, cmd: &cmd, messages, prompted_args: &prompted_args };
     let mut answers = Vec::new();
-    for (prompted_arg, current) in pending(&cmd, &matches, &prompted_args) {
+    let pending = pending(&cmd, &matches, &prompted_args);
+    for (index, (prompted_arg, current)) in pending.iter().enumerate() {
         if blocked(&cmd, &matches, prompted_arg, &answers) {
             continue;
         }
-        match session.answer(prompted_arg, current.as_deref(), &answers) {
+        let later: Vec<&PromptedArg> =
+            pending.iter().skip(index.saturating_add(1)).map(|(later, _)| *later).collect();
+        match session.answer(prompted_arg, current.as_deref(), &answers, &later) {
             Ok(Some(value)) => answers.push(Answer { prompted_arg, value }),
             Ok(None) => {}
             Err(PromptError::Cancelled) => return Err(Failure::Cancelled { signal: None }),
@@ -283,6 +309,20 @@ fn blocked(
         })
 }
 
+/// The command at `path` passed through `edit`; unchanged when the path is missing.
+fn with_command_at<F>(cmd: Command, path: &[&str], edit: F) -> Command
+where
+    F: FnOnce(Command) -> Command,
+{
+    match path.split_first() {
+        None => edit(cmd),
+        Some((name, rest)) if cmd.find_subcommand(name).is_some() => {
+            cmd.mut_subcommand(name, |sub| with_command_at(sub, rest, edit))
+        }
+        Some(_) => cmd,
+    }
+}
+
 fn command_at<'cmd>(cmd: &'cmd Command, path: &[&str]) -> Option<&'cmd Command> {
     path.iter().try_fold(cmd, |level, name| level.find_subcommand(name))
 }
@@ -325,9 +365,14 @@ fn inject<'prompted_arg>(
 ) -> Command {
     answers.into_iter().fold(cmd, |cmd, (prompted_arg, value)| {
         let value = value.to_owned();
-        with_arg_at(cmd, &prompted_arg.subcommand_path, prompted_arg.attr.arg_id, |arg| {
-            arg.required(false).default_value(value)
-        })
+        // A default value is no explicit value to clap, so the rules that require the arg would
+        // still miss it.
+        with_arg_at(
+            unrequire(cmd, prompted_arg),
+            &prompted_arg.subcommand_path,
+            prompted_arg.attr.arg_id,
+            |arg| arg.default_value(value),
+        )
     })
 }
 
@@ -376,13 +421,12 @@ fn raw_value(matches: &ArgMatches, id: &str) -> Option<String> {
     raw.next().map(|value| value.to_string_lossy().into_owned())
 }
 
-/// Make every prompted arg optional, so a missing one does not stop the first parse.
-fn relax(cmd: Command, prompted_args: &[PromptedArg]) -> Command {
-    prompted_args.iter().fold(cmd, |cmd, prompted_arg| {
-        with_arg_at(cmd, &prompted_arg.subcommand_path, prompted_arg.attr.arg_id, |arg| {
-            arg.required(false)
-        })
-    })
+/// Make each of `prompted_args` optional, so a missing one does not stop a parse.
+fn relax<'prompted_arg>(
+    cmd: Command,
+    prompted_args: impl IntoIterator<Item = &'prompted_arg PromptedArg>,
+) -> Command {
+    prompted_args.into_iter().fold(cmd, unrequire)
 }
 
 /// The first line of clap's message, without its `error: ` prefix. clap quotes the rejected
@@ -396,16 +440,38 @@ fn summary(err: &clap::Error, value: &str) -> String {
     line.strip_prefix("error: ").unwrap_or(line).to_owned()
 }
 
+/// Drop the rules that make `prompted_arg` required: its `required`, its
+/// `required_unless_present`, and the `required` of the groups it belongs to. clap can't clear
+/// `required_unless_present_all` or `required_if_eq`, so those stay.
+fn unrequire(cmd: Command, prompted_arg: &PromptedArg) -> Command {
+    let id = prompted_arg.attr.arg_id;
+    with_command_at(cmd, &prompted_arg.subcommand_path, |level| {
+        if !level.get_arguments().any(|arg| arg.get_id() == id) {
+            return level;
+        }
+        let groups: Vec<Id> = level
+            .get_groups()
+            .filter(|group| group.is_required_set() && group.get_args().any(|arg| arg == id))
+            .map(|group| group.get_id().clone())
+            .collect();
+        let level =
+            level.mut_arg(id, |arg| arg.required(false).required_unless_present(Resettable::Reset));
+        groups
+            .iter()
+            .fold(level, |level, group| level.mut_group(group, |group| group.required(false)))
+    })
+}
+
 /// Apply `edit` to the arg `id` of the command at `path`; unchanged when either is missing.
 fn with_arg_at<F>(cmd: Command, path: &[&str], id: &str, edit: F) -> Command
 where
     F: FnOnce(Arg) -> Arg,
 {
-    match path.split_first() {
-        None if cmd.get_arguments().any(|arg| arg.get_id() == id) => cmd.mut_arg(id, edit),
-        Some((name, rest)) if cmd.find_subcommand(name).is_some() => {
-            cmd.mut_subcommand(name, |sub| with_arg_at(sub, rest, id, edit))
+    with_command_at(cmd, path, |level| {
+        if level.get_arguments().any(|arg| arg.get_id() == id) {
+            level.mut_arg(id, edit)
+        } else {
+            level
         }
-        None | Some(_) => cmd,
-    }
+    })
 }

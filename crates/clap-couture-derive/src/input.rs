@@ -11,7 +11,7 @@
 
 use darling::{
     FromDeriveInput, FromField, FromMeta, FromVariant, ast,
-    util::{Override, SpannedValue},
+    util::{Flag, Override, SpannedValue},
 };
 use syn::{Attribute, Generics, Ident, Type, ext::IdentExt as _};
 
@@ -48,7 +48,16 @@ pub(crate) struct FieldInput {
     pub(crate) editor: Option<SpannedValue<Override<EditorOptions>>>,
     pub(crate) ident: Option<Ident>,
     pub(crate) prompt: Option<Question>,
+    /// `Inherit` for `#[couture(secret)]`, `Explicit` for `#[couture(secret(allow_argv))]`.
+    pub(crate) secret: Option<SpannedValue<Override<SecretOptions>>>,
     pub(crate) ty: Type,
+}
+
+/// The options of `#[couture(secret(...))]`.
+#[derive(FromMeta)]
+pub(crate) struct SecretOptions {
+    /// The value may come from the command line.
+    pub(crate) allow_argv: Flag,
 }
 
 /// A variant of a subcommand enum.

@@ -2,6 +2,10 @@
 //! typed ones.
 #![cfg(feature = "interactive")]
 
+#[expect(
+    dead_code,
+    reason = "secret replies script tests/secrets.rs; nothing here asks for a secret"
+)]
 mod common;
 
 use core::{

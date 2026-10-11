@@ -1,19 +1,26 @@
 //! [`Backend`] drawn by [dialoguer](https://docs.rs/dialoguer).
 
 use clap::builder::PossibleValue;
-use dialoguer::{Confirm, Input, MultiSelect, Select, theme::ColorfulTheme};
+use dialoguer::{Confirm, Input, MultiSelect, Password, Select, theme::ColorfulTheme};
+use secrecy::SecretString;
 
 #[cfg(feature = "interactive-editor")]
 use super::builtin::Edited;
 use super::{Backend, CommandStyles, builtin::ClapStyle};
 #[cfg(feature = "interactive-editor")]
 use crate::interactive::EditorPrompt;
-use crate::interactive::{ConfirmPrompt, MultiSelectPrompt, PromptError, SelectPrompt, TextPrompt};
+use crate::interactive::{
+    ConfirmPrompt, MultiSelectPrompt, PromptError, SecretPrompt, SelectPrompt, TextPrompt,
+};
 
 /// A dialoguer failure.
 struct DialoguerError(dialoguer::Error);
 
 /// Prompts drawn by dialoguer's colorful theme.
+///
+/// At a secret prompt, Ctrl-C interrupts the process rather than returning
+/// [`PromptError::Cancelled`]: dialoguer reads the secret as a plain line, with only echo off. Esc
+/// is taken as part of the answer, and the interrupted process may leave the terminal's echo off.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Dialoguer;
 
@@ -81,6 +88,16 @@ impl Backend for Dialoguer {
         console::Term::stderr()
             .write_line(&theme.error_style.apply_to(error).to_string())
             .map_err(PromptError::Io)
+    }
+
+    fn secret(&self, prompt: &SecretPrompt<'_>) -> Result<Option<SecretString>, PromptError> {
+        let theme = ColorfulTheme::from(prompt.styles);
+        let answer = Password::with_theme(&theme)
+            .with_prompt(prompt.question)
+            .allow_empty_password(prompt.optional)
+            .interact()
+            .map_err(DialoguerError)?;
+        Ok((!answer.is_empty()).then(|| SecretString::from(answer)))
     }
 
     fn select(&self, prompt: &SelectPrompt<'_>) -> Result<Option<String>, PromptError> {

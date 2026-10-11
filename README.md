@@ -29,7 +29,7 @@ your `clap` with only a few derive attributes.
 ## Features
 
 - Organize your help with _categories_.
-- Interactive input (WIP)
+- Interactive input, with masked secrets (WIP)
 - Markdown for rich styling (WIP)
 
 ### Categories

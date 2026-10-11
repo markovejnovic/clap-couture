@@ -7,10 +7,11 @@ use clap::builder::{
     styling::{AnsiColor, Color, Effects},
 };
 use inquire::{
-    Confirm, MultiSelect, Select, Text,
+    Confirm, MultiSelect, Password, PasswordDisplayMode, Select, Text,
     ui::{Attributes, ErrorMessageRenderConfig, RenderConfig, StyleSheet},
     validator::{MinLengthValidator, ValueRequiredValidator},
 };
+use secrecy::SecretString;
 
 use super::{
     Backend, CommandStyles,
@@ -18,7 +19,9 @@ use super::{
 };
 #[cfg(feature = "interactive-editor")]
 use crate::interactive::EditorPrompt;
-use crate::interactive::{ConfirmPrompt, MultiSelectPrompt, PromptError, SelectPrompt, TextPrompt};
+use crate::interactive::{
+    ConfirmPrompt, MultiSelectPrompt, PromptError, SecretPrompt, SelectPrompt, TextPrompt,
+};
 
 struct InquireError(inquire::InquireError);
 
@@ -86,6 +89,20 @@ impl Backend for Inquire {
         };
         let picked = select.prompt().map_err(InquireError)?;
         Ok(picked.into_iter().map(str::to_owned).collect())
+    }
+
+    fn secret(&self, prompt: &SecretPrompt<'_>) -> Result<Option<SecretString>, PromptError> {
+        let input = Password::new(prompt.question)
+            .without_confirmation()
+            .with_display_mode(PasswordDisplayMode::Masked)
+            .with_render_config(RenderConfig::from(prompt.styles));
+        let input = if prompt.optional {
+            input
+        } else {
+            input.with_validator(ValueRequiredValidator::default())
+        };
+        let answer = input.prompt().map_err(InquireError)?;
+        Ok((!answer.is_empty()).then(|| SecretString::from(answer)))
     }
 
     fn select(&self, prompt: &SelectPrompt<'_>) -> Result<Option<String>, PromptError> {

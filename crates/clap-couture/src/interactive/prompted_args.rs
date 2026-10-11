@@ -1,5 +1,8 @@
 //! The static tree of prompted args that `#[derive(Couture)]` emits as `Couture::PROMPTED_ARGS`.
 
+use secrecy::SecretString;
+
+use super::sealed::Sealed;
 use crate::Text;
 
 /// The `editor` beside a `#[couture(prompt)]`: ask in the user's editor.
@@ -32,6 +35,8 @@ pub struct PromptAttr {
     pub purpose: PromptPurpose,
     /// The `= ...` override; `None` asks the arg's help text.
     pub question: Option<Text>,
+    /// The `secret` beside it, if any.
+    pub secret: Option<SecretAttr>,
 }
 
 /// What a prompt's answer is for.
@@ -73,6 +78,22 @@ pub struct PromptedArgTree {
     pub own_args: &'static [PromptAttr],
 }
 
+/// A `secret` or `secret(allow_argv)` beside `#[couture(prompt)]`.
+#[derive(Debug)]
+pub struct SecretAttr {
+    /// The value may come from the command line.
+    allow_argv: bool,
+}
+
+/// A field type `#[couture(secret)]` can hold, peeled of its `Option`.
+#[diagnostic::on_unimplemented(
+    message = "`#[couture(secret)]` holds a `SecretString`, not `{Self}`",
+    label = "not a `SecretString`"
+)]
+pub trait SecretField: Sealed {}
+
+impl SecretField for SecretString {}
+
 impl PromptedArgTree {
     /// A tree with no prompted args, the default for a hand-written `Couture` impl.
     pub const EMPTY: Self = Self { branches: &[], own_args: &[] };
@@ -105,5 +126,23 @@ impl PromptedArgTree {
         let mut prompted_args = Vec::new();
         self.collect(&mut Vec::new(), &mut prompted_args);
         prompted_args
+    }
+}
+
+impl SecretAttr {
+    /// Whether the value may come from the command line: `secret(allow_argv)`.
+    #[must_use]
+    pub const fn allow_argv(&self) -> bool {
+        self.allow_argv
+    }
+
+    /// The attr of a secret held in a `T`. The bound turns a field of the wrong type into a
+    /// compile error at the field.
+    #[must_use]
+    pub const fn new<T>(allow_argv: bool) -> Self
+    where
+        T: SecretField,
+    {
+        Self { allow_argv }
     }
 }

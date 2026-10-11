@@ -99,9 +99,75 @@
 //!     follow: bool,
 //! }
 //! ```
+//! 
+//! # Secrets
+//!
+//! Add `secret` to ask for a [`secrecy::SecretString`] without echoing it. A prompted answer
+//! never reaches clap as plaintext; a value from the env var or an allowed command line is held
+//! by clap like any arg's. The arg refuses a value from the command line, where `ps` and shell
+//! history would see it; `secret(allow_argv)` allows it. A value from its env var is used without
+//! asking, and `--help` names the variable but hides its value. An `Option<SecretString>` field
+//! makes the secret optional: left empty, it stays `None`.
+//!
+//! Only [`CoutureParser`](crate::CoutureParser)'s entry points and
+//! [`couture_command`](crate::CoutureParser::couture_command) guard secret args; plain
+//! `Cli::parse()` or `Cli::command()` takes `--token` from the command line and shows its env
+//! value in `--help`.
+//! ```
+//! use clap::Parser;
+//! use clap_couture::{Couture, interactive::secrecy::SecretString};
+//!
+//! #[derive(Parser, Couture)]
+//! struct Cli {
+//!     /// API token
+//!     #[arg(long, env = "API_TOKEN")]
+//!     #[couture(prompt, secret)]
+//!     token: SecretString,
+//! }
+//! ```
+//! 
+//! `secret` modifies a prompt, so it needs one:
+//! ```compile_fail
+//! use clap::Parser;
+//! use clap_couture::{Couture, interactive::secrecy::SecretString};
+//!
+//! #[derive(Parser, Couture)]
+//! struct Cli {
+//!     #[arg(long)]
+//!     #[couture(secret)]
+//!     token: SecretString,
+//! }
+//! ```
+//! 
+//! A secret takes no default, which would be baked into the binary:
+//! ```compile_fail
+//! use clap::Parser;
+//! use clap_couture::{Couture, interactive::secrecy::SecretString};
+//!
+//! #[derive(Parser, Couture)]
+//! struct Cli {
+//!     #[arg(long, default_value = "hunter2")]
+//!     #[couture(prompt, secret)]
+//!     token: SecretString,
+//! }
+//! ```
+//! 
+//! and its field must be a `SecretString`:
+//! ```compile_fail,E0277
+//! use clap::Parser;
+//! use clap_couture::Couture;
+//!
+//! #[derive(Parser, Couture)]
+//! struct Cli {
+//!     #[arg(long)]
+//!     #[couture(prompt, secret)]
+//!     token: String,
+//! }
+//! ```
 
 mod backend;
 mod prompted_args;
+mod sealed;
 
 use std::io;
 
@@ -118,7 +184,11 @@ use clap::builder::PossibleValue;
 #[doc(hidden)]
 pub use prompted_args::{
     EditorAttr, PromptAttr, PromptPurpose, PromptedArg, PromptedArgBranch, PromptedArgTree,
+    SecretAttr, SecretField,
 };
+/// The [`secrecy`](https://docs.rs/secrecy) crate couture's secret args are typed with, so the app
+/// names the same `SecretString`.
+pub use secrecy;
 
 pub use crate::os::signal::Signal;
 
@@ -207,6 +277,17 @@ pub struct MultiSelectPrompt<'prompt> {
     pub question: &'prompt str,
     /// What to tell the user when they select nothing, unless the prompt is optional.
     pub selection_required: &'prompt str,
+    /// The command's styles, for backends that theme themselves.
+    pub styles: CommandStyles<'prompt>,
+}
+
+/// A question whose answer is typed masked and never echoed.
+#[derive(Debug)]
+pub struct SecretPrompt<'prompt> {
+    /// An empty answer is allowed, and leaves the arg unset.
+    pub optional: bool,
+    /// What to ask.
+    pub question: &'prompt str,
     /// The command's styles, for backends that theme themselves.
     pub styles: CommandStyles<'prompt>,
 }

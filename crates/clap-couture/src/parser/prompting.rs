@@ -8,6 +8,10 @@
 //!
 //! Confirmations come last, so their questions can name the answers. A declined one fails the
 //! parse; without a terminal to ask on, one left unanswered fails it as a missing required arg.
+//!
+//! A secret's answer goes into a vault instead, and clap gets a placeholder that the secret's
+//! value parser swaps back. It skips the trial parse: that parser takes any string, so there is
+//! nothing to ask again.
 
 use core::iter;
 use std::ffi::OsString;
@@ -19,23 +23,27 @@ use clap::{
     parser::ValueSource,
 };
 
-use super::Failure;
+use super::{
+    Failure,
+    secrets::{self, Vault},
+};
 #[cfg(feature = "interactive-editor")]
 use crate::interactive::{EditorAttr, EditorPrompt};
 use crate::{
     Messages,
     interactive::{
         Backend, CommandStyles, ConfirmPrompt, MultiSelectPrompt, PromptError, PromptPurpose,
-        PromptedArg, PromptedArgTree, SelectPrompt, TextPrompt,
+        PromptedArg, PromptedArgTree, SecretPrompt, SelectPrompt, TextPrompt,
     },
     os::signal::Signal,
 };
 
 /// A prompted arg's accepted answer.
 struct Answer<'prompted_arg> {
+    /// What clap gets as the arg's defaults: the answer itself, or a secret's placeholder. One
+    /// value, or any number for an arg that takes many.
+    injected_values: Vec<String>,
     prompted_arg: &'prompted_arg PromptedArg,
-    /// One value, or any number for an arg that takes many.
-    values: Vec<String>,
 }
 
 /// A prompted arg about to be asked in the editor, and what is known about it.
@@ -57,19 +65,22 @@ struct Rejected {
     value: String,
 }
 
-/// One parse: the command, its argv, its prompted args and who to ask.
+/// One parse: the command, its argv, its prompted args, who to ask and where secrets go.
 struct Session<'run> {
     argv: &'run [OsString],
     backend: &'run dyn Backend,
     cmd: &'run Command,
     messages: &'run Messages,
     prompted_args: &'run [PromptedArg],
+    /// Holds the secret answers; `cmd` resolves their placeholders from it.
+    vault: &'run Vault,
 }
 
 impl Session<'_> {
     /// Ask for `prompted_arg` until clap accepts the answer; `None` when an optional single-value
     /// one is left empty. `current` is the arg's default, split into its values. `later` are the
-    /// prompted args still to be asked after it.
+    /// prompted args still to be asked after it. A secret is asked once and comes back as its vault
+    /// placeholder.
     fn answer(
         &self,
         prompted_arg: &PromptedArg,
@@ -83,6 +94,17 @@ impl Session<'_> {
         };
         let optional = !self.required(answers, later);
         let question = self.question(prompted_arg);
+        if prompted_arg.attr.secret.is_some() {
+            // clap has nothing to reject in a string, so a secret skips the trial parse; the vault
+            // keeps it and clap gets a placeholder. `current` goes unused: the derive refuses a
+            // default on a secret, and showing one would echo it.
+            let secret = self.backend.secret(&SecretPrompt {
+                optional,
+                question: &question,
+                styles: CommandStyles(self.cmd.get_styles()),
+            })?;
+            return Ok(secret.map(|secret| vec![self.vault.store(secret)]));
+        }
         // A flag has nothing to edit, so one that slipped past the derive asks as a flag.
         #[cfg(feature = "interactive-editor")]
         if let Some(editor) = prompted_arg
@@ -210,7 +232,7 @@ impl Session<'_> {
         let question = self.question(prompted_arg);
         let answered = inject(
             relax(self.cmd.clone(), self.prompted_args),
-            answers.iter().map(|answer| (answer.prompted_arg, answer.values.as_slice())),
+            answers.iter().map(|answer| (answer.prompted_arg, answer.injected_values.as_slice())),
         )
         .try_get_matches_from(self.argv);
         let question = match answered
@@ -307,7 +329,8 @@ impl Session<'_> {
     /// in, and only the args still to be asked, `later`, stay relaxed, so a group another of them
     /// can still satisfy doesn't make this one required.
     fn required(&self, answers: &[Answer<'_>], later: &[&PromptedArg]) -> bool {
-        let accepted = answers.iter().map(|answer| (answer.prompted_arg, answer.values.as_slice()));
+        let accepted =
+            answers.iter().map(|answer| (answer.prompted_arg, answer.injected_values.as_slice()));
         let cmd = inject(relax(self.cmd.clone(), later.iter().copied()), accepted);
         cmd.try_get_matches_from(self.argv)
             .is_err_and(|err| err.kind() == ErrorKind::MissingRequiredArgument)
@@ -320,7 +343,8 @@ impl Session<'_> {
         prompted_arg: &PromptedArg,
         candidate: &[String],
     ) -> Result<(), clap::Error> {
-        let accepted = answers.iter().map(|answer| (answer.prompted_arg, answer.values.as_slice()));
+        let accepted =
+            answers.iter().map(|answer| (answer.prompted_arg, answer.injected_values.as_slice()));
         let cmd = inject(
             relax(self.cmd.clone(), self.prompted_args.iter()),
             accepted.chain(iter::once((prompted_arg, candidate))),
@@ -364,12 +388,22 @@ where
     if prompted_args.is_empty() || !backend.is_available() {
         return parse_unprompted(cmd, &prompted_args, argv);
     }
+    // Re-guarded with the vault this parse's answers go into; trial and final parses share it.
+    let vault = Vault::default();
+    let cmd = secrets::guard(cmd, &prompted_args, &vault, &messages.environment.get());
     // Help, usage and errors come from the command the user sees, not the relaxed one.
     let Ok(matches) = relax(cmd.clone(), prompted_args.iter()).try_get_matches_from(argv) else {
         return super::parse(cmd, argv);
     };
 
-    let session = Session { argv, backend, cmd: &cmd, messages, prompted_args: &prompted_args };
+    let session = Session {
+        argv,
+        backend,
+        cmd: &cmd,
+        messages,
+        prompted_args: &prompted_args,
+        vault: &vault,
+    };
     let mut answers = Vec::new();
     let mut unanswered = pending(&cmd, &matches, &prompted_args);
     // Stable, so values and confirmations each keep declaration order.
@@ -389,7 +423,7 @@ where
             PromptPurpose::Value => session.answer(prompted_arg, current, &answers, &later),
         };
         match answer {
-            Ok(Some(values)) => answers.push(Answer { prompted_arg, values }),
+            Ok(Some(injected_values)) => answers.push(Answer { injected_values, prompted_arg }),
             Ok(None) => {}
             // Backing out counts as Ctrl-C.
             Err(PromptError::Cancelled) => return Err(Failure::Cancelled(Signal::Interrupt)),
@@ -398,8 +432,10 @@ where
             Err(PromptError::NotATerminal) => return parse_unprompted(cmd, &prompted_args, argv),
         }
     }
-    let cmd_with_answers =
-        inject(cmd, answers.iter().map(|answer| (answer.prompted_arg, answer.values.as_slice())));
+    let cmd_with_answers = inject(
+        cmd,
+        answers.iter().map(|answer| (answer.prompted_arg, answer.injected_values.as_slice())),
+    );
     super::parse(cmd_with_answers, argv)
 }
 
@@ -496,7 +532,7 @@ fn default_values(arg: &Arg) -> impl Iterator<Item = &str> {
 }
 
 /// The command at `path` passed through `edit`; unchanged when the path is missing.
-fn with_command_at<F>(cmd: Command, path: &[&str], edit: F) -> Command
+pub(super) fn with_command_at<F>(cmd: Command, path: &[&str], edit: F) -> Command
 where
     F: FnOnce(Command) -> Command,
 {
@@ -701,7 +737,7 @@ fn unrequire(cmd: Command, prompted_arg: &PromptedArg) -> Command {
 }
 
 /// Apply `edit` to the arg `id` of the command at `path`; unchanged when either is missing.
-fn with_arg_at<F>(cmd: Command, path: &[&str], id: &str, edit: F) -> Command
+pub(super) fn with_arg_at<F>(cmd: Command, path: &[&str], id: &str, edit: F) -> Command
 where
     F: FnOnce(Arg) -> Arg,
 {

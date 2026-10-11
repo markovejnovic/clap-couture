@@ -2,6 +2,8 @@
 
 #[cfg(feature = "interactive")]
 mod prompting;
+#[cfg(feature = "interactive")]
+mod secrets;
 
 use std::ffi::OsString;
 
@@ -18,10 +20,13 @@ use crate::{CommandExt as _, Couture};
 /// Implemented for every [`Parser`] that also implements [`Couture`]. With an `interactive-*`
 /// backend feature on, every entry point asks for prompted args the user left out.
 pub trait CoutureParser: Parser + Couture {
-    /// The clap [`Command`] with couture's help installed.
+    /// The clap [`Command`] with couture's help installed, and its secret args guarded.
     #[must_use]
     fn couture_command() -> Command {
-        Self::command().with_couture::<Self>()
+        let cmd = Self::command().with_couture::<Self>();
+        #[cfg(feature = "interactive")]
+        let cmd = guard_secrets::<Self>(cmd);
+        cmd
     }
 
     /// Equivalent to [`Parser::parse`], with couture's help.
@@ -147,6 +152,20 @@ impl Failure {
 #[cfg(feature = "interactive")]
 fn io_error(err: &std::io::Error) -> clap::Error {
     clap::Error::raw(clap::error::ErrorKind::Io, format!("{err}\n"))
+}
+/// Guard `T`'s secret args, so every parse of the command refuses them on the command line.
+#[cfg(feature = "interactive")]
+fn guard_secrets<T>(cmd: Command) -> Command
+where
+    T: Couture,
+{
+    let prompted_arg_tree: &'static crate::interactive::PromptedArgTree = &T::PROMPTED_ARGS;
+    secrets::guard(
+        cmd,
+        &prompted_arg_tree.prompted_args(),
+        &secrets::Vault::default(),
+        &T::MESSAGES.environment.get(),
+    )
 }
 
 /// Parse through [`DefaultBackend`](crate::interactive::DefaultBackend), or without prompting

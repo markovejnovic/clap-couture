@@ -50,6 +50,8 @@ struct PromptAttr {
     purpose: Purpose,
     /// The `= ...` override; `None` asks the arg's help text.
     question: Option<TextExpr>,
+    /// The `secret` beside it, if any.
+    secret: Option<SecretAttr>,
 }
 
 /// What a prompt's answer is for.
@@ -57,6 +59,13 @@ struct PromptAttr {
 enum Purpose {
     Confirmation,
     Value,
+}
+/// A `secret` beside a prompt, and the type it must hold.
+struct SecretAttr {
+    /// `secret(allow_argv)`.
+    allow_argv: bool,
+    /// The field's type, `Option` peeled, checked against `SecretField`.
+    secret_type: Type,
 }
 
 impl PromptedArgTree {
@@ -202,11 +211,42 @@ impl PromptAttr {
             Override::Inherit => None,
             Override::Explicit(question) => Some(question.clone()),
         };
-        Ok(Self { arg_id, editor, purpose, question })
+        let secret = field
+            .secret
+            .as_ref()
+            .map(|secret| {
+                if let Some(default_span) = field.attrs.clap_default_span() {
+                    return Err(Error::custom(
+                        "a `#[couture(secret)]` can't have a default: it would be baked into the \
+                         binary and shown in `--help`",
+                    )
+                    .with_span(&default_span));
+                }
+                let allow_argv = match &**secret {
+                    Override::Inherit => false,
+                    Override::Explicit(options) => options.allow_argv.is_present(),
+                };
+                Ok(SecretAttr { allow_argv, secret_type: field.ty.peel_option().clone() })
+            })
+            .transpose()?;
+        Ok(Self { arg_id, editor, purpose, question, secret })
     }
 
     /// The field's `#[couture(prompt)]` or `#[couture(confirm)]`, if it has one.
     fn of_field(field: &FieldInput) -> darling::Result<Option<Self>> {
+        if let (None, Some(secret)) = (&field.prompt, &field.secret) {
+            return Err(Error::custom(
+                "`#[couture(secret)]` modifies `#[couture(prompt)]`; add `prompt` beside it",
+            )
+            .with_span(&secret.span()));
+        }
+        if let (Some(secret), Some(_)) = (&field.secret, &field.editor) {
+            return Err(Error::custom(
+                "`#[couture(secret)]` can't be asked in the editor: the answer would sit in a \
+                 temp file in plain text",
+            )
+            .with_span(&secret.span()));
+        }
         if let (None, Some(editor)) = (&field.prompt, &field.editor) {
             return Err(Error::custom(
                 "`#[couture(editor)]` modifies `#[couture(prompt)]`; add `prompt` beside it",
@@ -313,12 +353,24 @@ impl ToTokens for PromptAttr {
             Purpose::Value => quote!(Value),
         };
         let question = OptionalText::from(&self.question);
+        // The type keeps the user's span, so a non-`SecretString` field is the error's location.
+        let secret = self.secret.as_ref().map_or_else(
+            || quote!(::core::option::Option::None),
+            |SecretAttr { allow_argv, secret_type }| {
+                quote! {
+                    ::core::option::Option::Some(
+                        ::clap_couture::interactive::SecretAttr::new::<#secret_type>(#allow_argv)
+                    )
+                }
+            },
+        );
         tokens.extend(quote! {
             ::clap_couture::interactive::PromptAttr {
                 arg_id: #arg_id,
                 editor: #editor,
                 purpose: ::clap_couture::interactive::PromptPurpose::#purpose,
                 question: #question,
+                secret: #secret,
             }
         });
     }

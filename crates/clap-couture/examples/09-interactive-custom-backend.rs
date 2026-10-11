@@ -42,7 +42,8 @@ use clap::{Parser, Subcommand, ValueEnum, builder::PossibleValue};
 use clap_couture::{
     Couture, CoutureParser as _,
     interactive::{
-        Backend, ConfirmPrompt, MultiSelectPrompt, PromptError, SelectPrompt, TextPrompt,
+        Backend, ConfirmPrompt, MultiSelectPrompt, PromptError, SecretPrompt, SelectPrompt,
+        TextPrompt, secrecy::SecretString,
     },
 };
 
@@ -201,6 +202,11 @@ impl Backend for Plain {
             return Ok(prompt.defaults.to_vec());
         }
         Ok(answer.split(',').map(|name| name.trim().to_owned()).collect())
+    }
+
+    fn secret(&self, _prompt: &SecretPrompt<'_>) -> Result<Option<SecretString>, PromptError> {
+        // A plain line would echo the secret, so this backend doesn't ask for one.
+        Err(PromptError::NotATerminal)
     }
 
     fn select(&self, prompt: &SelectPrompt<'_>) -> Result<Option<String>, PromptError> {

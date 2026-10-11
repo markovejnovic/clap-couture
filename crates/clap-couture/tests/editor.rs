@@ -8,8 +8,8 @@ use clap::{ArgAction, ArgGroup, Parser, Subcommand, error::ErrorKind};
 use clap_couture::{
     Couture, CoutureParser as _,
     interactive::{
-        Backend, ConfirmPrompt, EditorPrompt, MultiSelectPrompt, PromptError, SelectPrompt,
-        TextPrompt,
+        Backend, ConfirmPrompt, EditorPrompt, MultiSelectPrompt, PromptError, SecretPrompt,
+        SelectPrompt, TextPrompt, secrecy::SecretString,
     },
 };
 use rstest::rstest;
@@ -175,6 +175,10 @@ impl Backend for Editor {
     ) -> Result<(), PromptError> {
         self.reported.borrow_mut().push(error.to_owned());
         Ok(())
+    }
+
+    fn secret(&self, _prompt: &SecretPrompt<'_>) -> Result<Option<SecretString>, PromptError> {
+        Err(not_editor())
     }
 
     fn select(&self, _prompt: &SelectPrompt<'_>) -> Result<Option<String>, PromptError> {

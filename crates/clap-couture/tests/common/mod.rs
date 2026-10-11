@@ -5,7 +5,8 @@ use std::io;
 
 use clap::builder::PossibleValue;
 use clap_couture::interactive::{
-    Backend, CommandStyles, ConfirmPrompt, MultiSelectPrompt, PromptError, SelectPrompt, TextPrompt,
+    Backend, CommandStyles, ConfirmPrompt, MultiSelectPrompt, PromptError, SecretPrompt,
+    SelectPrompt, TextPrompt, secrecy::SecretString,
 };
 
 /// One prompt the fake was shown.
@@ -29,6 +30,7 @@ pub(crate) struct Asked {
 pub(crate) enum Kind {
     Confirm,
     MultiSelect,
+    Secret,
     Select,
     Text,
 }
@@ -38,6 +40,7 @@ pub(crate) enum Reply {
     Cancel,
     Confirm(bool),
     MultiSelect(&'static [&'static str]),
+    Secret(Option<&'static str>),
     Select(Option<&'static str>),
     Text(Option<&'static str>),
 }
@@ -98,7 +101,9 @@ impl Backend for ScriptedBackend {
         match self.next(asked)? {
             Reply::Confirm(yes) => Ok(yes),
             Reply::Cancel => Err(PromptError::Cancelled),
-            Reply::MultiSelect(_) | Reply::Select(_) | Reply::Text(_) => Err(wrong_reply()),
+            Reply::MultiSelect(_) | Reply::Secret(_) | Reply::Select(_) | Reply::Text(_) => {
+                Err(wrong_reply())
+            }
         }
     }
 
@@ -120,13 +125,35 @@ impl Backend for ScriptedBackend {
         match self.next(asked)? {
             Reply::MultiSelect(names) => Ok(names.iter().map(|name| (*name).to_owned()).collect()),
             Reply::Cancel => Err(PromptError::Cancelled),
-            Reply::Confirm(_) | Reply::Select(_) | Reply::Text(_) => Err(wrong_reply()),
+            Reply::Confirm(_) | Reply::Secret(_) | Reply::Select(_) | Reply::Text(_) => {
+                Err(wrong_reply())
+            }
         }
     }
 
     fn report(&self, error: &str, _styles: CommandStyles<'_>) -> Result<(), PromptError> {
         *self.reported.borrow_mut() = Some(error.to_owned());
         Ok(())
+    }
+
+    fn secret(&self, prompt: &SecretPrompt<'_>) -> Result<Option<SecretString>, PromptError> {
+        let asked = Asked {
+            defaults: Vec::new(),
+            error: None,
+            hint: None,
+            initial: None,
+            kind: Kind::Secret,
+            options: Vec::new(),
+            question: prompt.question.to_owned(),
+            selection_required: None,
+        };
+        match self.next(asked)? {
+            Reply::Secret(answer) => Ok(answer.map(SecretString::from)),
+            Reply::Cancel => Err(PromptError::Cancelled),
+            Reply::Confirm(_) | Reply::MultiSelect(_) | Reply::Select(_) | Reply::Text(_) => {
+                Err(wrong_reply())
+            }
+        }
     }
 
     fn select(&self, prompt: &SelectPrompt<'_>) -> Result<Option<String>, PromptError> {
@@ -150,7 +177,9 @@ impl Backend for ScriptedBackend {
         match self.next(asked)? {
             Reply::Select(name) => Ok(name.map(str::to_owned)),
             Reply::Cancel => Err(PromptError::Cancelled),
-            Reply::Confirm(_) | Reply::MultiSelect(_) | Reply::Text(_) => Err(wrong_reply()),
+            Reply::Confirm(_) | Reply::MultiSelect(_) | Reply::Secret(_) | Reply::Text(_) => {
+                Err(wrong_reply())
+            }
         }
     }
 
@@ -168,7 +197,9 @@ impl Backend for ScriptedBackend {
         match self.next(asked)? {
             Reply::Text(answer) => Ok(answer.map(str::to_owned)),
             Reply::Cancel => Err(PromptError::Cancelled),
-            Reply::Confirm(_) | Reply::MultiSelect(_) | Reply::Select(_) => Err(wrong_reply()),
+            Reply::Confirm(_) | Reply::MultiSelect(_) | Reply::Secret(_) | Reply::Select(_) => {
+                Err(wrong_reply())
+            }
         }
     }
 }

@@ -1,9 +1,13 @@
 //! A [`Backend`] that never asks.
 
+use secrecy::SecretString;
+
 use super::Backend;
 #[cfg(feature = "interactive-editor")]
 use crate::interactive::EditorPrompt;
-use crate::interactive::{ConfirmPrompt, MultiSelectPrompt, PromptError, SelectPrompt, TextPrompt};
+use crate::interactive::{
+    ConfirmPrompt, MultiSelectPrompt, PromptError, SecretPrompt, SelectPrompt, TextPrompt,
+};
 
 /// Never asks, as if there were no terminal: every arg is left to clap.
 #[derive(Clone, Copy, Debug, Default)]
@@ -24,6 +28,10 @@ impl Backend for NonInteractive {
     }
 
     fn multi_select(&self, _prompt: &MultiSelectPrompt<'_>) -> Result<Vec<String>, PromptError> {
+        Err(PromptError::NotATerminal)
+    }
+
+    fn secret(&self, _prompt: &SecretPrompt<'_>) -> Result<Option<SecretString>, PromptError> {
         Err(PromptError::NotATerminal)
     }
 

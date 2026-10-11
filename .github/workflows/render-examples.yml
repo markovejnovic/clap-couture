@@ -5,10 +5,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# Two pushes in quick succession would otherwise race to commit the same assets.
+# A newer push supersedes a running render, whose rebase would otherwise conflict with it.
 concurrency:
   group: ${{ github.workflow }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 permissions:
   contents: write

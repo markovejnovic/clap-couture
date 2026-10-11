@@ -16,6 +16,8 @@ use crate::{
 
 pub struct EditorInteraction<'run, B: Backend + ?Sized> {
     backend: &'run B,
+    /// The header the file was last opened with.
+    header: String,
     marker: PromptMarker,
     opened: Option<Opened>,
     /// How many U+FFFD the answer may hold: those that were text, not marks for bytes that
@@ -62,7 +64,7 @@ impl<'run, B: Backend + ?Sized> EditorInteraction<'run, B> {
             // Reopen with what could be read, and how to fix the rest.
             let (answer, error) = match Locale::decode(&saved?) {
                 Ok(text) => {
-                    let answer = self.marker.strip(&text);
+                    let answer = self.marker.strip(&text, Some(&self.header));
                     let marks = answer.as_deref().map_or(0, Self::count_marks);
                     if self.own_marks.is_none_or(|own_marks| marks <= own_marks) {
                         return Ok(answer);
@@ -70,7 +72,7 @@ impl<'run, B: Backend + ?Sized> EditorInteraction<'run, B> {
                     (answer, self.prompt.unreadable)
                 }
                 Err(NotUnicode { marks, text }) => {
-                    let answer = self.marker.strip(&text);
+                    let answer = self.marker.strip(&text, Some(&self.header));
                     // Marks left from an earlier reopen read as text now: never count more.
                     let own_marks =
                         answer.as_deref().map_or(0, Self::count_marks).saturating_sub(marks);
@@ -79,9 +81,9 @@ impl<'run, B: Backend + ?Sized> EditorInteraction<'run, B> {
                     (answer, self.prompt.not_utf8)
                 }
             };
-            let header =
+            self.header =
                 format!("{}\n\nerror: {error}\n{}", self.prompt.question, self.prompt.instructions);
-            opened.write(answer.as_deref().unwrap_or_default(), Some(&header))?;
+            opened.write(answer.as_deref().unwrap_or_default(), Some(&self.header))?;
             opened.reopen()?;
         }
     }
@@ -117,7 +119,14 @@ impl<'run, B: Backend + ?Sized> EditorInteraction<'run, B> {
             Err(SpawnError::Editor(EditorError::NoOp)) => None,
             opened => Some(opened?),
         };
-        Ok(Self { backend, marker: PromptMarker::default(), opened, own_marks: None, prompt })
+        Ok(Self {
+            backend,
+            header,
+            marker: PromptMarker::default(),
+            opened,
+            own_marks: None,
+            prompt,
+        })
     }
 }
 

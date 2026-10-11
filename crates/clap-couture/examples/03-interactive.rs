@@ -31,7 +31,21 @@
 //! ◇  How many replicas?
 //! │  3
 //! │
+//! ◇  Which sidecars?
+//! │  logging
+//! │  proxy
+//! │
+//! ◇  Environment variables (KEY=VALUE)?
+//! │  LOG=debug
+//! │
+//! ◇  Environment variables (KEY=VALUE)?
+//! │  PORT=8080
+//! │
+//! ◇  Environment variables (KEY=VALUE)?
+//! │  (<enter> to finish)
+//! │
 //! deploying web to eu with 3 replicas (follow: true)
+//! sidecars: [Logging, Proxy], vars: ["LOG=debug", "PORT=8080"]
 //! ```
 //!
 //! By default, this renders with [cliclack]. You can also choose different interactive input
@@ -47,7 +61,12 @@
 //! > How many replicas? abc
 //! invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
 //! > How many replicas? 3
+//! > Which sidecars? logging, proxy
+//! > Environment variables (KEY=VALUE)? LOG=debug
+//! > Environment variables (KEY=VALUE)? PORT=8080
+//! > Environment variables (KEY=VALUE)?
 //! deploying web to eu with 3 replicas (follow: true)
+//! sidecars: [Logging, Proxy], vars: ["LOG=debug", "PORT=8080"]
 //! ```
 //!
 //! `interactive-dialoguer` is the last option.
@@ -62,10 +81,16 @@
 //! ✔ How many replicas? · abc
 //! invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
 //! ✔ How many replicas? · 3
+//! ✔ Which sidecars? · logging, proxy
+//! ✔ Environment variables (KEY=VALUE)? (<enter> to finish) · LOG=debug
+//! ✔ Environment variables (KEY=VALUE)? (<enter> to finish) · PORT=8080
+//! ✔ Environment variables (KEY=VALUE)? (<enter> to finish) ·
 //! deploying web to apac with 3 replicas (follow: true)
+//! sidecars: [Logging, Proxy], vars: ["LOG=debug", "PORT=8080"]
 //! ```
 
 #![expect(clippy::print_stdout, reason = "a runnable demo prints its result")]
+#![expect(clippy::use_debug, reason = "lists print shortest as their `Debug`")]
 
 use clap::{Parser, ValueEnum};
 use clap_couture::{Couture, CoutureParser as _};
@@ -97,6 +122,19 @@ struct Cli {
     // <enter> and use the default.
     #[couture(prompt = "How many replicas?")]
     replicas: u16,
+
+    /// Sidecars to run next to the app.
+    #[arg(long, value_enum)]
+    // A `Vec` of an enum shows a multi-select: <space> picks an option, <enter> confirms.
+    #[couture(prompt = "Which sidecars?")]
+    sidecars: Vec<Sidecar>,
+
+    /// Environment variables to set.
+    #[arg(long)]
+    // A `Vec` of anything else asks one value at a time, until the user hits <enter> on an empty
+    // answer.
+    #[couture(prompt = "Environment variables (KEY=VALUE)?")]
+    vars: Vec<String>,
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
@@ -104,6 +142,13 @@ enum Region {
     Apac,
     Eu,
     Us,
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum Sidecar {
+    Logging,
+    Metrics,
+    Proxy,
 }
 
 fn main() {
@@ -118,4 +163,5 @@ fn main() {
         "deploying {} to {region} with {} replicas (follow: {})",
         cli.app, cli.replicas, cli.follow
     );
+    println!("sidecars: {:?}, vars: {:?}", cli.sidecars, cli.vars);
 }

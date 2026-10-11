@@ -1,7 +1,8 @@
 # `orbit-release` asking for its title on `--title -`, then reading its notes from a pipe on
 # `--notes -`. See `scripts/record-examples.py`.
 
-Set Height 320
+Set Width 1246
+Set Height 566
 
 Hide
 Type "alias orbit-release=11-interactive-dash && clear" Enter
@@ -21,6 +22,6 @@ Hide
 Type "clear" Enter
 Show
 
-Type 'echo "Fix the login page" | orbit-release --title v1.2 --notes -' Sleep 400ms Enter
-Wait+Screen /notes: Fix the login page/
+Type 'echo "Fix login" | orbit-release --title v1.2 --notes -' Sleep 400ms Enter
+Wait+Screen /notes: Fix login/
 Sleep 3s

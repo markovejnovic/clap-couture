@@ -201,7 +201,7 @@ password: SecretString,
 
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="assets/11-interactive-dash-light.gif">
-  <img src="assets/11-interactive-dash-dark.gif" alt="running orbit-release --title -, which asks for the title, then piping release notes into orbit-release --notes -, which reads them from stdin" width="640">
+  <img src="assets/11-interactive-dash-dark.gif" alt="running orbit-release --title -, which asks for the title, then piping release notes into orbit-release --notes -, which reads them from stdin" width="623">
 </picture>
 
 ## Markdown

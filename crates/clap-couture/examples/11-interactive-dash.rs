@@ -19,12 +19,12 @@
 //! releasing v1.2
 //! ```
 //!
-//! `echo "Fix the login page" | cargo run -p clap-couture --example 11-interactive-dash -- --title
+//! `echo "Fix login" | cargo run -p clap-couture --example 11-interactive-dash -- --title
 //! v1.2 --notes -` outputs:
 //!
 //! ```terminal
 //! releasing v1.2
-//! notes: Fix the login page
+//! notes: Fix login
 //! ```
 
 #![expect(clippy::print_stdout, reason = "a runnable demo prints its result")]

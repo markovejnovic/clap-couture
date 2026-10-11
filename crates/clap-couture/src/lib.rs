@@ -339,8 +339,8 @@
 //! password: SecretString,
 //! ```
 //!
-//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/11-interactive-dash-dark.gif" alt="running orbit-release --title -, which asks for the title, then piping release notes into orbit-release --notes -, which reads them from stdin">
-//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/11-interactive-dash-light.gif" alt="running orbit-release --title -, which asks for the title, then piping release notes into orbit-release --notes -, which reads them from stdin">
+//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/11-interactive-dash-dark.gif" alt="running orbit-release --title -, which asks for the title, then piping release notes into orbit-release --notes -, which reads them from stdin" width="623">
+//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/11-interactive-dash-light.gif" alt="running orbit-release --title -, which asks for the title, then piping release notes into orbit-release --notes -, which reads them from stdin" width="623">
 //!
 //! See [`examples/11-interactive-dash.rs`](https://github.com/markovejnovic/clap-couture/blob/main/crates/clap-couture/examples/11-interactive-dash.rs),
 //! and [the `interactive` module](interactive#dash-as-a-value) for the details.

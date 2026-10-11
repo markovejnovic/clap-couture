@@ -21,10 +21,10 @@ releasing v1.2
 ────────────────────────────────────────────────────────────────────────────────
 >
 ────────────────────────────────────────────────────────────────────────────────
-> echo "Fix the login page" | orbit-release --title v1.2 --notes -
+> echo "Fix login" | orbit-release --title v1.2 --notes -
 ────────────────────────────────────────────────────────────────────────────────
-> echo "Fix the login page" | orbit-release --title v1.2 --notes -
+> echo "Fix login" | orbit-release --title v1.2 --notes -
 releasing v1.2
-notes: Fix the login page
+notes: Fix login
 >
 ────────────────────────────────────────────────────────────────────────────────

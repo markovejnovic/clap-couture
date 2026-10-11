@@ -1,0 +1,58 @@
+>
+────────────────────────────────────────────────────────────────────────────────
+> orbit-destroy
+────────────────────────────────────────────────────────────────────────────────
+> orbit-destroy
+◆  Application name
+│
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit-destroy
+◆  Application name
+│  web
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit-destroy
+◇  Application name
+│  web
+│
+◆  Which region?
+│  ● apac
+│  ○ eu
+│  ○ us
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit-destroy
+◇  Application name
+│  web
+│
+◆  Which region?
+│  ○ apac
+│  ● eu
+│  ○ us
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit-destroy
+◇  Application name
+│  web
+│
+◇  Which region?
+│  eu
+│
+◆  Destroy web in eu? This cannot be undone.
+│  ○ Yes  / ● No
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit-destroy
+◇  Application name
+│  web
+│
+◇  Which region?
+│  eu
+│
+◇  Destroy web in eu? This cannot be undone.
+│  Yes
+│
+destroying web in eu
+>
+────────────────────────────────────────────────────────────────────────────────

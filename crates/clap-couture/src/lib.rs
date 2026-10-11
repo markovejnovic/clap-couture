@@ -241,10 +241,10 @@
 //!
 //! ### Confirmation
 //!
-//! `#[couture(confirm = "...")]` on a `bool` flag asks before going ahead, after every prompt. A
-//! yes sets the flag, a no exits with status 1. Passing the flag skips the question, and without a
-//! terminal it must be passed, so a parse that returns always has the flag set. `{arg}` in the
-//! question stands for that arg's value; `{{` and `}}` are literal braces.
+//! `#[couture(confirm = "...")]` on a `bool` flag asks before going ahead. A yes sets the flag, a
+//! no exits with status 1. Passing the flag skips the question, and without a terminal it must be
+//! passed, so a parse that returns always has the flag set. `{arg}` in the question stands for
+//! that arg's value; `{{` and `}}` are literal braces.
 //!
 //! ```
 //! use clap::Parser;
@@ -261,8 +261,14 @@
 //! }
 //!
 //! let cli = Cli::couture_parse_from(["delete", "--name", "web", "--force"]);
-//! assert!(cli.force);
 //! ```
+//!
+//! An example of this interaction is:
+//!
+//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/05-interactive-confirm-dark.gif" alt="running orbit-destroy with no flags: it asks for the app and the region, then asks whether to destroy web in eu, and goes ahead on a yes" width="600">
+//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/05-interactive-confirm-light.gif" alt="running orbit-destroy with no flags: it asks for the app and the region, then asks whether to destroy web in eu, and goes ahead on a yes" width="600">
+//!
+//! See [`examples/05-interactive-confirm.rs`](https://github.com/markovejnovic/clap-couture/blob/main/crates/clap-couture/examples/05-interactive-confirm.rs).
 //!
 //! ### Backends
 //!

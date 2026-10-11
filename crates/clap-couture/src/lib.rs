@@ -324,14 +324,20 @@
 //! Only one arg on a command may take stdin, as stdin can only be read once. See
 //! [the `interactive` module](interactive#reading-piped-stdin) for the details.
 //!
-//! ### Dash as a value
+//! ### Dash input
 //!
-//! `dash` gives `-` a meaning: `#[couture(prompt(dash))]` asks for an arg passed `-`, like `git
-//! commit -m -` opening the editor, and `#[couture(stdin(dash))]` reads stdin into it,
-//! like `docker login --password-stdin`. With both, `-` asks at a terminal and reads stdin when
-//! piped. Without `-`, neither asks nor reads.
+//! `#[couture(prompt(dash))]` asks for an argument interactively if the user passes `-` as the
+//! command line flag.
 //!
-//! An example of this interaction is:
+//! ```rust,no_compile
+//! #[arg(short, long)]
+//! #[couture(prompt(dash), editor)] // `commit -m -` opens your $EDITOR
+//! message: Option<String>,
+//! 
+//! #[arg(long)]
+//! #[couture(prompt, secret, stdin(dash))] // `login --password -` reads stdin
+//! password: SecretString,
+//! ```
 //!
 //! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/11-interactive-dash-dark.gif" alt="running orbit-release --title -, which asks for the title, then piping release notes into orbit-release --notes -, which reads them from stdin">
 //! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/11-interactive-dash-light.gif" alt="running orbit-release --title -, which asks for the title, then piping release notes into orbit-release --notes -, which reads them from stdin">

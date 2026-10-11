@@ -56,10 +56,15 @@ impl Backend for Cliclack {
     fn text(&self, prompt: &TextPrompt<'_>) -> Result<Option<String>, PromptError> {
         let answer: String = Theme::from(prompt.styles).scoped(|| {
             let input = ::cliclack::input(prompt.question).required(!prompt.optional);
-            // TODO(markovejnovic): cliclack's `Input` cannot start out holding text, so `initial`
-            // falls back to a default Enter accepts: the user can replace it but not clear it, so
-            // a list with defaults cannot finish early. The hint is dropped with it, as an empty
-            // answer no longer finishes, and cliclack shows a placeholder in place of the default.
+            // TODO(markovejnovic): cliclack's `Input` can't start out holding editable text (no
+            // equivalent of inquire's `with_initial_value`), so `initial` is passed as a default
+            // instead. The cost: a list prompt pre-filled from the arg's defaults can't be
+            // finished early, as Enter on it keeps the default instead of ending the list. Once
+            // cliclack supports starting text, pass `initial` that way and show the hint even
+            // when there's a default.
+            //
+            // When there is a default, the hint is left off: cliclack shows the hint where it
+            // would show "(default)", hiding it, and Enter wouldn't finish the list anyway.
             let mut input = match (prompt.default.or(prompt.initial), prompt.hint) {
                 (Some(default), _) => input.default_input(default),
                 (None, Some(hint)) => input.placeholder(hint),

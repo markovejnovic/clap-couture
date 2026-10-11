@@ -36,6 +36,19 @@
 //! other prompt, with each `{id}` in the question replaced by arg `id`'s value. A yes sets the
 //! flag; a no fails the parse. Without a terminal, the flag must be passed, as if it were required.
 //!
+//! A yes sets the flag to `true`, so a flag clap sets to `false` can't be confirmed:
+//! ```compile_fail
+//! use clap::{ArgAction, Parser};
+//! use clap_couture::Couture;
+//!
+//! #[derive(Parser, Couture)]
+//! struct Cli {
+//!     #[arg(long = "no-verify", action = ArgAction::SetFalse)]
+//!     #[couture(confirm)]
+//!     verify: bool,
+//! }
+//! ```
+//!
 //! # Answering in the editor
 //!
 //! With the `interactive-editor` feature, `#[couture(prompt, editor)]` asks in the user's editor
@@ -98,6 +111,20 @@
 //!     #[arg(long)]
 //!     #[couture(prompt, editor)]
 //!     follow: bool,
+//! }
+//! ```
+//! 
+//! nor does a flag clap counts:
+#![cfg_attr(feature = "interactive-editor", doc = "```compile_fail")]
+#![cfg_attr(not(feature = "interactive-editor"), doc = "```ignore")]
+//! use clap::{ArgAction, Parser};
+//! use clap_couture::Couture;
+//!
+//! #[derive(Parser, Couture)]
+//! struct Cli {
+//!     #[arg(short, action = ArgAction::Count)]
+//!     #[couture(prompt, editor)]
+//!     verbose: u8,
 //! }
 //! ```
 //! 
@@ -246,6 +273,19 @@
 //! }
 //! ```
 //! 
+//! That holds for a flag given its action too:
+//! ```compile_fail
+//! use clap::{ArgAction, Parser};
+//! use clap_couture::Couture;
+//!
+//! #[derive(Parser, Couture)]
+//! struct Cli {
+//!     #[arg(long, action = ArgAction::SetTrue)]
+//!     #[couture(stdin(piped))]
+//!     force: bool,
+//! }
+//! ```
+//! 
 //! # Dash as a value
 //!
 //! `dash` makes `-` as an arg's value stand for something, as in `git commit -F -`.
@@ -304,6 +344,19 @@
 //!     #[arg(long)]
 //!     #[couture(prompt(dash))]
 //!     tags: Vec<String>,
+//! }
+//! ```
+//! 
+//! and neither can a flag clap counts or sets, whatever its type:
+//! ```compile_fail
+//! use clap::{ArgAction, Parser};
+//! use clap_couture::Couture;
+//!
+//! #[derive(Parser, Couture)]
+//! struct Cli {
+//!     #[arg(short, action = ArgAction::Count)]
+//!     #[couture(prompt(dash))]
+//!     verbose: u8,
 //! }
 //! ```
 

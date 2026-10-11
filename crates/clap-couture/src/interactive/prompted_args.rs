@@ -1,4 +1,5 @@
-//! The static tree of prompted args that `#[derive(Couture)]` emits as `Couture::PROMPTED_ARGS`.
+//! The static tree of prompted and stdin args that `#[derive(Couture)]` emits as
+//! `Couture::PROMPTED_ARGS`.
 
 use secrecy::SecretString;
 
@@ -76,6 +77,17 @@ pub struct PromptedArgTree {
     pub branches: &'static [PromptedArgBranch],
     /// The args prompted for at this level.
     pub own_args: &'static [PromptAttr],
+    /// The clap id of this level's `#[couture(accept_stdin)]` arg, if any.
+    pub stdin_arg: Option<&'static str>,
+}
+
+/// An arg marked `#[couture(accept_stdin)]`, and the subcommand path to the command that owns it.
+#[derive(Debug)]
+pub(crate) struct StdinArg {
+    /// The clap id of the arg.
+    pub(crate) arg_id: &'static str,
+    /// Subcommand names from the root, empty for a root arg.
+    pub(crate) subcommand_path: Vec<&'static str>,
 }
 
 /// A `secret` or `secret(allow_argv)` beside `#[couture(prompt)]`.
@@ -96,36 +108,103 @@ impl SecretField for SecretString {}
 
 impl PromptedArgTree {
     /// A tree with no prompted args, the default for a hand-written `Couture` impl.
-    pub const EMPTY: Self = Self { branches: &[], own_args: &[] };
+    pub const EMPTY: Self = Self { branches: &[], own_args: &[], stdin_arg: None };
 
-    fn collect(
-        &'static self,
-        subcommand_path: &mut Vec<&'static str>,
-        prompted_args: &mut Vec<PromptedArg>,
-    ) {
-        prompted_args.extend(
-            self.own_args
-                .iter()
-                .map(|attr| PromptedArg { attr, subcommand_path: subcommand_path.clone() }),
+    /// Evaluated beside every derived tree: fails the build when one command path holds more than
+    /// one `#[couture(accept_stdin)]` arg, as stdin can only be read once.
+    ///
+    /// # Panics
+    /// When it fails the build.
+    pub const fn assert_stdin_read_once(&self) {
+        assert!(
+            self.most_stdin_args_on_a_path() <= 1,
+            "`#[couture(accept_stdin)]` marks more than one arg on one command path; stdin can \
+             only be read once"
         );
-        for branch in self.branches {
-            match branch {
-                PromptedArgBranch::Flattened(tree) => tree.collect(subcommand_path, prompted_args),
-                PromptedArgBranch::Subcommand(subcommand_name, tree) => {
-                    subcommand_path.push(subcommand_name);
-                    tree.collect(subcommand_path, prompted_args);
-                    subcommand_path.pop();
-                }
+    }
+
+    /// The most stdin args any one subcommand of this level, or of a tree merged into it, reaches.
+    const fn most_stdin_args_below(&self) -> usize {
+        let mut most = 0;
+        let mut rest = self.branches;
+        while let Some((branch, tail)) = rest.split_first() {
+            let below = match branch {
+                PromptedArgBranch::Flattened(tree) => tree.most_stdin_args_below(),
+                PromptedArgBranch::Subcommand(_, tree) => tree.most_stdin_args_on_a_path(),
+            };
+            if below > most {
+                most = below;
             }
+            rest = tail;
         }
+        most
+    }
+
+    /// The most stdin args one subcommand chain reaches: this level's, then the most below it.
+    const fn most_stdin_args_on_a_path(&self) -> usize {
+        self.stdin_args_at_this_level().saturating_add(self.most_stdin_args_below())
     }
 
     /// Every prompted arg in the tree: a level's own, then its branches', in declaration order.
     #[must_use]
     pub fn prompted_args(&'static self) -> Vec<PromptedArg> {
         let mut prompted_args = Vec::new();
-        self.collect(&mut Vec::new(), &mut prompted_args);
+        self.walk(&mut Vec::new(), &mut |tree, subcommand_path| {
+            prompted_args.extend(
+                tree.own_args
+                    .iter()
+                    .map(|attr| PromptedArg { attr, subcommand_path: subcommand_path.to_vec() }),
+            );
+        });
         prompted_args
+    }
+
+    /// Every `#[couture(accept_stdin)]` arg in the tree, in declaration order. At most one of them
+    /// sits on any one subcommand chain.
+    pub(crate) fn stdin_args(&'static self) -> Vec<StdinArg> {
+        let mut stdin_args = Vec::new();
+        self.walk(&mut Vec::new(), &mut |tree, subcommand_path| {
+            stdin_args.extend(
+                tree.stdin_arg
+                    .map(|arg_id| StdinArg { arg_id, subcommand_path: subcommand_path.to_vec() }),
+            );
+        });
+        stdin_args
+    }
+
+    /// The stdin args at this level: its own and those of the trees merged into it.
+    const fn stdin_args_at_this_level(&self) -> usize {
+        let mut count: usize = match self.stdin_arg {
+            Some(_) => 1,
+            None => 0,
+        };
+        let mut rest = self.branches;
+        while let Some((branch, tail)) = rest.split_first() {
+            if let PromptedArgBranch::Flattened(tree) = branch {
+                count = count.saturating_add(tree.stdin_args_at_this_level());
+            }
+            rest = tail;
+        }
+        count
+    }
+
+    /// Call `visit` on this tree and every tree below it, with the subcommand path to each.
+    fn walk(
+        &'static self,
+        subcommand_path: &mut Vec<&'static str>,
+        visit: &mut impl FnMut(&'static Self, &[&'static str]),
+    ) {
+        visit(self, subcommand_path);
+        for branch in self.branches {
+            match branch {
+                PromptedArgBranch::Flattened(tree) => tree.walk(subcommand_path, visit),
+                PromptedArgBranch::Subcommand(subcommand_name, tree) => {
+                    subcommand_path.push(subcommand_name);
+                    tree.walk(subcommand_path, visit);
+                    subcommand_path.pop();
+                }
+            }
+        }
     }
 }
 

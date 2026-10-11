@@ -290,6 +290,32 @@
 //!
 //! See [`examples/07-interactive-secret.rs`](https://github.com/markovejnovic/clap-couture/blob/main/crates/clap-couture/examples/07-interactive-secret.rs).
 //!
+//! ### Piped input
+//!
+//! `#[couture(accept_stdin)]` lets an arg come from a pipe: `echo hi | post` works like `post
+//! --message hi`. Stdin is read only when it is a pipe and the arg was left out, so a terminal, a
+//! file or `/dev/null` on stdin never blocks the parse. Beside `prompt`, the arg is asked when
+//! nothing is piped; beside `secret`, it works like `docker login --password-stdin`.
+//!
+//! ```
+//! use clap::Parser;
+//! use clap_couture::{Couture, CoutureParser as _};
+//!
+//! #[derive(Parser, Couture)]
+//! struct Cli {
+//!     /// Message to post.
+//!     #[arg(long)]
+//!     #[couture(prompt, accept_stdin)]
+//!     message: String,
+//! }
+//!
+//! let cli = Cli::couture_parse_from(["post", "--message", "hi"]);
+//! # assert_eq!(cli.message, "hi");
+//! ```
+//!
+//! Only one arg on a command may take stdin, as stdin can only be read once. See
+//! [the `interactive` module](interactive#reading-piped-stdin) for the details.
+//!
 //! ### Custom interactive input
 //!
 //! Some questions only make sense after the parse. [`CoutureParser::prompter`] asks them in the

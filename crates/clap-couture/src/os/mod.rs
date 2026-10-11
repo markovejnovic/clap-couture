@@ -7,6 +7,7 @@ pub(crate) mod editor;
 #[cfg(feature = "interactive-editor")]
 pub(crate) mod locale;
 pub(crate) mod signal;
+pub(crate) mod stdin;
 #[cfg(feature = "interactive-editor")]
 pub(crate) mod term;
 

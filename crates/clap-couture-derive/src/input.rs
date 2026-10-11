@@ -42,6 +42,8 @@ pub(crate) type Question = SpannedValue<Override<TextExpr>>;
 #[derive(FromField)]
 #[darling(attributes(couture), forward_attrs(arg, clap, command))]
 pub(crate) struct FieldInput {
+    /// `#[couture(accept_stdin)]`.
+    pub(crate) accept_stdin: Flag,
     pub(crate) attrs: Vec<Attribute>,
     pub(crate) confirm: Option<Question>,
     /// `Inherit` for `#[couture(editor)]`, `Explicit` for `#[couture(editor(...))]`.

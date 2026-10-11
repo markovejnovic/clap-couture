@@ -166,6 +166,19 @@ force: bool,
   <img src="assets/05-interactive-confirm-dark.gif" alt="running orbit-destroy with no flags: it asks for the app and the region, then asks whether to destroy web in eu, and goes ahead on a yes" width="640">
 </picture>
 
+### Piped input
+
+`#[couture(accept_stdin)]` lets an arg come from a pipe, so `echo hi | post`
+works like `post --message hi`. Stdin is only read when it is a pipe and the
+arg was left out, so a terminal or a file never blocks the parse. One arg per
+command may take it: stdin can only be read once.
+
+```rust
+#[arg(long)]
+#[couture(prompt, accept_stdin)] // piped, else asked
+message: String,
+```
+
 ## Markdown
 
 With the `markdown` feature, doc comments and category descriptions render in

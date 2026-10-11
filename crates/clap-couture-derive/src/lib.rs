@@ -35,6 +35,8 @@ use crate::{couture_impl::CoutureImpl, input::CoutureInput};
 /// - Add `secret` beside it, `#[couture(prompt, secret)]`, to ask for a `SecretString` without
 ///   echoing it. The arg then refuses a value from the command line; `secret(allow_argv)` allows
 ///   it.
+/// - With the `interactive` feature, `#[couture(accept_stdin)]` on a field takes what is piped into
+///   stdin when the user leaves the arg out. One arg per command path may take it.
 /// - `#[couture(messages = { usage = ..., options = ..., none = ... })]` replaces the text couture
 ///   prints itself, eg. to localize it; see `clap_couture::Messages` for every key. Any of them may
 ///   be left out. It applies on the type you parse, or the one you pass to `with_couture`.

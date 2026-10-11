@@ -32,6 +32,15 @@ enum PromptedArgBranch {
     Subcommand(String, Type),
 }
 
+/// A `dash` in `prompt(dash)` or `stdin(dash)`.
+struct DashAttr {
+    /// The field's type, `Option` peeled: what `-` becomes.
+    field_type: Type,
+}
+
+/// The `dash` of a `PromptAttr` or `StdinAttr`, emitted as an `Option`.
+struct OptionalDash<'dash>(Option<&'dash DashAttr>);
+
 /// The `editor` beside a `#[couture(prompt)]`.
 struct EditorAttr {
     /// The temp file's extension, without the dot.
@@ -45,7 +54,7 @@ struct PromptAttr {
     /// The clap id of the arg it is on.
     arg_id: String,
     /// `prompt(dash)`: asked only when `-` is its value.
-    dash: bool,
+    dash: Option<DashAttr>,
     /// `Some` for `#[couture(prompt, editor)]`.
     editor: Option<EditorAttr>,
     /// What the answer is for.
@@ -67,7 +76,7 @@ struct StdinAttr {
     /// The clap id of the arg it is on.
     arg_id: String,
     /// `stdin(dash)`: stdin is read only when `-` is its value.
-    dash: bool,
+    dash: Option<DashAttr>,
 }
 
 /// A `secret` beside a prompt, and the type it must hold.
@@ -236,9 +245,7 @@ impl PromptAttr {
         if purpose == Purpose::Confirmation && !field.ty.is_bool() {
             return Err(Error::custom(format!("{attr} marks a `bool` flag")).with_span(&span));
         }
-        if let Some(dash) = dash {
-            check_dash(field, dash)?;
-        }
+        let dash = dash.map(|span| DashAttr::new(field, span)).transpose()?;
         let editor =
             field.editor.as_ref().map(|editor| EditorAttr::new(field, editor)).transpose()?;
         let question = question.cloned();
@@ -260,7 +267,7 @@ impl PromptAttr {
                 Ok(SecretAttr { allow_argv, secret_type: field.ty.peel_option().clone() })
             })
             .transpose()?;
-        Ok(Self { arg_id, dash: dash.is_some(), editor, purpose, question, secret })
+        Ok(Self { arg_id, dash, editor, purpose, question, secret })
     }
 
     /// The field's `#[couture(prompt)]` or `#[couture(confirm)]`, if it has one.
@@ -341,6 +348,7 @@ impl ToTokens for PromptedArgTree {
         let stdin_arg = self.stdin_arg.as_ref().map_or_else(
             || quote!(::core::option::Option::None),
             |StdinAttr { arg_id, dash }| {
+                let dash = OptionalDash(dash.as_ref());
                 quote! {
                     ::core::option::Option::Some(::clap_couture::interactive::StdinAttr {
                         arg_id: #arg_id,
@@ -387,7 +395,7 @@ impl ToTokens for PromptedArgBranch {
 
 impl ToTokens for PromptAttr {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
-        let (arg_id, dash) = (&self.arg_id, self.dash);
+        let (arg_id, dash) = (&self.arg_id, OptionalDash(self.dash.as_ref()));
         let editor = self.editor.as_ref().map_or_else(
             || quote!(::core::option::Option::None),
             |EditorAttr { extension, initial }| {
@@ -470,24 +478,46 @@ impl StdinAttr {
         if field.ty.is_multi_value() {
             return error("`#[couture(stdin)]` takes a single value");
         }
-        let dash = matches!(
-            &**stdin,
-            Override::Explicit(StdinOptions { dash }) if dash.is_present()
-        );
+        let dash = match &**stdin {
+            Override::Explicit(StdinOptions { dash }) if dash.is_present() => {
+                Some(DashAttr::new(field, dash.span())?)
+            }
+            Override::Inherit | Override::Explicit(_) => None,
+        };
         Ok(Self { arg_id, dash })
     }
 }
 
-/// Check that `field` can take `-` as its one value; `span` is its `dash`.
-///
-/// # Errors
-/// The field is a flag that takes no value, or takes many.
-fn check_dash(field: &FieldInput, span: Span) -> darling::Result<()> {
-    if field.ty.is_bool() && !field.attrs.has_clap_key("action") {
-        return Err(Error::custom("`dash` needs an arg that takes a value").with_span(&span));
+impl DashAttr {
+    /// The `dash` at `span` on `field`.
+    ///
+    /// # Errors
+    /// The field is a flag that takes no value, or takes many.
+    fn new(field: &FieldInput, span: Span) -> darling::Result<Self> {
+        if field.ty.is_bool() && !field.attrs.has_clap_key("action") {
+            return Err(Error::custom("`dash` needs an arg that takes a value").with_span(&span));
+        }
+        if field.ty.is_multi_value() {
+            return Err(
+                Error::custom("`dash` needs an arg that takes a single value").with_span(&span)
+            );
+        }
+        Ok(Self { field_type: field.ty.peel_option().clone() })
     }
-    if field.ty.is_multi_value() {
-        return Err(Error::custom("`dash` needs an arg that takes a single value").with_span(&span));
+}
+
+impl ToTokens for OptionalDash<'_> {
+    fn to_tokens(&self, tokens: &mut TokenStream2) {
+        // The type keeps the user's span, so a field clap can't hand over is the error's location.
+        tokens.extend(self.0.map_or_else(
+            || quote!(::core::option::Option::None),
+            |DashAttr { field_type }| {
+                quote! {
+                    ::core::option::Option::Some(
+                        ::clap_couture::interactive::DashAttr::new::<#field_type>()
+                    )
+                }
+            },
+        ));
     }
-    Ok(())
 }

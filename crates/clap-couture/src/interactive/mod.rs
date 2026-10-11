@@ -313,8 +313,8 @@ use clap::builder::PossibleValue;
 pub(crate) use prompted_args::StdinArg;
 #[doc(hidden)]
 pub use prompted_args::{
-    EditorAttr, PromptAttr, PromptPurpose, PromptedArg, PromptedArgBranch, PromptedArgTree,
-    SecretAttr, SecretField, StdinAttr,
+    DashAttr, EditorAttr, PromptAttr, PromptPurpose, PromptedArg, PromptedArgBranch,
+    PromptedArgTree, SecretAttr, SecretField, StdinAttr,
 };
 pub use prompter::Prompter;
 /// The [`secrecy`](https://docs.rs/secrecy) crate couture's secret args are typed with, so the app

@@ -1,7 +1,7 @@
 //! Parse entry points with couture installed.
 
 #[cfg(feature = "interactive")]
-mod dash;
+pub(crate) mod dash;
 #[cfg(feature = "interactive")]
 mod prompting;
 #[cfg(feature = "interactive")]
@@ -186,7 +186,6 @@ where
     secrets::guard(
         cmd,
         &prompted_arg_tree.prompted_args(),
-        &prompted_arg_tree.stdin_args(),
         &secrets::Vault::default(),
         &T::MESSAGES.environment.get(),
     )

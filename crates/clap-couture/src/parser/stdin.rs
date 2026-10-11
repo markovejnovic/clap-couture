@@ -16,7 +16,7 @@ use crate::{
 };
 
 /// The arg in `stdin_args` that takes stdin, and its text: the one `dashed` reads, else the one
-/// [`piped`] fills. A `-` that asks for an arg leaves it to be asked, so no pipe fills that one.
+/// [`piped`] fills. An arg passed `-` has a value, so no pipe fills it.
 ///
 /// # Errors
 /// As [`piped`].
@@ -24,7 +24,7 @@ pub(super) fn read<'stdin_arg>(
     cmd: &Command,
     prompted_args: &[PromptedArg],
     stdin_args: &'stdin_arg [StdinArg],
-    dashed: &Dashed,
+    dashed: &Dashed<'_>,
     argv: &[OsString],
     stdin: &impl Stdin,
 ) -> Result<Option<(&'stdin_arg StdinArg, String)>, Failure> {
@@ -35,12 +35,8 @@ pub(super) fn read<'stdin_arg>(
         let text = stdin.read(ReadWhen::Always).map_err(Failure::Io)?.unwrap_or_default();
         return decode(cmd, stdin_arg, text).map(|text| Some((stdin_arg, text)));
     }
-    let implicit: Vec<&StdinArg> = stdin_args
-        .iter()
-        .filter(|stdin_arg| {
-            !stdin_arg.attr.dash && !dashed.asks(&stdin_arg.subcommand_path, stdin_arg.attr.arg_id)
-        })
-        .collect();
+    let implicit: Vec<&StdinArg> =
+        stdin_args.iter().filter(|stdin_arg| stdin_arg.attr.dash.is_none()).collect();
     piped(cmd, prompted_args, &implicit, argv, stdin)
 }
 

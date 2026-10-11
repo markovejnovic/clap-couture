@@ -4,7 +4,7 @@
 #[expect(dead_code, reason = "only text and secret replies are scripted here")]
 mod common;
 
-use clap::{Parser, error::ErrorKind};
+use clap::{Parser, ValueEnum, error::ErrorKind};
 use clap_couture::{
     Couture, CoutureParser as _,
     interactive::secrecy::{ExposeSecret, SecretString},
@@ -29,6 +29,25 @@ struct Commit {
 
     #[arg(short, long)]
     verbose: bool,
+}
+
+#[derive(Parser, Couture, Debug)]
+struct Serve {
+    /// Port to listen on.
+    #[arg(long)]
+    #[couture(prompt(dash))]
+    port: Option<u16>,
+
+    /// Log level.
+    #[arg(long, value_enum)]
+    #[couture(prompt(dash))]
+    level: Option<Level>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+enum Level {
+    Debug,
+    Info,
 }
 
 #[derive(Parser, Couture)]
@@ -149,4 +168,43 @@ fn a_secret_passed_on_the_command_line_is_still_refused() {
     let backend = ScriptedBackend::new([]);
     let login = Login::couture_try_parse_from_with(&backend, ["login", "--token", "hunter2"]);
     assert_eq!(login.map(drop).map_err(|err| err.kind()), Err(ErrorKind::ValueValidation));
+}
+
+#[test]
+fn a_rejected_answer_is_asked_again_with_claps_message() {
+    let backend = ScriptedBackend::new([Reply::Text(Some("abc")), Reply::Text(Some("8080"))]);
+    let serve = Serve::couture_try_parse_from_with(&backend, ["serve", "--port", "-"]);
+    assert_eq!(serve.map(|serve| serve.port).ok().flatten(), Some(8080));
+    let errors: Vec<_> = backend.asked().into_iter().map(|asked| asked.error).collect();
+    assert_eq!(errors, [
+        None,
+        Some("invalid value 'abc' for '--port <PORT>': invalid digit found in string".to_owned())
+    ]);
+}
+
+#[test]
+fn a_dash_offers_the_possible_values() {
+    let backend = ScriptedBackend::new([Reply::Select(Some("info"))]);
+    let serve = Serve::couture_try_parse_from_with(&backend, ["serve", "--level", "-"]);
+    assert_eq!(serve.map(|serve| serve.level).ok().flatten(), Some(Level::Info));
+    let asked: Vec<_> =
+        backend.asked().into_iter().map(|asked| (asked.kind, asked.options)).collect();
+    assert_eq!(asked, [(Kind::Select, vec!["debug".to_owned(), "info".to_owned()])]);
+}
+
+#[test]
+fn a_value_other_than_dash_fails_as_clap_fails_it() {
+    #[derive(Parser, Debug)]
+    #[command(name = "serve")]
+    struct PlainServe {
+        #[arg(long)]
+        port: Option<u16>,
+    }
+
+    let backend = ScriptedBackend::new([]);
+    let argv = ["serve", "--port", "abc"];
+    let serve = Serve::couture_try_parse_from_with(&backend, argv);
+    let plain = PlainServe::try_parse_from(argv);
+    let rendered = |err: clap::Error| (err.kind(), err.to_string());
+    assert_eq!(serve.err().map(rendered), plain.err().map(rendered));
 }

@@ -329,11 +329,11 @@
 //! `#[couture(prompt(dash))]` asks for an argument interactively if the user passes `-` as the
 //! command line flag.
 //!
-//! ```rust,no_compile
+//! ```rust,ignore
 //! #[arg(short, long)]
 //! #[couture(prompt(dash), editor)] // `commit -m -` opens your $EDITOR
 //! message: Option<String>,
-//! 
+//!
 //! #[arg(long)]
 //! #[couture(prompt, secret, stdin(dash))] // `login --password -` reads stdin
 //! password: SecretString,

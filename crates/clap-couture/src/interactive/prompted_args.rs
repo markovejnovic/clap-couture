@@ -1,10 +1,22 @@
 //! The static tree of prompted and stdin args that `#[derive(Couture)]` emits as
 //! `Couture::PROMPTED_ARGS`.
 
+use clap::builder::ValueParser;
 use secrecy::SecretString;
 
 use super::sealed::Sealed;
-use crate::Text;
+use crate::{
+    Text,
+    parser::dash::{DashValueParser, TypedDashValueParser},
+};
+
+/// The `dash` of `prompt(dash)` or `stdin(dash)`: `-` as the arg's value stands for what is asked
+/// or read for it.
+#[derive(Clone, Copy, Debug)]
+pub struct DashAttr {
+    /// The arg's value parser for the final parse, giving the field's type.
+    typed_parser: fn(DashValueParser) -> ValueParser,
+}
 
 /// The `editor` beside a `#[couture(prompt)]`: ask in the user's editor.
 #[derive(Debug)]
@@ -13,6 +25,22 @@ pub struct EditorAttr {
     pub extension: &'static str,
     /// The text the file starts with when the arg has no default.
     pub initial: Option<Text>,
+}
+
+impl DashAttr {
+    /// The attr of a dash arg whose field holds a `T`, `Option` peeled.
+    #[must_use]
+    pub const fn new<T>() -> Self
+    where
+        T: Clone + Send + Sync + 'static,
+    {
+        Self { typed_parser: TypedDashValueParser::<T>::value_parser }
+    }
+
+    /// `dash` as the value parser of the final parse.
+    pub(crate) fn typed_parser(self, dash: DashValueParser) -> ValueParser {
+        (self.typed_parser)(dash)
+    }
 }
 
 impl EditorAttr {
@@ -33,7 +61,7 @@ pub struct PromptAttr {
     /// The clap id of the arg it is on.
     pub arg_id: &'static str,
     /// `prompt(dash)`: asked only when `-` is its value.
-    pub dash: bool,
+    pub dash: Option<DashAttr>,
     /// `Some` for `#[couture(prompt, editor)]`; only set with the `interactive-editor` feature.
     pub editor: Option<EditorAttr>,
     /// What the answer is for.
@@ -91,7 +119,7 @@ pub struct StdinAttr {
     /// The clap id of the arg it is on.
     pub arg_id: &'static str,
     /// `stdin(dash)`: stdin is read only when `-` is its value.
-    pub dash: bool,
+    pub dash: Option<DashAttr>,
 }
 
 /// An arg marked `#[couture(stdin)]`, and the subcommand path to the command that owns it.

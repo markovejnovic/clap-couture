@@ -236,14 +236,14 @@
 <a href=#230 id=230 data-nosnippet>230</a>//!
 <a href=#231 id=231 data-nosnippet>231</a>//! [`clap_couture`](self) has support for different types of fields:
 <a href=#232 id=232 data-nosnippet>232</a>//!
-<a href=#233 id=233 data-nosnippet>233</a>//! | Field Type                | Example                 | Prompt         | Example                                     |
-<a href=#234 id=234 data-nosnippet>234</a>//! |---------------------------|-------------------------|----------------|---------------------------------------------|
-<a href=#235 id=235 data-nosnippet>235</a>//! | `bool`                    | `force: bool`           | `[y/N]`        | Do you want to force input [y/N]: **y**     |
-<a href=#236 id=236 data-nosnippet>236</a>//! | Possible values           | `region: RegionEnum`    | Picker         | Which region (eu)? **us**                   |
-<a href=#237 id=237 data-nosnippet>237</a>//! | Arbitrary types           | `count: u16`            | Free text      | How many: **32**                            |
-<a href=#238 id=238 data-nosnippet>238</a>//! | `Option&lt;T&gt;`               | `fruit: Option&lt;String&gt;` | Optional input | Which fruit (none): **`&lt;enter&gt;`**           |
-<a href=#239 id=239 data-nosnippet>239</a>//! | `Vec&lt;T&gt;`, possible values | `envs: Vec&lt;Env&gt;`        | Multi-picker   | Which envs? **dev, stage**                  |
-<a href=#240 id=240 data-nosnippet>240</a>//! | `Vec&lt;T&gt;`, arbitrary type  | `tags: Vec&lt;String&gt;`     | Repeated input | Which tags (empty to finish): **`&lt;enter&gt;`** |
+<a href=#233 id=233 data-nosnippet>233</a>//! | Field Type                | Example                 | Prompt         | Example                                         |
+<a href=#234 id=234 data-nosnippet>234</a>//! |---------------------------|-------------------------|----------------|-------------------------------------------------|
+<a href=#235 id=235 data-nosnippet>235</a>//! | `bool`                    | `force: bool`           | `[y/N]`        | Do you want to force input [y/N]: **y**         |
+<a href=#236 id=236 data-nosnippet>236</a>//! | Possible values           | `region: RegionEnum`    | Picker         | Which region (eu)? **us**                       |
+<a href=#237 id=237 data-nosnippet>237</a>//! | Arbitrary types           | `count: u16`            | Free text      | How many: **32**                                |
+<a href=#238 id=238 data-nosnippet>238</a>//! | `Option&lt;T&gt;`               | `fruit: Option&lt;String&gt;` | Optional input | Which fruit (none): **`&lt;enter&gt;`**               |
+<a href=#239 id=239 data-nosnippet>239</a>//! | `Vec&lt;T&gt;`, possible values | `envs: Vec&lt;Env&gt;`        | Multi-picker   | Which envs? **dev, stage**                      |
+<a href=#240 id=240 data-nosnippet>240</a>//! | `Vec&lt;T&gt;`, arbitrary type  | `tags: Vec&lt;String&gt;`     | Repeated input | Which tags `(&lt;enter&gt; to finish)`: **`&lt;enter&gt;`** |
 <a href=#241 id=241 data-nosnippet>241</a>//!
 <a href=#242 id=242 data-nosnippet>242</a>//! ### Backends
 <a href=#243 id=243 data-nosnippet>243</a>//!
@@ -402,7 +402,7 @@
 <a href=#396 id=396 data-nosnippet>396</a></span><span class="attr">#[derive(Clone, Copy, Debug)]
 <a href=#397 id=397 data-nosnippet>397</a></span><span class="kw">pub struct </span>Messages {
 <a href=#398 id=398 data-nosnippet>398</a>    <span class="doccomment">/// The hint beside each prompt for one more value of a multi-value arg, telling that an empty
-<a href=#399 id=399 data-nosnippet>399</a>    /// answer finishes the list. The default is `"(empty to finish)"`.
+<a href=#399 id=399 data-nosnippet>399</a>    /// answer finishes the list. The default is `"(&lt;enter&gt; to finish)"`.
 <a href=#400 id=400 data-nosnippet>400</a>    </span><span class="kw">pub </span>finish_hint: Text,
 <a href=#401 id=401 data-nosnippet>401</a>    <span class="doccomment">/// The select option that leaves an optional prompted arg unset. The default is `"(none)"`.
 <a href=#402 id=402 data-nosnippet>402</a>    </span><span class="kw">pub </span>none: Text,
@@ -415,7 +415,7 @@
 <a href=#409 id=409 data-nosnippet>409</a><span class="kw">impl </span>Messages {
 <a href=#410 id=410 data-nosnippet>410</a>    <span class="doccomment">/// clap's English wording.
 <a href=#411 id=411 data-nosnippet>411</a>    </span><span class="kw">pub const </span>DEFAULT: <span class="self">Self </span>= <span class="self">Self </span>{
-<a href=#412 id=412 data-nosnippet>412</a>        finish_hint: Text::Literal(<span class="string">"(empty to finish)"</span>),
+<a href=#412 id=412 data-nosnippet>412</a>        finish_hint: Text::Literal(<span class="string">"(&lt;enter&gt; to finish)"</span>),
 <a href=#413 id=413 data-nosnippet>413</a>        none: Text::Literal(<span class="string">"(none)"</span>),
 <a href=#414 id=414 data-nosnippet>414</a>        options: Text::Literal(<span class="string">"Options:"</span>),
 <a href=#415 id=415 data-nosnippet>415</a>        usage: Text::Literal(<span class="string">"Usage:"</span>),

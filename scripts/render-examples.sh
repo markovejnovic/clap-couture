@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Capture examples' `--help` to `assets/<example>.ansi`, then render it to
-# `assets/<example>-{dark,light}.svg` with charmbracelet/freeze.
+# Capture examples' `--help` to `assets/<example>.ansi`, convert it to the rustdoc block
+# `crates/clap-couture/docs/<example>.html`, then render it to `assets/<example>-{dark,light}.svg`
+# with charmbracelet/freeze for the README.
 #
 #   scripts/render-examples.sh [--ansi-only] [example...]
 #
@@ -55,6 +56,9 @@ for example in "${examples[@]}"; do
   display=${display%%-*}
   CLICOLOR_FORCE=1 bash -c 'exec -a "$0" "$1" --help' "$display" "./target/debug/examples/$example" >"$ansi"
   echo "wrote $ansi"
+  block="crates/clap-couture/docs/$example.html"
+  ./scripts/ansi-to-html.py <"$ansi" >"$block"
+  echo "wrote $block"
   if $ansi_only; then
     continue
   fi

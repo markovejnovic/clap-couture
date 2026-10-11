@@ -135,3 +135,41 @@ pub trait Backend {
     /// - [`PromptError::Cancelled`] when the user backs out.
     fn text(&self, prompt: &TextPrompt<'_>) -> Result<Option<String>, PromptError>;
 }
+
+impl<B> Backend for &B
+where
+    B: Backend + ?Sized,
+{
+    fn confirm(&self, prompt: &ConfirmPrompt<'_>) -> Result<bool, PromptError> {
+        (**self).confirm(prompt)
+    }
+
+    #[cfg(feature = "interactive-editor")]
+    fn editor(&self, prompt: &EditorPrompt<'_>) -> Result<Option<String>, PromptError> {
+        (**self).editor(prompt)
+    }
+
+    fn is_available(&self) -> bool {
+        (**self).is_available()
+    }
+
+    fn multi_select(&self, prompt: &MultiSelectPrompt<'_>) -> Result<Vec<String>, PromptError> {
+        (**self).multi_select(prompt)
+    }
+
+    fn report(&self, error: &str, styles: CommandStyles<'_>) -> Result<(), PromptError> {
+        (**self).report(error, styles)
+    }
+
+    fn secret(&self, prompt: &SecretPrompt<'_>) -> Result<Option<SecretString>, PromptError> {
+        (**self).secret(prompt)
+    }
+
+    fn select(&self, prompt: &SelectPrompt<'_>) -> Result<Option<String>, PromptError> {
+        (**self).select(prompt)
+    }
+
+    fn text(&self, prompt: &TextPrompt<'_>) -> Result<Option<String>, PromptError> {
+        (**self).text(prompt)
+    }
+}

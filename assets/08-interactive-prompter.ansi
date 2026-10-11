@@ -1,0 +1,6 @@
+[1m[4mUsage:[0m
+  [1minteractive[0m [1m--app[0m <APP>
+
+[1m[4mOptions:[0m
+      [1m--app[0m <APP>  Application name
+  [1m-h[0m, [1m--help[0m       Print help

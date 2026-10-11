@@ -1,0 +1,27 @@
+<pre><code>Ship the current project.
+
+<span style="font-weight: bold"></span><span style="font-weight: bold; text-decoration: underline">Usage:</span>
+  <span style="font-weight: bold">interactive</span> [OPTIONS] <span style="font-weight: bold">--region</span> &lt;REGION&gt;
+
+<span style="font-weight: bold"></span><span style="font-weight: bold; text-decoration: underline">Options:</span>
+      <span style="font-weight: bold">--follow</span>
+          Tail the logs afterwards
+
+      <span style="font-weight: bold">--notes</span> &lt;NOTES&gt;
+          Release notes for this deploy
+
+      <span style="font-weight: bold">--region</span> &lt;REGION&gt;
+          Region to deploy to
+
+      <span style="font-weight: bold">--strategy</span> &lt;STRATEGY&gt;
+          How to roll the release out
+
+          Possible values:
+          - <span style="font-weight: bold">canary</span>:  A slice of traffic first
+          - <span style="font-weight: bold">rolling</span>: One instance at a time
+          
+          [default: rolling]
+
+  <span style="font-weight: bold">-h</span>, <span style="font-weight: bold">--help</span>
+          Print help (see a summary with '-h')
+</code></pre>

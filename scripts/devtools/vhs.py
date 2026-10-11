@@ -33,20 +33,23 @@ class ScrolledAwayError(RuntimeError):
     """The recording's last screen no longer shows the command that was typed."""
 
 
+# A `Set` value: a number, a string, or a JSON object such as a theme.
+type Setting = str | int | Mapping[str, str]
+
+
 @dataclass(frozen=True)
 class Tape:
     """A tape: its `commands` as in a `.tape` file, after its outputs and settings."""
 
     commands: str
     outputs: tuple[Path, ...] = ()
-    settings: Mapping[str, str | int] = field(default_factory=dict[str, str | int])
+    settings: Mapping[str, Setting] = field(default_factory=dict[str, Setting])
 
     def render(self) -> str:
         """The tape's source."""
         outputs = (f"Output {json.dumps(str(output))}" for output in self.outputs)
         settings = (
-            f"Set {name} {json.dumps(value) if isinstance(value, str) else value}"
-            for name, value in self.settings.items()
+            f"Set {name} {json.dumps(value)}" for name, value in self.settings.items()
         )
         return "\n".join([*outputs, *settings, self.commands])
 

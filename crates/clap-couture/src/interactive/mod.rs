@@ -167,6 +167,7 @@
 
 mod backend;
 mod prompted_args;
+mod prompter;
 mod sealed;
 
 use std::io;
@@ -186,6 +187,7 @@ pub use prompted_args::{
     EditorAttr, PromptAttr, PromptPurpose, PromptedArg, PromptedArgBranch, PromptedArgTree,
     SecretAttr, SecretField,
 };
+pub use prompter::Prompter;
 /// The [`secrecy`](https://docs.rs/secrecy) crate couture's secret args are typed with, so the app
 /// names the same `SecretString`.
 pub use secrecy;
@@ -227,6 +229,7 @@ impl From<io::Error> for PromptError {
 
 /// A yes/no question.
 #[derive(Debug)]
+#[non_exhaustive]
 pub struct ConfirmPrompt<'prompt> {
     /// The answer Enter accepts.
     pub default: bool,
@@ -239,6 +242,7 @@ pub struct ConfirmPrompt<'prompt> {
 /// A question answered in the user's editor, for `#[couture(prompt, editor)]`.
 #[cfg(feature = "interactive-editor")]
 #[derive(Debug)]
+#[non_exhaustive]
 pub struct EditorPrompt<'prompt> {
     /// The text the file starts with: the arg's default, or the previous rejected answer.
     pub default: Option<&'prompt str>,
@@ -266,6 +270,7 @@ pub struct EditorPrompt<'prompt> {
 
 /// A pick of any number of an arg's possible values.
 #[derive(Debug)]
+#[non_exhaustive]
 pub struct MultiSelectPrompt<'prompt> {
     /// The names of the options picked to begin with.
     pub defaults: &'prompt [String],
@@ -283,6 +288,7 @@ pub struct MultiSelectPrompt<'prompt> {
 
 /// A question whose answer is typed masked and never echoed.
 #[derive(Debug)]
+#[non_exhaustive]
 pub struct SecretPrompt<'prompt> {
     /// An empty answer is allowed, and leaves the arg unset.
     pub optional: bool,
@@ -294,6 +300,7 @@ pub struct SecretPrompt<'prompt> {
 
 /// A pick among an arg's possible values.
 #[derive(Debug)]
+#[non_exhaustive]
 pub struct SelectPrompt<'prompt> {
     /// The name of the option Enter accepts, if any.
     pub default: Option<&'prompt str>,
@@ -311,6 +318,7 @@ pub struct SelectPrompt<'prompt> {
 
 /// A free-text question.
 #[derive(Debug)]
+#[non_exhaustive]
 pub struct TextPrompt<'prompt> {
     /// The answer Enter accepts, if any.
     pub default: Option<&'prompt str>,

@@ -20,16 +20,16 @@ import os
 import click
 
 from devtools.rust.cargo import Cargo
-from devtools.vhs import Tape, Vhs
+from devtools.vhs import Setting, Tape, Vhs
 from example_recordings import PACKAGE, ROOT, THEMES, ExampleRun
 
-SETTINGS: dict[str, str | int] = {
+# No window bar, and rustdoc's code-block padding, so the GIFs read like docs code.
+SETTINGS: dict[str, Setting] = {
     "Shell": "bash",
     "FontFamily": "JetBrains Mono",
     "FontSize": 18,
     "Width": 1000,
-    "Padding": 30,
-    "WindowBar": "Colorful",
+    "Padding": 20,
 }
 # vhs rejects a quoted duration, and `Tape` quotes every string setting, so this one
 # is a command.

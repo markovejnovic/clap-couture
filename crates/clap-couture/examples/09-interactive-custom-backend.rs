@@ -115,13 +115,16 @@ enum Region {
     Us,
 }
 
-// Nested subcommands are clap's as usual; couture organizes the top-level menu.
-#[derive(Subcommand)]
+// `orbit secrets --help` is couture's too, with the categories of the type that defines it.
+#[derive(Subcommand, Couture)]
+#[couture(categories = { "read" = { title = "Read:" }, "write" = { title = "Write:" } })]
 enum Secrets {
     /// List the secrets.
+    #[couture(category = "read")]
     List,
 
-    /// Set a secret.
+    /// Set a **secret**.
+    #[couture(category = "write")]
     Set,
 }
 

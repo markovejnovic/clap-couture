@@ -1,0 +1,131 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Enable `clap-couture` on your clap subcommand enum."><title>Couture in clap_couture - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-203241e4.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="clap_couture" data-themes="" data-resource-suffix="" data-rustdoc-version="1.101.0-nightly (6f5da406b 2026-10-10)" data-channel="nightly" data-search-js="search-b167f383.js" data-stringdex-js="stringdex-b5109af9.js" data-settings-js="settings-170eb4bf.js" ><script src="../static.files/storage-41dd4d93.js"></script><script defer src="sidebar-items.js"></script><script defer src="../static.files/main-1814ead3.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-9f56287d.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/markovejnovic/clap-couture/7871b090f58762a270605aa9302caeea21325d52/assets/favicon.svg"><!-- Passed to rustdoc with `--html-in-header`; see `[package.metadata.docs.rs]` in Cargo.toml. -->
+<style>
+  /* The logo is near-black, so invert it on rustdoc's dark and ayu themes. */
+  :root:not([data-theme="light"]) .logo-container img { filter: invert(1); }
+</style>
+
+</head><body class="rustdoc derive"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Couture</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><a class="logo-container" href="../clap_couture/index.html"><img src="https://raw.githubusercontent.com/markovejnovic/clap-couture/7871b090f58762a270605aa9302caeea21325d52/assets/logo.svg" alt="logo"></a><h2><a href="../clap_couture/index.html">clap_<wbr>couture</a><span class="version">0.1.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Couture</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#examples" title="Examples">Examples</a></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="index.html">In crate clap_<wbr>couture</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="index.html">clap_couture</a></div><h1>Derive Macro <span class="derive">Couture</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"></span></div><pre class="rust item-decl"><code>#[derive(Couture)]
+{
+    <span class="comment">// Attributes available to this derive:</span>
+    #[category]
+    #[couture]
+}
+</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Enable <a href="https://docs.rs/clap-couture"><code>clap-couture</code></a> on your clap subcommand enum.</p>
+<ul>
+<li><code>#[couture(categories = { "key" = { title = "...", description = "..." }, ... })]</code> on the enum
+declares the categories in display order. <code>title</code> and <code>description</code> are optional. <code>title</code> is
+the heading as printed, colon included (<code>"Deploy:"</code>, <code>"部署："</code>); without one, the heading is
+the key and a colon.</li>
+<li>Similar to <a href="https://docs.rs/clap"><code>clap</code></a>, you can pass arbitrary expressions to any field,
+eg. <code>title = t!("deploy")</code>, which can enable localized text.</li>
+<li><code>#[category("key")]</code> on a variant files it under that category. Naming a category the enum
+neither declares nor inherits is a compile error, unless it declares and inherits none.</li>
+<li>A <code>#[command(flatten)]</code> variant or field brings its type’s categories along, after the enum’s
+own. On a label both use, the enum’s declared title and description win. A flattened
+subcommand enum must derive <code>Couture</code> too; a flattened <code>Args</code> type need not.</li>
+<li>With the <code>interactive</code> feature, <code>#[couture(prompt)]</code> or <code>#[couture(prompt = "...")]</code> on a
+field asks for that arg when the user leaves it out.</li>
+<li>With the <code>interactive-editor</code> feature, <code>#[couture(prompt, editor)]</code> asks in the user’s
+<code>$EDITOR</code> instead; <code>editor(extension = "md")</code> names the temp file’s extension, and
+<code>editor(initial = "...")</code> the text the file starts with when the arg has no default.</li>
+<li>With the <code>interactive</code> feature, <code>#[couture(confirm)]</code> or <code>#[couture(confirm = "...")]</code> on a
+<code>bool</code> flag asks to go ahead after every prompt, unless the flag is passed. A no, or no
+terminal to ask on, fails the parse. <code>{arg}</code> in the question stands for that arg’s value.</li>
+<li>Add <code>secret</code> beside it, <code>#[couture(prompt, secret)]</code>, to ask for a <code>SecretString</code> without
+echoing it. The arg then refuses a value from the command line; <code>secret(allow_argv)</code> allows
+it.</li>
+<li><code>#[couture(messages = { usage = ..., options = ..., none = ... })]</code> replaces the text couture
+prints itself, eg. to localize it; see <code>clap_couture::Messages</code> for every key. Any of them may
+be left out. It applies on the type you parse, or the one you pass to <code>with_couture</code>.</li>
+</ul>
+<h2 id="examples"><a class="doc-anchor" href="#examples">§</a>Examples</h2>
+<p>Group subcommands under headings:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>clap::{Parser, Subcommand};
+<span class="kw">use </span>clap_couture::{Couture, CoutureParser <span class="kw">as _</span>};
+
+<span class="attr">#[derive(Parser, Couture)]
+</span><span class="kw">struct </span>Cli {
+    <span class="attr">#[command(subcommand)]
+    </span>cmd: Cmd,
+}
+
+<span class="attr">#[derive(Subcommand, Couture)]
+#[couture(categories = {
+    <span class="string">"everyday" </span>= { title = <span class="string">"Everyday:"</span>, description = <span class="string">"Commands you'll reach for daily" </span>},
+    <span class="string">"admin" </span>= {},
+})]
+</span><span class="kw">enum </span>Cmd {
+    <span class="doccomment">/// Deploy the current project
+    </span><span class="attr">#[category(<span class="string">"everyday"</span>)]
+    </span>Deploy,
+    <span class="doccomment">/// Rotate the API keys
+    </span><span class="attr">#[category(<span class="string">"admin"</span>)]
+    </span>RotateKeys,
+    <span class="doccomment">/// Print the version
+    </span>Version,
+}
+
+Cli::couture_command().print_help().unwrap();</code></pre></div><div class="example-wrap"><pre class="language-text"><code>Usage:
+  tool &lt;COMMAND&gt;
+
+  version      Print the version
+
+Everyday:  Commands you&#39;ll reach for daily
+  deploy       Deploy the current project
+
+admin:
+  rotate-keys  Rotate the API keys
+
+Options:
+  -h, --help  Print help</code></pre></div>
+<p>A nested subcommand enum can file its variants under its parent’s categories:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>clap::Subcommand;
+<span class="kw">use </span>clap_couture::Couture;
+
+<span class="attr">#[derive(Subcommand, Couture)]
+#[couture(categories = { <span class="string">"admin" </span>= { title = <span class="string">"Administration:" </span>} })]
+</span><span class="kw">enum </span>Cmd {
+    <span class="attr">#[category(<span class="string">"admin"</span>)]
+    #[command(subcommand)]
+    </span>Keys(KeysCmd),
+}
+
+<span class="attr">#[derive(Subcommand, Couture)]
+#[couture(inherit = [<span class="string">"admin"</span>]</span>)]
+<span class="kw">enum </span>KeysCmd {
+    <span class="doccomment">/// Rotate the API keys
+    </span><span class="attr">#[category(<span class="string">"admin"</span>)]
+    </span>Rotate,
+}</code></pre></div>
+<p>Localize the text couture prints itself:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>clap::Parser;
+<span class="kw">use </span>clap_couture::{Couture, CoutureParser <span class="kw">as _</span>};
+
+<span class="attr">#[derive(Parser, Couture)]
+#[couture(messages = { usage = <span class="string">"Verwendung:"</span>, options = <span class="string">"Optionen:" </span>})]
+</span><span class="kw">struct </span>Cli {
+    <span class="attr">#[arg(long)]
+    </span>verbose: bool,
+}
+
+<span class="kw">let </span>help = Cli::couture_command().render_help().to_string();
+<span class="macro">assert!</span>(help.contains(<span class="string">"Verwendung:"</span>));</code></pre></div>
+<p>With the interactive mode, you can add a couture prompt to ask the user for input interactively.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>clap::Parser;
+<span class="kw">use </span>clap_couture::{Couture, CoutureParser <span class="kw">as _</span>};
+
+<span class="attr">#[derive(Parser, Couture)]
+</span><span class="kw">struct </span>Cli {
+    <span class="doccomment">/// Region to deploy to
+    </span><span class="attr">#[arg(long)]
+    #[couture(prompt)]
+    </span>region: String,
+
+    <span class="attr">#[arg(long)]
+    #[couture(prompt = <span class="string">"Tail the logs afterwards?"</span>)]
+    </span>follow: bool,
+}</code></pre></div></div></details></section></div></main></body></html>

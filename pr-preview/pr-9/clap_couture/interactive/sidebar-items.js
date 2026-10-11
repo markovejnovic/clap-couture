@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["PromptError"],"struct":["Cliclack","CommandStyles","ConfirmPrompt","Dialoguer","Inquire","NonInteractive","SelectPrompt","TextPrompt"],"trait":["Backend"],"type":["DefaultBackend"]};

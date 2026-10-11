@@ -131,6 +131,13 @@ fn child() {
                 CodecCmd::Version => "version".to_owned(),
             })
         }
+        "post-usage" => {
+            let usage = Post::couture_try_parse_from_with(NonInteractive, argv).err().map(|err| {
+                let rendered = err.to_string();
+                rendered.lines().find(|line| line.starts_with("Usage:")).map(str::to_owned)
+            });
+            Ok(usage.flatten().unwrap_or_default())
+        }
         "note" => Note::couture_try_parse_from_with(NonInteractive, argv)
             .map(|note| format!("body={:?}", note.body)),
         "draft" => {
@@ -263,6 +270,12 @@ fn stdin_that_is_not_utf8_is_an_error() {
         run("post", &[], Stdin::Piped(b"\xff\xfe")).as_deref(),
         Ok("InvalidUtf8: error: --message <MESSAGE> got invalid UTF-8 from stdin")
     );
+}
+
+#[test]
+fn a_stdin_error_names_the_binary_from_argv() {
+    let result = run("post-usage", &[], Stdin::Piped(b"\xff\xfe"));
+    assert_eq!(result.as_deref(), Ok("Usage: app [OPTIONS] --message <MESSAGE>"));
 }
 
 #[rstest]

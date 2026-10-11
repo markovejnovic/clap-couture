@@ -20,7 +20,7 @@
 //! when passed `-`, else what is piped, if it got no value. It is then no longer asked.
 
 use core::iter;
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 
 use clap::{
     Arg, ArgAction, ArgGroup, ArgMatches, Command, FromArgMatches, Id,
@@ -74,6 +74,28 @@ struct Asked<'ask> {
 struct Rejected {
     error: String,
     value: String,
+}
+
+/// [`Command`], named after the binary that runs it.
+trait BinNamed {
+    /// `self` with the bin name clap takes from `argv[0]`, so couture's own errors show it too.
+    fn bin_named(self, argv: &[OsString]) -> Self;
+}
+
+impl BinNamed for Command {
+    fn bin_named(self, argv: &[OsString]) -> Self {
+        // As clap's own parse names it: a multicall command or one set without a binary name is
+        // named by clap alone, and a name set already is kept.
+        if self.is_multicall_set() || self.is_no_binary_name_set() || self.get_bin_name().is_some()
+        {
+            return self;
+        }
+        let program_name = argv.first().and_then(|called| crate::os::program_name(called));
+        match program_name.and_then(OsStr::to_str) {
+            Some(bin_name) => self.bin_name(bin_name.to_owned()),
+            None => self,
+        }
+    }
 }
 
 /// One parse: the command, its argv, its prompted args, who to ask and where secrets go.
@@ -420,6 +442,7 @@ pub(super) fn parse<T>(
 where
     T: FromArgMatches,
 {
+    let cmd = cmd.bin_named(argv);
     let mut prompted_args = prompted_arg_tree.prompted_args();
     let stdin_args = StdinArgs::of(prompted_arg_tree);
     let dash_args = DashArgs::of(&prompted_args, &stdin_args);

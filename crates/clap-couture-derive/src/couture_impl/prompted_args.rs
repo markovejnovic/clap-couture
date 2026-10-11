@@ -1,18 +1,14 @@
 //! `PROMPTED_ARGS`: the args `#[couture(prompt)]` and `#[couture(confirm)]` mark, and the command
 //! path to each.
 
-use darling::{
-    Error,
-    ast::Style,
-    util::{Override, SpannedValue},
-};
+use darling::{Error, ast::Style, util::Override};
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{ToTokens, quote};
 use syn::Type;
 
 use crate::{
     clap_compat::{ClapAttrs as _, ClapFieldType as _, FieldKind, SubcommandNaming},
-    input::{FieldInput, VariantInput},
+    input::{FieldInput, Question, VariantInput},
     text::{OptionalText, TextExpr},
 };
 
@@ -123,11 +119,7 @@ impl PromptedArgBranch {
 }
 
 impl PromptAttr {
-    fn new(
-        field: &FieldInput,
-        purpose: Purpose,
-        question: &SpannedValue<Override<TextExpr>>,
-    ) -> darling::Result<Self> {
+    fn new(field: &FieldInput, purpose: Purpose, question: &Question) -> darling::Result<Self> {
         let (span, attr) = (question.span(), purpose.attr());
         if !cfg!(feature = "interactive") {
             return Err(Error::custom(format!(

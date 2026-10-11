@@ -27,16 +27,18 @@ pub(crate) struct CoutureInput {
     pub(crate) ident: Ident,
 }
 
+/// What `#[couture(prompt)]` or `#[couture(confirm)]` asks: `Inherit` when bare, the arg's help
+/// text; `Explicit` for `= ...`.
+pub(crate) type Question = SpannedValue<Override<TextExpr>>;
+
 /// A field of a parser struct, an `Args` struct or a struct variant.
 #[derive(FromField)]
 #[darling(attributes(couture), forward_attrs(arg, clap, command))]
 pub(crate) struct FieldInput {
     pub(crate) attrs: Vec<Attribute>,
-    /// `Inherit` for `#[couture(confirm)]`, `Explicit` for `#[couture(confirm = ...)]`.
-    pub(crate) confirm: Option<SpannedValue<Override<TextExpr>>>,
+    pub(crate) confirm: Option<Question>,
     pub(crate) ident: Option<Ident>,
-    /// `Inherit` for `#[couture(prompt)]`, `Explicit` for `#[couture(prompt = ...)]`.
-    pub(crate) prompt: Option<SpannedValue<Override<TextExpr>>>,
+    pub(crate) prompt: Option<Question>,
     pub(crate) ty: Type,
 }
 

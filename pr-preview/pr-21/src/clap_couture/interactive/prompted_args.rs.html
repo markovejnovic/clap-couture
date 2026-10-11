@@ -87,23 +87,23 @@
 <a href=#81 id=81 data-nosnippet>81</a>    </span><span class="kw">pub </span>branches: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>[PromptedArgBranch],
 <a href=#82 id=82 data-nosnippet>82</a>    <span class="doccomment">/// The args prompted for at this level.
 <a href=#83 id=83 data-nosnippet>83</a>    </span><span class="kw">pub </span>own_args: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>[PromptAttr],
-<a href=#84 id=84 data-nosnippet>84</a>    <span class="doccomment">/// This level's `#[couture(accept_stdin)]` arg, if any.
+<a href=#84 id=84 data-nosnippet>84</a>    <span class="doccomment">/// This level's `#[couture(stdin)]` arg, if any.
 <a href=#85 id=85 data-nosnippet>85</a>    </span><span class="kw">pub </span>stdin_arg: <span class="prelude-ty">Option</span>&lt;StdinAttr&gt;,
 <a href=#86 id=86 data-nosnippet>86</a>}
 <a href=#87 id=87 data-nosnippet>87</a>
-<a href=#88 id=88 data-nosnippet>88</a><span class="doccomment">/// One `#[couture(accept_stdin)]`.
+<a href=#88 id=88 data-nosnippet>88</a><span class="doccomment">/// One `#[couture(stdin)]`.
 <a href=#89 id=89 data-nosnippet>89</a></span><span class="attr">#[derive(Debug)]
 <a href=#90 id=90 data-nosnippet>90</a></span><span class="kw">pub struct </span>StdinAttr {
 <a href=#91 id=91 data-nosnippet>91</a>    <span class="doccomment">/// The clap id of the arg it is on.
 <a href=#92 id=92 data-nosnippet>92</a>    </span><span class="kw">pub </span>arg_id: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
-<a href=#93 id=93 data-nosnippet>93</a>    <span class="doccomment">/// `accept_stdin(dash)`: stdin is read only when `-` is its value.
+<a href=#93 id=93 data-nosnippet>93</a>    <span class="doccomment">/// `stdin(dash)`: stdin is read only when `-` is its value.
 <a href=#94 id=94 data-nosnippet>94</a>    </span><span class="kw">pub </span>dash: bool,
 <a href=#95 id=95 data-nosnippet>95</a>}
 <a href=#96 id=96 data-nosnippet>96</a>
-<a href=#97 id=97 data-nosnippet>97</a><span class="doccomment">/// An arg marked `#[couture(accept_stdin)]`, and the subcommand path to the command that owns it.
+<a href=#97 id=97 data-nosnippet>97</a><span class="doccomment">/// An arg marked `#[couture(stdin)]`, and the subcommand path to the command that owns it.
 <a href=#98 id=98 data-nosnippet>98</a></span><span class="attr">#[derive(Debug)]
 <a href=#99 id=99 data-nosnippet>99</a></span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>StdinArg {
-<a href=#100 id=100 data-nosnippet>100</a>    <span class="doccomment">/// Its `#[couture(accept_stdin)]`.
+<a href=#100 id=100 data-nosnippet>100</a>    <span class="doccomment">/// Its `#[couture(stdin)]`.
 <a href=#101 id=101 data-nosnippet>101</a>    </span><span class="kw">pub</span>(<span class="kw">crate</span>) attr: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>StdinAttr,
 <a href=#102 id=102 data-nosnippet>102</a>    <span class="doccomment">/// Subcommand names from the root, empty for a root arg.
 <a href=#103 id=103 data-nosnippet>103</a>    </span><span class="kw">pub</span>(<span class="kw">crate</span>) subcommand_path: Vec&lt;<span class="kw-2">&amp;</span><span class="lifetime">'static </span>str&gt;,
@@ -130,15 +130,15 @@
 <a href=#124 id=124 data-nosnippet>124</a>    </span><span class="kw">pub const </span>EMPTY: <span class="self">Self </span>= <span class="self">Self </span>{ branches: <span class="kw-2">&amp;</span>[], own_args: <span class="kw-2">&amp;</span>[], stdin_arg: <span class="prelude-val">None </span>};
 <a href=#125 id=125 data-nosnippet>125</a>
 <a href=#126 id=126 data-nosnippet>126</a>    <span class="doccomment">/// Evaluated beside every derived tree: fails the build when one command path holds more than
-<a href=#127 id=127 data-nosnippet>127</a>    /// one `#[couture(accept_stdin)]` arg, as stdin can only be read once.
+<a href=#127 id=127 data-nosnippet>127</a>    /// one `#[couture(stdin)]` arg, as stdin can only be read once.
 <a href=#128 id=128 data-nosnippet>128</a>    ///
 <a href=#129 id=129 data-nosnippet>129</a>    /// # Panics
 <a href=#130 id=130 data-nosnippet>130</a>    /// When it fails the build.
 <a href=#131 id=131 data-nosnippet>131</a>    </span><span class="kw">pub const fn </span>assert_stdin_read_once(<span class="kw-2">&amp;</span><span class="self">self</span>) {
 <a href=#132 id=132 data-nosnippet>132</a>        <span class="macro">assert!</span>(
 <a href=#133 id=133 data-nosnippet>133</a>            <span class="self">self</span>.most_stdin_args_on_a_path() &lt;= <span class="number">1</span>,
-<a href=#134 id=134 data-nosnippet>134</a>            <span class="string">"`#[couture(accept_stdin)]` marks more than one arg on one command path; stdin can \
-<a href=#135 id=135 data-nosnippet>135</a>             only be read once"
+<a href=#134 id=134 data-nosnippet>134</a>            <span class="string">"`#[couture(stdin)]` marks more than one arg on one command path; stdin can only be \
+<a href=#135 id=135 data-nosnippet>135</a>             read once"
 <a href=#136 id=136 data-nosnippet>136</a>        </span>);
 <a href=#137 id=137 data-nosnippet>137</a>    }
 <a href=#138 id=138 data-nosnippet>138</a>
@@ -178,7 +178,7 @@
 <a href=#172 id=172 data-nosnippet>172</a>        prompted_args
 <a href=#173 id=173 data-nosnippet>173</a>    }
 <a href=#174 id=174 data-nosnippet>174</a>
-<a href=#175 id=175 data-nosnippet>175</a>    <span class="doccomment">/// Every `#[couture(accept_stdin)]` arg in the tree, in declaration order. At most one of them
+<a href=#175 id=175 data-nosnippet>175</a>    <span class="doccomment">/// Every `#[couture(stdin)]` arg in the tree, in declaration order. At most one of them
 <a href=#176 id=176 data-nosnippet>176</a>    /// sits on any one subcommand chain.
 <a href=#177 id=177 data-nosnippet>177</a>    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>stdin_args(<span class="kw-2">&amp;</span><span class="lifetime">'static </span><span class="self">self</span>) -&gt; Vec&lt;StdinArg&gt; {
 <a href=#178 id=178 data-nosnippet>178</a>        <span class="kw">let </span><span class="kw-2">mut </span>stdin_args = Vec::new();

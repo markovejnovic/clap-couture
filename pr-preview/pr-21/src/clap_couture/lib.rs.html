@@ -298,7 +298,7 @@
 <a href=#292 id=292 data-nosnippet>292</a>//!
 <a href=#293 id=293 data-nosnippet>293</a>//! ### Piped input
 <a href=#294 id=294 data-nosnippet>294</a>//!
-<a href=#295 id=295 data-nosnippet>295</a>//! `#[couture(accept_stdin)]` lets an arg come from a pipe: `echo hi | post` works like `post
+<a href=#295 id=295 data-nosnippet>295</a>//! `#[couture(stdin)]` lets an arg come from a pipe: `echo hi | post` works like `post
 <a href=#296 id=296 data-nosnippet>296</a>//! --message hi`. Stdin is read only when it is a pipe and the arg was left out, so a terminal, a
 <a href=#297 id=297 data-nosnippet>297</a>//! file or `/dev/null` on stdin never blocks the parse. Beside `prompt`, the arg is asked when
 <a href=#298 id=298 data-nosnippet>298</a>//! nothing is piped; beside `secret`, it works like `docker login --password-stdin`.
@@ -311,7 +311,7 @@
 <a href=#305 id=305 data-nosnippet>305</a>//! struct Cli {
 <a href=#306 id=306 data-nosnippet>306</a>//!     /// Message to post.
 <a href=#307 id=307 data-nosnippet>307</a>//!     #[arg(long)]
-<a href=#308 id=308 data-nosnippet>308</a>//!     #[couture(prompt, accept_stdin)]
+<a href=#308 id=308 data-nosnippet>308</a>//!     #[couture(prompt, stdin)]
 <a href=#309 id=309 data-nosnippet>309</a>//!     message: String,
 <a href=#310 id=310 data-nosnippet>310</a>//! }
 <a href=#311 id=311 data-nosnippet>311</a>//!
@@ -332,7 +332,7 @@
 <a href=#326 id=326 data-nosnippet>326</a>//! ### Dash as a value
 <a href=#327 id=327 data-nosnippet>327</a>//!
 <a href=#328 id=328 data-nosnippet>328</a>//! `dash` gives `-` a meaning: `#[couture(prompt(dash))]` asks for an arg passed `-`, like `git
-<a href=#329 id=329 data-nosnippet>329</a>//! commit -m -` opening the editor, and `#[couture(accept_stdin(dash))]` reads stdin into it,
+<a href=#329 id=329 data-nosnippet>329</a>//! commit -m -` opening the editor, and `#[couture(stdin(dash))]` reads stdin into it,
 <a href=#330 id=330 data-nosnippet>330</a>//! like `docker login --password-stdin`. With both, `-` asks at a terminal and reads stdin when
 <a href=#331 id=331 data-nosnippet>331</a>//! piped. Without `-`, neither asks nor reads.
 <a href=#332 id=332 data-nosnippet>332</a>//!

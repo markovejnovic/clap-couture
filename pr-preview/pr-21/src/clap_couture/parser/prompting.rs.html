@@ -20,7 +20,7 @@
 <a href=#14 id=14 data-nosnippet>14</a>//! nothing to ask again.
 <a href=#15 id=15 data-nosnippet>15</a>//!
 <a href=#16 id=16 data-nosnippet>16</a>//! Before any of it, each `-` passed to a `dash` arg comes out of argv, and the
-<a href=#17 id=17 data-nosnippet>17</a>//! `#[couture(accept_stdin)]` arg on the path the user took takes stdin: all of it when passed
+<a href=#17 id=17 data-nosnippet>17</a>//! `#[couture(stdin)]` arg on the path the user took takes stdin: all of it when passed
 <a href=#18 id=18 data-nosnippet>18</a>//! `-`, else what is piped, if it got no value. It is then no longer asked.
 <a href=#19 id=19 data-nosnippet>19</a>
 <a href=#20 id=20 data-nosnippet>20</a></span><span class="kw">use </span>core::iter;
@@ -843,7 +843,7 @@
 <a href=#837 id=837 data-nosnippet>837</a>        os::stdin::{ReadWhen, Stdin},
 <a href=#838 id=838 data-nosnippet>838</a>    };
 <a href=#839 id=839 data-nosnippet>839</a>
-<a href=#840 id=840 data-nosnippet>840</a>    <span class="doccomment">/// `#[couture(prompt(dash), accept_stdin(dash))]` on `--message`.
+<a href=#840 id=840 data-nosnippet>840</a>    <span class="doccomment">/// `#[couture(prompt(dash), stdin(dash))]` on `--message`.
 <a href=#841 id=841 data-nosnippet>841</a>    </span><span class="kw">static </span>ASKED_OR_READ: PromptedArgTree = PromptedArgTree {
 <a href=#842 id=842 data-nosnippet>842</a>        branches: <span class="kw-2">&amp;</span>[],
 <a href=#843 id=843 data-nosnippet>843</a>        own_args: <span class="kw-2">&amp;</span>[PromptAttr {

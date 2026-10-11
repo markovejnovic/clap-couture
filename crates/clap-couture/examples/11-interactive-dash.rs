@@ -10,13 +10,12 @@
 //!
 //! # Example Output
 //!
-//! `cargo run -p clap-couture --example 11-interactive-dash -- --title -` outputs:
+//! `cargo run -p clap-couture --example 11-interactive-dash -- 'Fix login' '|' orbit-release
+//! --title v1.2 --notes -` outputs:
 //!
 //! ```terminal
-//! ◇  Release title
-//! │  v1.2
-//! │
 //! releasing v1.2
+//! notes: Fix login
 //! ```
 //!
 //! `echo "Fix login" | cargo run -p clap-couture --example 11-interactive-dash -- --title

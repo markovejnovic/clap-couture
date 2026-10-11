@@ -1,0 +1,5 @@
+# syn 2 comes in with cliclack, the default prompt backend: its text cursor derives
+# `zeroize::ZeroizeOnDrop`, and zeroize_derive is still on syn 2, while
+# clap-couture-derive and its darling and serde_derive are on syn 3. Drop this once
+# zeroize_derive moves to syn 3.
+allowed-duplicate-crates = ["syn"]

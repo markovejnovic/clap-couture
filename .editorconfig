@@ -1,0 +1,8 @@
+root = true
+
+[*]
+max_line_length = 99
+
+[*.py]
+# `textwidth=87`, so `colorcolumn=+1` marks column 88; ruff's `line-length` enforces it.
+max_line_length = 87

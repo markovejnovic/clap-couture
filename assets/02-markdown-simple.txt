@@ -1,0 +1,15 @@
+>
+────────────────────────────────────────────────────────────────────────────────
+> 02-markdown-simple --help
+────────────────────────────────────────────────────────────────────────────────
+> 02-markdown-simple --help
+Usage:
+  02-markdown-simple <COMMAND>
+
+  deploy  Ship the current project
+  login   Sign in to your account
+
+Options:
+  -h, --help  Print help
+>
+────────────────────────────────────────────────────────────────────────────────

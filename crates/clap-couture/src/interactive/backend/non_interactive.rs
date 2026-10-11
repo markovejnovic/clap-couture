@@ -3,7 +3,7 @@
 use super::Backend;
 #[cfg(feature = "interactive-editor")]
 use crate::interactive::EditorPrompt;
-use crate::interactive::{ConfirmPrompt, PromptError, SelectPrompt, TextPrompt};
+use crate::interactive::{ConfirmPrompt, MultiSelectPrompt, PromptError, SelectPrompt, TextPrompt};
 
 /// Never asks, as if there were no terminal: every arg is left to clap.
 #[derive(Clone, Copy, Debug, Default)]
@@ -21,6 +21,10 @@ impl Backend for NonInteractive {
 
     fn is_available(&self) -> bool {
         false
+    }
+
+    fn multi_select(&self, _prompt: &MultiSelectPrompt<'_>) -> Result<Vec<String>, PromptError> {
+        Err(PromptError::NotATerminal)
     }
 
     fn select(&self, _prompt: &SelectPrompt<'_>) -> Result<Option<String>, PromptError> {

@@ -7,7 +7,10 @@ use std::io;
 use clap::{ArgAction, ArgGroup, Parser, Subcommand, error::ErrorKind};
 use clap_couture::{
     Couture, CoutureParser as _,
-    interactive::{Backend, ConfirmPrompt, EditorPrompt, PromptError, SelectPrompt, TextPrompt},
+    interactive::{
+        Backend, ConfirmPrompt, EditorPrompt, MultiSelectPrompt, PromptError, SelectPrompt,
+        TextPrompt,
+    },
 };
 use rstest::rstest;
 
@@ -159,6 +162,10 @@ impl Backend for Editor {
 
     fn is_available(&self) -> bool {
         true
+    }
+
+    fn multi_select(&self, _prompt: &MultiSelectPrompt<'_>) -> Result<Vec<String>, PromptError> {
+        Err(not_editor())
     }
 
     fn report(

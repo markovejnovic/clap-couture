@@ -1,0 +1,203 @@
+>
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+? Application name
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+? Application name web
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+> Application name web
+? Tail the logs afterwards? (y/N)
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+> Application name web
+? Tail the logs afterwards? (y/N) y
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+> Application name web
+> Tail the logs afterwards? Yes
+? Which region?
+> apac
+  eu
+  us
+[↑↓ to move, enter to select, type to filter]
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+> Application name web
+> Tail the logs afterwards? Yes
+? Which region?
+  apac
+> eu
+  us
+[↑↓ to move, enter to select, type to filter]
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+> Application name web
+> Tail the logs afterwards? Yes
+> Which region? eu
+? How many replicas? (2)
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+> Application name web
+> Tail the logs afterwards? Yes
+> Which region? eu
+? How many replicas? (2) abc
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+> Application name web
+> Tail the logs afterwards? Yes
+> Which region? eu
+> How many replicas? abc
+invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+? How many replicas? (2)
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+> Application name web
+> Tail the logs afterwards? Yes
+> Which region? eu
+> How many replicas? abc
+invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+? How many replicas? (2) 3
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+> Application name web
+> Tail the logs afterwards? Yes
+> Which region? eu
+> How many replicas? abc
+invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+> How many replicas? 3
+? Which sidecars?
+> [ ] logging
+  [ ] metrics
+  [ ] proxy
+[↑↓ to move, space to select one, → to all, ← to none, type to filter]
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+> Application name web
+> Tail the logs afterwards? Yes
+> Which region? eu
+> How many replicas? abc
+invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+> How many replicas? 3
+? Which sidecars?
+> [x] logging
+  [ ] metrics
+  [ ] proxy
+[↑↓ to move, space to select one, → to all, ← to none, type to filter]
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+> Application name web
+> Tail the logs afterwards? Yes
+> Which region? eu
+> How many replicas? abc
+invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+> How many replicas? 3
+? Which sidecars?
+  [x] logging
+> [ ] metrics
+  [ ] proxy
+[↑↓ to move, space to select one, → to all, ← to none, type to filter]
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+> Application name web
+> Tail the logs afterwards? Yes
+> Which region? eu
+> How many replicas? abc
+invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+> How many replicas? 3
+? Which sidecars?
+  [x] logging
+  [ ] metrics
+> [ ] proxy
+[↑↓ to move, space to select one, → to all, ← to none, type to filter]
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+> Application name web
+> Tail the logs afterwards? Yes
+> Which region? eu
+> How many replicas? abc
+invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+> How many replicas? 3
+? Which sidecars?
+  [x] logging
+  [ ] metrics
+> [x] proxy
+[↑↓ to move, space to select one, → to all, ← to none, type to filter]
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+> Application name web
+> Tail the logs afterwards? Yes
+> Which region? eu
+> How many replicas? abc
+invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+> How many replicas? 3
+> Which sidecars? logging, proxy
+? Environment variables (KEY=VALUE)?
+[(<enter> to finish)]
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+> Application name web
+> Tail the logs afterwards? Yes
+> Which region? eu
+> How many replicas? abc
+invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+> How many replicas? 3
+> Which sidecars? logging, proxy
+? Environment variables (KEY=VALUE)? LOG=debug
+[(<enter> to finish)]
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+> Application name web
+> Tail the logs afterwards? Yes
+> Which region? eu
+> How many replicas? abc
+invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+> How many replicas? 3
+> Which sidecars? logging, proxy
+> Environment variables (KEY=VALUE)? LOG=debug
+? Environment variables (KEY=VALUE)?
+[(<enter> to finish)]
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+> Application name web
+> Tail the logs afterwards? Yes
+> Which region? eu
+> How many replicas? abc
+invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+> How many replicas? 3
+> Which sidecars? logging, proxy
+> Environment variables (KEY=VALUE)? LOG=debug
+? Environment variables (KEY=VALUE)? PORT=8080
+[(<enter> to finish)]
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+> Application name web
+> Tail the logs afterwards? Yes
+> Which region? eu
+> How many replicas? abc
+invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+> How many replicas? 3
+> Which sidecars? logging, proxy
+> Environment variables (KEY=VALUE)? LOG=debug
+> Environment variables (KEY=VALUE)? PORT=8080
+? Environment variables (KEY=VALUE)?
+[(<enter> to finish)]
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+> Application name web
+> Tail the logs afterwards? Yes
+> Which region? eu
+> How many replicas? abc
+invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+> How many replicas? 3
+> Which sidecars? logging, proxy
+> Environment variables (KEY=VALUE)? LOG=debug
+> Environment variables (KEY=VALUE)? PORT=8080
+> Environment variables (KEY=VALUE)?
+deploying web to eu with 3 replicas (follow: true)
+sidecars: [Logging, Proxy], vars: ["LOG=debug", "PORT=8080"]
+>
+────────────────────────────────────────────────────────────────────────────────

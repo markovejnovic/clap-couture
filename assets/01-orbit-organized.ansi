@@ -1,0 +1,20 @@
+Deploy and manage your apps from the terminal
+
+[1m[4mUsage:[0m
+  [1morbit[0m <COMMAND>
+
+  [1mlogs[0m      Tail live logs
+  [1msearch[0m    Search your deployment history
+  [1mstatus[0m    Show recent activity
+
+[1m[4mdeploy:[0m
+  [1mdeploy[0m    Ship the current project
+  [1mrollback[0m  Roll back to a previous release
+  [1msecrets[0m   Manage environment secrets
+
+[1m[4mAccount & sync:[0m  Who you are, on every machine
+  [1mlogin[0m     Sign in to your account
+  [1msync[0m      Sync settings across machines
+
+[1m[4mOptions:[0m
+  [1m-h[0m, [1m--help[0m  Print help

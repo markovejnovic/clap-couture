@@ -1,0 +1,48 @@
+# Python tooling for the repo's scripts; the crates themselves are Rust.
+[project]
+name = "clap-couture-scripts"
+version = "0.0.0"
+description = "Scripts that record clap-couture's examples and fill in their docs."
+requires-python = ">=3.12"
+dependencies = ["click==8.5.0", "pyromark==0.9.14"]
+
+[dependency-groups]
+dev = ["pyright==1.1.408", "ruff==0.16.4"]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 87
+target-version = "py312"
+src = ["scripts"]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "COM812", # conflicts with the formatter
+    "CPY001", # the repo's files carry no copyright headers
+    "D203",   # conflicts with D211: no blank line before a class docstring
+    "D213",   # conflicts with D212: the summary starts on the docstring's first line
+    "S603",   # every subprocess call takes an argument list, never a shell string
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.pyright]
+include = ["scripts"]
+extraPaths = ["scripts"]
+venvPath = "."
+venv = ".venv"
+pythonVersion = "3.12"
+typeCheckingMode = "strict"
+reportCallInDefaultInitializer = "error"
+reportImplicitOverride = "error"
+reportImplicitStringConcatenation = "error"
+reportImportCycles = "error"
+reportMissingSuperCall = "error"
+reportPropertyTypeMismatch = "error"
+reportUninitializedInstanceVariable = "error"
+reportUnnecessaryTypeIgnoreComment = "error"
+reportUnusedCallResult = "error"

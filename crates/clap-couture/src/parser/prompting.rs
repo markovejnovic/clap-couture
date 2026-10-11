@@ -1,9 +1,10 @@
 //! Parse, ask for the prompted args that got no value, then parse again with the answers.
 //!
-//! Every answer goes back into the command as its arg's `default_value`, so clap converts and
+//! Every answer goes back into the command as its arg's `default_values`, so clap converts and
 //! validates it exactly like a typed value. Each answer is checked with a trial parse as soon as
 //! it is given: the previous trial passed, so a failure can only come from the new answer, which
-//! is then asked again with clap's message.
+//! is then asked again with clap's message. For an arg asked one value at a time, each value is
+//! an answer of its own, checked on top of the values before it.
 
 use core::iter;
 use std::ffi::OsString;
@@ -21,8 +22,8 @@ use crate::interactive::{EditorAttr, EditorPrompt};
 use crate::{
     Messages,
     interactive::{
-        Backend, CommandStyles, ConfirmPrompt, PromptError, PromptedArg, PromptedArgTree,
-        SelectPrompt, TextPrompt,
+        Backend, CommandStyles, ConfirmPrompt, MultiSelectPrompt, PromptError, PromptedArg,
+        PromptedArgTree, SelectPrompt, TextPrompt,
     },
     os::signal::Signal,
 };
@@ -30,10 +31,12 @@ use crate::{
 /// A prompted arg's accepted answer.
 struct Answer<'prompted_arg> {
     prompted_arg: &'prompted_arg PromptedArg,
-    value: String,
+    /// One value, or any number for an arg that takes many.
+    values: Vec<String>,
 }
 
-/// A prompted arg about to be asked, and what is known about it.
+/// A prompted arg about to be asked in the editor, and what is known about it.
+#[cfg(feature = "interactive-editor")]
 struct Asked<'ask> {
     arg: &'ask Arg,
     /// Its default's value, pre-filled.
@@ -41,13 +44,11 @@ struct Asked<'ask> {
     /// Leaving it unset passes clap, so an empty answer is allowed.
     optional: bool,
     prompted_arg: &'ask PromptedArg,
+    question: &'ask str,
 }
 
 /// An answer clap turned down, and why; an editor prompt reopens with it.
-#[cfg_attr(
-    not(feature = "interactive-editor"),
-    expect(dead_code, reason = "only an editor prompt reopens with the rejected answer")
-)]
+#[cfg(feature = "interactive-editor")]
 struct Rejected {
     error: String,
     value: String,
@@ -63,49 +64,21 @@ struct Session<'run> {
 }
 
 impl Session<'_> {
-    /// Ask for `prompted_arg` until clap accepts the answer; `None` when an optional one is left
-    /// empty. `later` are the prompted args still to be asked after it.
+    /// Ask for `prompted_arg` until clap accepts the answer; `None` when an optional single-value
+    /// one is left empty. `current` is the arg's default, split into its values. `later` are the
+    /// prompted args still to be asked after it.
     fn answer(
         &self,
         prompted_arg: &PromptedArg,
-        current: Option<&str>,
+        current: &[String],
         answers: &[Answer<'_>],
         later: &[&PromptedArg],
-    ) -> Result<Option<String>, PromptError> {
+    ) -> Result<Option<Vec<String>>, PromptError> {
         let Some(arg) = arg_at(self.cmd, &prompted_arg.subcommand_path, prompted_arg.attr.arg_id)
         else {
             return Ok(None);
         };
-        let asked = Asked { arg, current, optional: !self.required(answers, later), prompted_arg };
-        let mut rejected = None;
-        loop {
-            let Some(value) = self.ask(&asked, rejected.as_ref())? else {
-                return Ok(None);
-            };
-            match self.trial(answers, prompted_arg, &value) {
-                Ok(()) => return Ok(Some(value)),
-                Err(err) => {
-                    let error = summary(&err, &value);
-                    self.backend.report(&error, CommandStyles(self.cmd.get_styles()))?;
-                    rejected = Some(Rejected { error, value });
-                }
-            }
-        }
-    }
-
-    #[cfg_attr(
-        not(feature = "interactive-editor"),
-        expect(
-            unused_variables,
-            reason = "only an editor prompt reopens with the rejected answer"
-        )
-    )]
-    fn ask(
-        &self,
-        asked: &Asked<'_>,
-        rejected: Option<&Rejected>,
-    ) -> Result<Option<String>, PromptError> {
-        let Asked { arg, current, optional, prompted_arg } = *asked;
+        let optional = !self.required(answers, later);
         let question = prompted_arg.attr.question.as_ref().map_or_else(
             || {
                 arg.get_help()
@@ -113,39 +86,77 @@ impl Session<'_> {
             },
             |question| question.get().into_owned(),
         );
-        let styles = CommandStyles(self.cmd.get_styles());
         // A flag has nothing to edit, so one that slipped past the derive asks as a flag.
         #[cfg(feature = "interactive-editor")]
-        if let Some(editor) =
-            prompted_arg.attr.editor.as_ref().filter(|_| arg.get_action().takes_values())
+        if let Some(editor) = prompted_arg
+            .attr
+            .editor
+            .as_ref()
+            .filter(|_| arg.get_action().takes_values() && !takes_many(arg))
         {
-            return self.ask_in_editor(asked, editor, &question, rejected);
-        }
-        if let Some(negate) = flag_negation(arg.get_action()) {
-            let set = self.backend.confirm(&ConfirmPrompt {
-                default: false,
+            let asked = Asked {
+                arg,
+                current: current.first().map(String::as_str),
+                optional,
+                prompted_arg,
                 question: &question,
-                styles,
-            })?;
-            return Ok(Some((set != negate).to_string()));
+            };
+            return self.in_editor(&asked, editor, answers);
         }
-
         let options: Vec<PossibleValue> =
             arg.get_possible_values().into_iter().filter(|value| !value.is_hide_set()).collect();
+        if !takes_many(arg) {
+            return self.until_accepted(answers, prompted_arg, || {
+                let value = self.ask(arg, &question, &options, current.first(), optional)?;
+                Ok(value.map(|value| vec![value]))
+            });
+        }
+        if options.is_empty() {
+            return self.each_value(&question, prompted_arg, current, answers, optional).map(Some);
+        }
+        self.until_accepted(answers, prompted_arg, || {
+            self.backend
+                .multi_select(&MultiSelectPrompt {
+                    defaults: current,
+                    optional,
+                    options: &options,
+                    question: &question,
+                    selection_required: &self.messages.selection_required.get(),
+                    styles: CommandStyles(self.cmd.get_styles()),
+                })
+                .map(Some)
+        })
+    }
+
+    fn ask(
+        &self,
+        arg: &Arg,
+        question: &str,
+        options: &[PossibleValue],
+        current: Option<&String>,
+        optional: bool,
+    ) -> Result<Option<String>, PromptError> {
+        let styles = CommandStyles(self.cmd.get_styles());
+        if let Some(negate) = flag_negation(arg.get_action()) {
+            let set = self.backend.confirm(&ConfirmPrompt { default: false, question, styles })?;
+            return Ok(Some((set != negate).to_string()));
+        }
         if options.is_empty() {
             return self.backend.text(&TextPrompt {
-                default: current,
+                default: current.map(String::as_str),
+                hint: None,
+                initial: None,
                 optional,
-                question: &question,
+                question,
                 styles,
             });
         }
         self.backend.select(&SelectPrompt {
-            default: current,
+            default: current.map(String::as_str),
             none_option: &self.messages.none.get(),
             optional,
-            options: &options,
-            question: &question,
+            options,
+            question,
             styles,
         })
     }
@@ -158,10 +169,9 @@ impl Session<'_> {
         &self,
         asked: &Asked<'_>,
         editor: &EditorAttr,
-        question: &str,
         rejected: Option<&Rejected>,
     ) -> Result<Option<String>, PromptError> {
-        let Asked { arg, current, optional: _, prompted_arg } = *asked;
+        let Asked { arg, current, optional: _, prompted_arg, question } = *asked;
         let styles = CommandStyles(self.cmd.get_styles());
         let optional = asked.optional && arg.get_default_values().is_empty();
         let instructions = if optional {
@@ -193,12 +203,74 @@ impl Session<'_> {
         Ok(answer)
     }
 
+    /// Ask for one value at a time until an empty answer, each starting out as the default's
+    /// value at its position. Only a required arg's first value may not be empty.
+    ///
+    /// The default goes in as initial text rather than as the answer Enter accepts, so clearing it
+    /// still finishes the list.
+    fn each_value(
+        &self,
+        question: &str,
+        prompted_arg: &PromptedArg,
+        current: &[String],
+        answers: &[Answer<'_>],
+        optional: bool,
+    ) -> Result<Vec<String>, PromptError> {
+        let finish_hint = self.messages.finish_hint.get();
+        let mut values = Vec::new();
+        loop {
+            let optional = !values.is_empty() || optional;
+            let Some(value) = self.backend.text(&TextPrompt {
+                default: None,
+                hint: optional.then_some(&*finish_hint),
+                initial: current.get(values.len()).map(String::as_str),
+                optional,
+                question,
+                styles: CommandStyles(self.cmd.get_styles()),
+            })?
+            else {
+                return Ok(values);
+            };
+            values.push(value);
+            if let Err(err) = self.trial(answers, prompted_arg, &values) {
+                self.backend
+                    .report(&summary(&err, &values), CommandStyles(self.cmd.get_styles()))?;
+                values.pop();
+            }
+        }
+    }
+
+    /// Ask in the editor until clap accepts the answer, reopening with the rejected one.
+    #[cfg(feature = "interactive-editor")]
+    fn in_editor(
+        &self,
+        asked: &Asked<'_>,
+        editor: &EditorAttr,
+        answers: &[Answer<'_>],
+    ) -> Result<Option<Vec<String>>, PromptError> {
+        let mut rejected = None;
+        loop {
+            let Some(value) = self.ask_in_editor(asked, editor, rejected.as_ref())? else {
+                return Ok(None);
+            };
+            let values = vec![value];
+            match self.trial(answers, asked.prompted_arg, &values) {
+                Ok(()) => return Ok(Some(values)),
+                Err(err) => {
+                    let error = summary(&err, &values);
+                    self.backend.report(&error, CommandStyles(self.cmd.get_styles()))?;
+                    rejected = values.into_iter().next().map(|value| Rejected { error, value });
+                }
+            }
+        }
+    }
+
     /// Check whether leaving the arg being asked unset fails the parse: it is `required`, or
     /// required through `required_unless_present` or a required group. The accepted answers go
     /// in, and only the args still to be asked, `later`, stay relaxed, so a group another of them
     /// can still satisfy doesn't make this one required.
     fn required(&self, answers: &[Answer<'_>], later: &[&PromptedArg]) -> bool {
-        let accepted = answers.iter().map(|answer| (answer.prompted_arg, answer.value.as_str()));
+        let accepted = answers.iter().map(|answer| (answer.prompted_arg, answer.values.as_slice()));
         let cmd = inject(relax(self.cmd.clone(), later.iter().copied()), accepted);
         cmd.try_get_matches_from(self.argv)
             .is_err_and(|err| err.kind() == ErrorKind::MissingRequiredArgument)
@@ -209,14 +281,33 @@ impl Session<'_> {
         &self,
         answers: &[Answer<'_>],
         prompted_arg: &PromptedArg,
-        candidate: &str,
+        candidate: &[String],
     ) -> Result<(), clap::Error> {
-        let accepted = answers.iter().map(|answer| (answer.prompted_arg, answer.value.as_str()));
+        let accepted = answers.iter().map(|answer| (answer.prompted_arg, answer.values.as_slice()));
         let cmd = inject(
             relax(self.cmd.clone(), self.prompted_args.iter()),
             accepted.chain(iter::once((prompted_arg, candidate))),
         );
         cmd.try_get_matches_from(self.argv).map(drop)
+    }
+
+    /// Call `ask` until clap accepts its answer, showing clap's complaint before each retry.
+    fn until_accepted(
+        &self,
+        answers: &[Answer<'_>],
+        prompted_arg: &PromptedArg,
+        mut ask: impl FnMut() -> Result<Option<Vec<String>>, PromptError>,
+    ) -> Result<Option<Vec<String>>, PromptError> {
+        loop {
+            let Some(values) = ask()? else { return Ok(None) };
+            match self.trial(answers, prompted_arg, &values) {
+                Ok(()) => return Ok(Some(values)),
+                Err(err) => {
+                    let error = summary(&err, &values);
+                    self.backend.report(&error, CommandStyles(self.cmd.get_styles()))?;
+                }
+            }
+        }
     }
 }
 
@@ -250,8 +341,8 @@ where
         }
         let later: Vec<&PromptedArg> =
             pending.iter().skip(index.saturating_add(1)).map(|(later, _)| *later).collect();
-        match session.answer(prompted_arg, current.as_deref(), &answers, &later) {
-            Ok(Some(value)) => answers.push(Answer { prompted_arg, value }),
+        match session.answer(prompted_arg, current, &answers, &later) {
+            Ok(Some(values)) => answers.push(Answer { prompted_arg, values }),
             Ok(None) => {}
             // Backing out counts as Ctrl-C.
             Err(PromptError::Cancelled) => return Err(Failure::Cancelled(Signal::Interrupt)),
@@ -261,7 +352,7 @@ where
         }
     }
     let cmd_with_answers =
-        inject(cmd, answers.iter().map(|answer| (answer.prompted_arg, answer.value.as_str())));
+        inject(cmd, answers.iter().map(|answer| (answer.prompted_arg, answer.values.as_slice())));
     super::parse(cmd_with_answers, argv)
 }
 
@@ -306,6 +397,17 @@ fn blocked(
                 || level.get_arg_conflicts_with(other).iter().any(|c| c.get_id() == arg.get_id())
                 || group_mates(level, arg).any(|mate| mate == other.get_id())
         })
+}
+
+/// `arg`'s declared default values, split at its value delimiter.
+/// Without a delimiter, each default is one value. Defaults are set from strings, so any that
+/// is not UTF-8 is skipped.
+fn default_values(arg: &Arg) -> impl Iterator<Item = &str> {
+    let delimiter = arg.get_value_delimiter();
+    arg.get_default_values()
+        .iter()
+        .filter_map(|value| value.to_str())
+        .flat_map(move |value| value.split(move |char| Some(char) == delimiter))
 }
 
 /// The command at `path` passed through `edit`; unchanged when the path is missing.
@@ -357,20 +459,20 @@ const fn flag_negation(action: &ArgAction) -> Option<bool> {
     }
 }
 
-/// Set each answer as its arg's default value.
+/// Set each answer as its arg's default values. No values leave the arg with no default, so
+/// an emptied list drops the declared default.
 fn inject<'prompted_arg>(
     cmd: Command,
-    answers: impl IntoIterator<Item = (&'prompted_arg PromptedArg, &'prompted_arg str)>,
+    answers: impl IntoIterator<Item = (&'prompted_arg PromptedArg, &'prompted_arg [String])>,
 ) -> Command {
-    answers.into_iter().fold(cmd, |cmd, (prompted_arg, value)| {
-        let value = value.to_owned();
+    answers.into_iter().fold(cmd, |cmd, (prompted_arg, values)| {
         // A default value is no explicit value to clap, so the rules that require the arg would
         // still miss it.
         with_arg_at(
             unrequire(cmd, prompted_arg),
             &prompted_arg.subcommand_path,
             prompted_arg.attr.arg_id,
-            |arg| arg.default_value(value),
+            |arg| arg.default_values(values.iter().cloned()),
         )
     })
 }
@@ -385,13 +487,14 @@ fn matches_at<'matches>(
 }
 
 /// The prompted args on the path the user took that got no value or only their default, with
-/// the default's value. One whose `default_value_if` fired is left to the arg that fired it: the
-/// conditional default beats an injected answer, so asking would drop the answer.
+/// the default's values, split at the arg's value delimiter as clap splits them. One whose
+/// `default_value_if` fired is left to the arg that fired it: the conditional default beats an
+/// injected answer, so asking would drop the answer.
 fn pending<'prompted_arg>(
     cmd: &Command,
     matches: &ArgMatches,
     prompted_args: &'prompted_arg [PromptedArg],
-) -> Vec<(&'prompted_arg PromptedArg, Option<String>)> {
+) -> Vec<(&'prompted_arg PromptedArg, Vec<String>)> {
     // Built, so a flag's action has filled in its implicit default (`false` for `SetTrue`).
     let mut built = cmd.clone();
     built.build();
@@ -401,13 +504,15 @@ fn pending<'prompted_arg>(
             let arg = arg_at(&built, &prompted_arg.subcommand_path, prompted_arg.attr.arg_id)?;
             let level = matches_at(matches, &prompted_arg.subcommand_path)?;
             let id = prompted_arg.attr.arg_id;
-            let default =
-                arg.get_default_values().first().map(|value| value.to_string_lossy().into_owned());
             match level.value_source(id) {
-                None if default.is_none() => Some((prompted_arg, None)),
+                None if default_values(arg).next().is_none() => Some((prompted_arg, Vec::new())),
                 Some(ValueSource::DefaultValue) => {
-                    let current = raw_value(level, id);
-                    (current == default).then_some((prompted_arg, current))
+                    let current = raw_values(level, id);
+                    current
+                        .iter()
+                        .map(String::as_str)
+                        .eq(default_values(arg))
+                        .then_some((prompted_arg, current))
                 }
                 None | Some(_) => None,
             }
@@ -415,9 +520,21 @@ fn pending<'prompted_arg>(
         .collect()
 }
 
-fn raw_value(matches: &ArgMatches, id: &str) -> Option<String> {
-    let mut raw = matches.try_get_raw(id).ok().flatten()?;
-    raw.next().map(|value| value.to_string_lossy().into_owned())
+fn raw_values(matches: &ArgMatches, id: &str) -> Vec<String> {
+    matches
+        .try_get_raw(id)
+        .ok()
+        .flatten()
+        .into_iter()
+        .flatten()
+        .map(|value| value.to_string_lossy().into_owned())
+        .collect()
+}
+
+/// Check whether `arg` takes many values, as a `Vec<T>` field does.
+fn takes_many(arg: &Arg) -> bool {
+    matches!(arg.get_action(), ArgAction::Append)
+        || arg.get_num_args().is_some_and(|range| range.max_values() > 1)
 }
 
 /// Make each of `prompted_args` optional, so a missing one does not stop a parse.
@@ -429,11 +546,13 @@ fn relax<'prompted_arg>(
 }
 
 /// The first line of clap's message, without its `error: ` prefix. clap quotes the rejected
-/// `value`, so a multi-line one is shortened to its first line first, keeping the reason after it.
-fn summary(err: &clap::Error, value: &str) -> String {
+/// `values`, so a multi-line one is shortened to its first line first, keeping the reason after it.
+fn summary(err: &clap::Error, values: &[String]) -> String {
     let mut rendered = err.render().to_string();
-    if let Some((first_line, _)) = value.split_once('\n') {
-        rendered = rendered.replace(value, &format!("{first_line}\u{2026}"));
+    for value in values {
+        if let Some((first_line, _)) = value.split_once('\n') {
+            rendered = rendered.replace(value.as_str(), &format!("{first_line}\u{2026}"));
+        }
     }
     let line = rendered.lines().next().unwrap_or_default();
     line.strip_prefix("error: ").unwrap_or(line).to_owned()

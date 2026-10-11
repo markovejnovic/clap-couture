@@ -228,6 +228,74 @@ struct Localized {
     region: String,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+enum Env {
+    Dev,
+    Prod,
+    Stage,
+}
+
+#[derive(Parser, Couture, Debug)]
+struct Release {
+    #[arg(long, value_enum)]
+    #[couture(prompt = "Which envs?")]
+    envs: Vec<Env>,
+}
+
+#[derive(Parser, Couture, Debug)]
+struct Pinned {
+    #[arg(long, value_enum, default_values = ["dev", "stage"])]
+    #[couture(prompt = "Which envs?")]
+    envs: Vec<Env>,
+}
+
+#[derive(Parser, Couture, Debug)]
+struct Narrowed {
+    #[arg(long, value_enum, required = true)]
+    #[couture(prompt = "Which envs?")]
+    envs: Vec<Env>,
+}
+
+#[derive(Parser, Couture, Debug)]
+#[couture(messages = { selection_required = "Mindestens eine Auswahl" })]
+struct NarrowedGerman {
+    #[arg(long, value_enum, required = true)]
+    #[couture(prompt = "Which envs?")]
+    envs: Vec<Env>,
+}
+
+#[derive(Parser, Couture, Debug)]
+struct Maybe {
+    #[arg(long, value_enum)]
+    #[couture(prompt = "Which envs?")]
+    envs: Option<Vec<Env>>,
+
+    #[arg(long)]
+    #[couture(prompt = "Which tags?")]
+    tags: Option<Vec<String>>,
+}
+
+#[derive(Parser, Couture, Debug)]
+struct Serve {
+    #[arg(long, required = true)]
+    #[couture(prompt = "Which ports?")]
+    ports: Vec<u16>,
+}
+
+#[derive(Parser, Couture, Debug)]
+struct Labels {
+    #[arg(long, default_values = ["a", "b"])]
+    #[couture(prompt = "Which labels?")]
+    labels: Vec<String>,
+}
+
+#[derive(Parser, Couture, Debug)]
+struct Split {
+    #[arg(long, value_delimiter = ',', default_value = "a,b")]
+    #[couture(prompt = "Which labels?")]
+    labels: Vec<String>,
+}
+
 #[expect(clippy::unnecessary_wraps, reason = "clap's value_parser takes a fallible fn")]
 fn count_plain(value: &str) -> Result<String, String> {
     PLAIN_PARSES.fetch_add(1, Ordering::Relaxed);
@@ -255,11 +323,14 @@ fn deploy_argv(skip: &str) -> Vec<&'static str> {
 
 fn asked(kind: Kind, question: &str, default: Option<&str>, options: &[&str]) -> Asked {
     Asked {
-        default: default.map(str::to_owned),
+        defaults: default.map(str::to_owned).into_iter().collect(),
         error: None,
+        hint: None,
+        initial: None,
         kind,
         options: options.iter().map(|option| (*option).to_owned()).collect(),
         question: question.to_owned(),
+        selection_required: None,
     }
 }
 
@@ -509,4 +580,165 @@ fn an_optional_select_lists_the_none_message() {
     assert_eq!(backend.asked(), [asked(Kind::Select, "Which color?", None, &[
         "blue", "red", "(keine)"
     ])]);
+}
+
+fn multi_select(defaults: &[&str]) -> Asked {
+    Asked {
+        defaults: defaults.iter().map(|default| (*default).to_owned()).collect(),
+        error: None,
+        hint: None,
+        initial: None,
+        kind: Kind::MultiSelect,
+        options: ["dev", "prod", "stage"].map(str::to_owned).into(),
+        question: "Which envs?".to_owned(),
+        selection_required: None,
+    }
+}
+
+fn text(question: &str, initial: Option<&str>, hint: bool) -> Asked {
+    Asked {
+        defaults: Vec::new(),
+        error: None,
+        hint: hint.then(|| "(<enter> to finish)".to_owned()),
+        initial: initial.map(str::to_owned),
+        kind: Kind::Text,
+        options: Vec::new(),
+        question: question.to_owned(),
+        selection_required: None,
+    }
+}
+
+#[rstest]
+fn offers_a_multi_select_for_possible_values() {
+    let backend = ScriptedBackend::new([Reply::MultiSelect(&["dev", "stage"])]);
+    let release = Release::couture_try_parse_from_with(&backend, ["release"]);
+    assert_eq!(release.map(|release| release.envs).ok(), Some(Vec::from([Env::Dev, Env::Stage])));
+    assert_eq!(backend.asked(), [multi_select(&[])]);
+}
+
+#[rstest]
+fn pre_picks_every_default() {
+    let backend = ScriptedBackend::new([Reply::MultiSelect(&["prod"])]);
+    let pinned = Pinned::couture_try_parse_from_with(&backend, ["pinned"]);
+    assert_eq!(pinned.map(|pinned| pinned.envs).ok(), Some(Vec::from([Env::Prod])));
+    assert_eq!(backend.asked(), [multi_select(&["dev", "stage"])]);
+}
+
+#[rstest]
+fn picking_nothing_drops_the_defaults() {
+    let backend = ScriptedBackend::new([Reply::MultiSelect(&[])]);
+    let pinned = Pinned::couture_try_parse_from_with(&backend, ["pinned"]);
+    assert_eq!(pinned.map(|pinned| pinned.envs).ok(), Some(Vec::new()));
+}
+
+#[rstest]
+fn a_required_multi_select_is_not_optional() {
+    let backend = ScriptedBackend::new([Reply::MultiSelect(&["prod"])]);
+    let narrowed = Narrowed::couture_try_parse_from_with(&backend, ["narrowed"]);
+    assert_eq!(narrowed.map(|narrowed| narrowed.envs).ok(), Some(Vec::from([Env::Prod])));
+}
+
+#[rstest]
+fn a_required_multi_select_says_a_selection_is_required() {
+    let backend = ScriptedBackend::new([Reply::MultiSelect(&["prod"])]);
+    let narrowed = Narrowed::couture_try_parse_from_with(&backend, ["narrowed"]);
+    assert!(narrowed.is_ok(), "{narrowed:?}");
+    let messages: Vec<_> =
+        backend.asked().into_iter().map(|asked| asked.selection_required).collect();
+    assert_eq!(messages, [Some("Select at least one option".to_owned())]);
+}
+
+#[rstest]
+fn the_selection_required_message_can_be_set() {
+    let backend = ScriptedBackend::new([Reply::MultiSelect(&["prod"])]);
+    let narrowed = NarrowedGerman::couture_try_parse_from_with(&backend, ["narrowed"]);
+    assert!(narrowed.is_ok(), "{narrowed:?}");
+    let messages: Vec<_> =
+        backend.asked().into_iter().map(|asked| asked.selection_required).collect();
+    assert_eq!(messages, [Some("Mindestens eine Auswahl".to_owned())]);
+}
+
+#[rstest]
+fn never_asks_for_passed_values() {
+    let backend = ScriptedBackend::new([]);
+    let release = Release::couture_try_parse_from_with(&backend, ["release", "--envs", "prod"]);
+    assert_eq!(release.map(|release| release.envs).ok(), Some(Vec::from([Env::Prod])));
+    assert_eq!(backend.asked(), []);
+}
+
+#[rstest]
+fn leaves_an_optional_list_unset_on_no_answer() {
+    let backend = ScriptedBackend::new([Reply::MultiSelect(&[]), Reply::Text(None)]);
+    let maybe = Maybe::couture_try_parse_from_with(&backend, ["maybe"]);
+    assert_eq!(maybe.map(|maybe| (maybe.envs, maybe.tags)).ok(), Some((None, None)));
+    assert_eq!(backend.asked(), [multi_select(&[]), text("Which tags?", None, true)]);
+}
+
+#[rstest]
+fn asks_for_text_values_until_an_empty_answer() {
+    let backend = ScriptedBackend::new([
+        Reply::Text(Some("80")),
+        Reply::Text(Some("443")),
+        Reply::Text(None),
+    ]);
+    let serve = Serve::couture_try_parse_from_with(&backend, ["serve"]);
+    assert_eq!(serve.map(|serve| serve.ports).ok(), Some(Vec::from([80, 443])));
+    assert_eq!(backend.asked(), [
+        text("Which ports?", None, false),
+        text("Which ports?", None, true),
+        text("Which ports?", None, true),
+    ]);
+}
+
+#[rstest]
+fn asks_an_invalid_value_again_and_keeps_the_rest() {
+    let backend = ScriptedBackend::new([
+        Reply::Text(Some("80")),
+        Reply::Text(Some("http")),
+        Reply::Text(Some("443")),
+        Reply::Text(None),
+    ]);
+    let serve = Serve::couture_try_parse_from_with(&backend, ["serve"]);
+    assert_eq!(serve.map(|serve| serve.ports).ok(), Some(Vec::from([80, 443])));
+    let errors: Vec<_> = backend.asked().into_iter().map(|asked| asked.error).collect();
+    assert_eq!(errors, [
+        None,
+        None,
+        Some(
+            "invalid value 'http' for '--ports <PORTS>': invalid digit found in string".to_owned()
+        ),
+        None,
+    ]);
+}
+
+#[rstest]
+fn starts_each_value_as_the_default_in_turn() {
+    let backend = ScriptedBackend::new([
+        Reply::Text(Some("a")),
+        Reply::Text(Some("c")),
+        Reply::Text(Some("d")),
+        Reply::Text(None),
+    ]);
+    let labels = Labels::couture_try_parse_from_with(&backend, ["labels"]);
+    assert_eq!(
+        labels.map(|labels| labels.labels).ok(),
+        Some(["a", "c", "d"].map(str::to_owned).into())
+    );
+    assert_eq!(backend.asked(), [
+        text("Which labels?", Some("a"), true),
+        text("Which labels?", Some("b"), true),
+        text("Which labels?", None, true),
+        text("Which labels?", None, true),
+    ]);
+}
+
+#[rstest]
+fn splits_a_delimited_default_into_its_values() {
+    let backend = ScriptedBackend::new([Reply::Text(Some("a")), Reply::Text(None)]);
+    let split = Split::couture_try_parse_from_with(&backend, ["split"]);
+    assert_eq!(split.map(|split| split.labels).ok(), Some(Vec::from(["a".to_owned()])));
+    assert_eq!(backend.asked(), [
+        text("Which labels?", Some("a"), true),
+        text("Which labels?", Some("b"), true),
+    ]);
 }

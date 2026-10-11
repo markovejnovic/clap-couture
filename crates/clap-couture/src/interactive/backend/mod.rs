@@ -33,7 +33,7 @@ pub use non_interactive::NonInteractive;
 
 #[cfg(feature = "interactive-editor")]
 use super::EditorPrompt;
-use super::{ConfirmPrompt, PromptError, SelectPrompt, TextPrompt};
+use super::{ConfirmPrompt, MultiSelectPrompt, PromptError, SelectPrompt, TextPrompt};
 
 /// A command's clap styles, for a backend to build its theme from.
 #[derive(Clone, Copy, Debug)]
@@ -94,6 +94,13 @@ pub trait Backend {
     fn is_available(&self) -> bool {
         io::stdin().is_terminal() && io::stderr().is_terminal()
     }
+
+    /// Ask to pick any number of `prompt.options`, returning the picked options' names in
+    /// declared order. Unless `prompt.optional`, at least one must be picked.
+    ///
+    /// # Errors
+    /// - [`PromptError::Cancelled`] when the user backs out.
+    fn multi_select(&self, prompt: &MultiSelectPrompt<'_>) -> Result<Vec<String>, PromptError>;
 
     /// Show clap's complaint about the previous answer, before asking again.
     ///

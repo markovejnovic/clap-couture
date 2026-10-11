@@ -140,6 +140,13 @@ impl EditorAttr {
             return Err(Error::custom("`#[couture(editor)]` needs an arg that takes a value")
                 .with_span(&span));
         }
+        if field.ty.is_multi_value() {
+            return Err(Error::custom(
+                "`#[couture(editor)]` takes a single value; drop `editor` to ask for each value \
+                 in turn",
+            )
+            .with_span(&span));
+        }
         let options = match &**editor {
             Override::Inherit => EditorOptions::default(),
             Override::Explicit(options) => options.clone(),
@@ -164,13 +171,6 @@ impl PromptAttr {
             return Err(Error::custom(
                 "`#[couture(prompt)]` needs clap-couture's `interactive` feature; enable it or \
                  one of `interactive-cliclack`, `interactive-dialoguer`, `interactive-inquire`",
-            )
-            .with_span(&span));
-        }
-        if field.ty.is_multi_value() {
-            return Err(Error::custom(
-                "`#[couture(prompt)]` does not support multi-value args yet; take a single value \
-                 or drop the prompt",
             )
             .with_span(&span));
         }

@@ -1,0 +1,363 @@
+>
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◆  Application name
+│
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◆  Application name
+│  web
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◇  Application name
+│  web
+│
+◆  Tail the logs afterwards?
+│  ○ Yes  / ● No
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◇  Application name
+│  web
+│
+◇  Tail the logs afterwards?
+│  Yes
+│
+◆  Which region?
+│  ● apac
+│  ○ eu
+│  ○ us
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◇  Application name
+│  web
+│
+◇  Tail the logs afterwards?
+│  Yes
+│
+◆  Which region?
+│  ○ apac
+│  ● eu
+│  ○ us
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◇  Application name
+│  web
+│
+◇  Tail the logs afterwards?
+│  Yes
+│
+◇  Which region?
+│  eu
+│
+◆  How many replicas?
+│  2 (default)
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◇  Application name
+│  web
+│
+◇  Tail the logs afterwards?
+│  Yes
+│
+◇  Which region?
+│  eu
+│
+◆  How many replicas?
+│  abc
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◇  Application name
+│  web
+│
+◇  Tail the logs afterwards?
+│  Yes
+│
+◇  Which region?
+│  eu
+│
+◇  How many replicas?
+│  abc
+│
+■  invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+│
+◆  How many replicas?
+│  2 (default)
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◇  Application name
+│  web
+│
+◇  Tail the logs afterwards?
+│  Yes
+│
+◇  Which region?
+│  eu
+│
+◇  How many replicas?
+│  abc
+│
+■  invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+│
+◆  How many replicas?
+│  3
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◇  Application name
+│  web
+│
+◇  Tail the logs afterwards?
+│  Yes
+│
+◇  Which region?
+│  eu
+│
+◇  How many replicas?
+│  abc
+│
+■  invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+│
+◇  How many replicas?
+│  3
+│
+◆  Which sidecars?
+│  ◻ logging
+│  ◻ metrics
+│  ◻ proxy
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◇  Application name
+│  web
+│
+◇  Tail the logs afterwards?
+│  Yes
+│
+◇  Which region?
+│  eu
+│
+◇  How many replicas?
+│  abc
+│
+■  invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+│
+◇  How many replicas?
+│  3
+│
+◆  Which sidecars?
+│  ◼ logging
+│  ◻ metrics
+│  ◻ proxy
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◇  Application name
+│  web
+│
+◇  Tail the logs afterwards?
+│  Yes
+│
+◇  Which region?
+│  eu
+│
+◇  How many replicas?
+│  abc
+│
+■  invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+│
+◇  How many replicas?
+│  3
+│
+◆  Which sidecars?
+│  ◼ logging
+│  ◻ metrics
+│  ◼ proxy
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◇  Application name
+│  web
+│
+◇  Tail the logs afterwards?
+│  Yes
+│
+◇  Which region?
+│  eu
+│
+◇  How many replicas?
+│  abc
+│
+■  invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+│
+◇  How many replicas?
+│  3
+│
+◇  Which sidecars?
+│  logging
+│  proxy
+│
+◆  Environment variables (KEY=VALUE)?
+│  (<enter> to finish)
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◇  Application name
+│  web
+│
+◇  Tail the logs afterwards?
+│  Yes
+│
+◇  Which region?
+│  eu
+│
+◇  How many replicas?
+│  abc
+│
+■  invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+│
+◇  How many replicas?
+│  3
+│
+◇  Which sidecars?
+│  logging
+│  proxy
+│
+◆  Environment variables (KEY=VALUE)?
+│  LOG=debug
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◇  Application name
+│  web
+│
+◇  Tail the logs afterwards?
+│  Yes
+│
+◇  Which region?
+│  eu
+│
+◇  How many replicas?
+│  abc
+│
+■  invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+│
+◇  How many replicas?
+│  3
+│
+◇  Which sidecars?
+│  logging
+│  proxy
+│
+◇  Environment variables (KEY=VALUE)?
+│  LOG=debug
+│
+◆  Environment variables (KEY=VALUE)?
+│  (<enter> to finish)
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◇  Application name
+│  web
+│
+◇  Tail the logs afterwards?
+│  Yes
+│
+◇  Which region?
+│  eu
+│
+◇  How many replicas?
+│  abc
+│
+■  invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+│
+◇  How many replicas?
+│  3
+│
+◇  Which sidecars?
+│  logging
+│  proxy
+│
+◇  Environment variables (KEY=VALUE)?
+│  LOG=debug
+│
+◆  Environment variables (KEY=VALUE)?
+│  PORT=8080
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◇  Application name
+│  web
+│
+◇  Tail the logs afterwards?
+│  Yes
+│
+◇  Which region?
+│  eu
+│
+◇  How many replicas?
+│  abc
+│
+■  invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+│
+◇  How many replicas?
+│  3
+│
+◇  Which sidecars?
+│  logging
+│  proxy
+│
+◇  Environment variables (KEY=VALUE)?
+│  LOG=debug
+│
+◇  Environment variables (KEY=VALUE)?
+│  PORT=8080
+│
+◆  Environment variables (KEY=VALUE)?
+│  (<enter> to finish)
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+◇  Application name
+│  web
+│
+◇  Tail the logs afterwards?
+│  Yes
+│
+◇  Which region?
+│  eu
+│
+◇  How many replicas?
+│  abc
+│
+■  invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+│
+◇  How many replicas?
+│  3
+│
+◇  Which sidecars?
+│  logging
+│  proxy
+│
+◇  Environment variables (KEY=VALUE)?
+│  LOG=debug
+│
+◇  Environment variables (KEY=VALUE)?
+│  PORT=8080
+│
+◇  Environment variables (KEY=VALUE)?
+│  (<enter> to finish)
+│
+deploying web to eu with 3 replicas (follow: true)
+sidecars: [Logging, Proxy], vars: ["LOG=debug", "PORT=8080"]
+>
+────────────────────────────────────────────────────────────────────────────────

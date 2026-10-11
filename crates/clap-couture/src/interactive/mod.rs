@@ -22,7 +22,9 @@
 //! ```
 //!
 //! A prompted arg that has a default is asked with the default pre-filled. An optional arg answered
-//! with nothing stays unset. An arg passed on the command line or through its env var is never
+//! with nothing stays unset. An arg that takes many values, like a `Vec<T>`, is asked as a
+//! multi-select when it has possible values, and otherwise one value at a time until an empty
+//! answer. An arg passed on the command line or through its env var is never
 //! asked, and neither is one that conflicts with a passed arg or an earlier answer. An arg
 //! required through `required_unless_present` or a required `ArgGroup` is asked as required, and
 //! an empty answer is refused; in a group of prompted args, only the last one asked is. clap can't
@@ -186,6 +188,23 @@ pub struct EditorPrompt<'prompt> {
     pub waiting: &'prompt str,
 }
 
+/// A pick of any number of an arg's possible values.
+#[derive(Debug)]
+pub struct MultiSelectPrompt<'prompt> {
+    /// The names of the options picked to begin with.
+    pub defaults: &'prompt [String],
+    /// Picking none of the options is allowed.
+    pub optional: bool,
+    /// The visible possible values, in declared order.
+    pub options: &'prompt [PossibleValue],
+    /// What to ask.
+    pub question: &'prompt str,
+    /// What to tell the user when they select nothing, unless the prompt is optional.
+    pub selection_required: &'prompt str,
+    /// The command's styles, for backends that theme themselves.
+    pub styles: CommandStyles<'prompt>,
+}
+
 /// A pick among an arg's possible values.
 #[derive(Debug)]
 pub struct SelectPrompt<'prompt> {
@@ -208,6 +227,12 @@ pub struct SelectPrompt<'prompt> {
 pub struct TextPrompt<'prompt> {
     /// The answer Enter accepts, if any.
     pub default: Option<&'prompt str>,
+    /// What to show beside the question, if anything: for one more value of a multi-value arg,
+    /// that an empty answer finishes the list.
+    pub hint: Option<&'prompt str>,
+    /// The text the answer starts out as, for the user to keep, edit or clear. Unlike
+    /// [`default`](Self::default), clearing it leaves the answer empty.
+    pub initial: Option<&'prompt str>,
     /// An empty answer is allowed, and leaves the arg unset.
     pub optional: bool,
     /// What to ask.

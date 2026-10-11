@@ -38,10 +38,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       # Each prompt backend alone: `--all-features` hides a `cfg` that only one of them sets.
-      - run: cargo clippy -p clap-couture --all-targets --features interactive -- -D warnings
-      - run: cargo clippy -p clap-couture --all-targets --features interactive-cliclack -- -D warnings
-      - run: cargo clippy -p clap-couture --all-targets --features interactive-dialoguer -- -D warnings
-      - run: cargo clippy -p clap-couture --all-targets --features interactive-inquire -- -D warnings
+      - run: cargo clippy -p clap-couture --all-targets --no-default-features --features interactive -- -D warnings
+      - run: cargo clippy -p clap-couture --all-targets --no-default-features --features interactive-cliclack -- -D warnings
+      - run: cargo clippy -p clap-couture --all-targets --no-default-features --features interactive-dialoguer -- -D warnings
+      - run: cargo clippy -p clap-couture --all-targets --no-default-features --features interactive-inquire -- -D warnings
       - run: cargo clippy -p clap-couture --all-targets --features interactive-editor -- -D warnings
       # The editor runs without `sh` on Windows.
       - run: cargo clippy -p clap-couture --lib --tests --target x86_64-pc-windows-msvc --features interactive-editor -- -D warnings
@@ -54,8 +54,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --workspace --all-features
-      # `--all-features` never builds `render/plain.rs`.
-      - run: cargo build -p clap-couture
+      # `--all-features` never builds `render/plain.rs`; this also covers building without the derive.
+      - run: cargo build -p clap-couture --no-default-features
 
   test-windows:
     name: test (windows)
@@ -75,6 +75,25 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.88
       - uses: Swatinem/rust-cache@v2
       - run: cargo check --workspace --all-features
+
+  example-assets:
+    name: example assets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # The SVGs differ across OSes; the `.ansi` captures they're rendered from don't.
+      - run: ./scripts/render-examples.sh --ansi-only
+      - name: Check captures are committed
+        run: |
+          stale=$(git status --porcelain -- 'assets/*.ansi')
+          if [[ -n $stale ]]; then
+            echo "$stale"
+            git diff -- 'assets/*.ansi'
+            echo "::error::Example --help changed; run scripts/render-examples.sh and commit assets/."
+            exit 1
+          fi
 
   docs:
     name: doc

@@ -1,0 +1,53 @@
+name: Docs preview
+
+# Publishes each PR's rustdoc to GitHub Pages under `pr-preview/pr-<N>/`, links it in a PR
+# comment, and removes it when the PR closes.
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, closed]
+
+concurrency:
+  group: docs-preview-${{ github.event.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  preview:
+    name: preview
+    # A fork's token is read-only, so it can't push the preview.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # Build the way docs.rs does: nightly rustdoc, `--cfg docsrs`, and the
+      # `[package.metadata.docs.rs]` features.
+      - if: github.event.action != 'closed'
+        uses: dtolnay/rust-toolchain@nightly
+      - if: github.event.action != 'closed'
+        uses: Swatinem/rust-cache@v2
+      - if: github.event.action != 'closed'
+        env:
+          RUSTDOCFLAGS: --cfg docsrs --html-in-header crates/clap-couture/docs-header.html
+        run: cargo doc -p clap-couture --all-features --no-deps
+
+      # The docs' images and logo point at `main`; show this PR's instead.
+      - if: github.event.action != 'closed'
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          find target/doc/clap_couture -name '*.html' -exec \
+            sed -i "s#/clap-couture/main/assets/#/clap-couture/${HEAD_SHA}/assets/#g" {} +
+          echo '<meta http-equiv="refresh" content="0; url=clap_couture/index.html">' \
+            > target/doc/index.html
+
+      - uses: rossjrw/pr-preview-action@v1.8.1
+        with:
+          source-dir: target/doc
+          qr-code: "false"

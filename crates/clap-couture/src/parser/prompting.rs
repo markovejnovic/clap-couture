@@ -290,17 +290,6 @@ impl Session<'_> {
         }
     }
 
-    /// Check whether leaving the arg being asked unset fails the parse: it is `required`, or
-    /// required through `required_unless_present` or a required group. The accepted answers go
-    /// in, and only the args still to be asked, `later`, stay relaxed, so a group another of them
-    /// can still satisfy doesn't make this one required.
-    fn required(&self, answers: &[Answer<'_>], later: &[&PromptedArg]) -> bool {
-        let accepted = answers.iter().map(|answer| (answer.prompted_arg, answer.values.as_slice()));
-        let cmd = inject(relax(self.cmd.clone(), later.iter().copied()), accepted);
-        cmd.try_get_matches_from(self.argv)
-            .is_err_and(|err| err.kind() == ErrorKind::MissingRequiredArgument)
-    }
-
     /// The `= ...` override, else the arg's help text, else its id.
     fn question(&self, prompted_arg: &PromptedArg) -> String {
         prompted_arg.attr.question.as_ref().map_or_else(
@@ -311,6 +300,17 @@ impl Session<'_> {
             },
             |question| question.get().into_owned(),
         )
+    }
+
+    /// Check whether leaving the arg being asked unset fails the parse: it is `required`, or
+    /// required through `required_unless_present` or a required group. The accepted answers go
+    /// in, and only the args still to be asked, `later`, stay relaxed, so a group another of them
+    /// can still satisfy doesn't make this one required.
+    fn required(&self, answers: &[Answer<'_>], later: &[&PromptedArg]) -> bool {
+        let accepted = answers.iter().map(|answer| (answer.prompted_arg, answer.values.as_slice()));
+        let cmd = inject(relax(self.cmd.clone(), later.iter().copied()), accepted);
+        cmd.try_get_matches_from(self.argv)
+            .is_err_and(|err| err.kind() == ErrorKind::MissingRequiredArgument)
     }
 
     /// Parse with `candidate` as `prompted_arg`'s answer on top of the accepted ones.

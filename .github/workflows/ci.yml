@@ -83,15 +83,17 @@ jobs:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      # `ansi-to-html.py` runs through `uv run`, in the environment `uv.lock` pins.
+      - uses: astral-sh/setup-uv@v10.3.0
       # The SVGs differ across OSes; the `.ansi` captures they're rendered from don't.
       - run: ./scripts/render-examples.sh --ansi-only
       - name: Check captures are committed
         run: |
-          stale=$(git status --porcelain -- 'assets/*.ansi')
+          stale=$(git status --porcelain -- 'assets/*.ansi' crates/clap-couture/docs)
           if [[ -n $stale ]]; then
             echo "$stale"
-            git diff -- 'assets/*.ansi'
-            echo "::error::Example --help changed; run scripts/render-examples.sh and commit assets/."
+            git diff -- 'assets/*.ansi' crates/clap-couture/docs
+            echo "::error::Example --help changed; run scripts/render-examples.sh and commit assets/ and crates/clap-couture/docs/."
             exit 1
           fi
 

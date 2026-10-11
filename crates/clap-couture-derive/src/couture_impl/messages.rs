@@ -15,17 +15,18 @@ pub(crate) struct Messages {
     usage: Option<TextExpr>,
 }
 
+// Every field is spelled out, the unset ones from the defaults: a `..DEFAULT` struct update
+// would trip clippy's `needless_update` in the user's crate whenever all of them are set.
 impl ToTokens for Messages {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
-        let set_messages =
-            [("none", &self.none), ("options", &self.options), ("usage", &self.usage)]
-                .into_iter()
-                .filter_map(|(name, text)| {
-                    let name = syn::Ident::new(name, proc_macro2::Span::call_site());
-                    text.as_ref().map(|text| quote!(#name: #text))
-                });
-        tokens.extend(quote! {
-            ::clap_couture::Messages { #(#set_messages,)* ..::clap_couture::Messages::DEFAULT }
-        });
+        let messages = [("none", &self.none), ("options", &self.options), ("usage", &self.usage)]
+            .map(|(name, text)| {
+                let name = syn::Ident::new(name, proc_macro2::Span::call_site());
+                text.as_ref().map_or_else(
+                    || quote!(#name: ::clap_couture::Messages::DEFAULT.#name),
+                    |text| quote!(#name: #text),
+                )
+            });
+        tokens.extend(quote! { ::clap_couture::Messages { #(#messages,)* } });
     }
 }

@@ -56,8 +56,12 @@ name = "03-interactive"
 required-features = ["interactive"]
 
 [[example]]
-name = "09-advanced"
-required-features = ["derive"]
+name = "04-interactive-i18n"
+required-features = ["interactive"]
+
+[[example]]
+name = "09-interactive-custom-backend"
+required-features = ["derive", "markdown", "interactive"]
 
 [dev-dependencies]
 clap = { workspace = true, features = ["derive", "env"] }

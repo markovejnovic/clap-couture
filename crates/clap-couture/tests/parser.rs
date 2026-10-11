@@ -31,6 +31,12 @@ fn a_cli_without_subcommands_parses() {
 }
 
 #[rstest]
+fn a_cli_without_subcommands_has_no_gap_where_the_menu_would_go() {
+    let help = Flat::couture_command().render_help().to_string();
+    assert!(!help.contains("\n\n\n"), "a gap of blank lines in:\n{help}");
+}
+
+#[rstest]
 fn the_parser_takes_its_categories_from_the_subcommand_field() {
     let help = Nested::couture_command().render_help().to_string();
     assert!(help.contains("Everyday:"), "no category heading in:\n{help}");

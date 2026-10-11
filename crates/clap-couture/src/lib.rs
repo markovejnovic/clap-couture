@@ -248,8 +248,37 @@
 //!   - [`interactive-dialoguer`](interactive::Dialoguer) uses the [dialoguer](https://docs.rs/dialoguer/latest/dialoguer/)
 //!     crate to ask the user for input.
 //!
-//! There is also a mechanism to implement a custom backend, but this is intentionally not
-//! documented until it reaches stability.
+//! # Internationalization
+//!
+//! `clap-couture` allows you to accept *any* expression instead of plain strings, which can be
+//! useful to localize with something like [fluent](https://projectfluent.org/).
+//!
+//! ```no_compile
+//! #[couture(messages = {
+//!     none = fl!("none-opt"),
+//!     options = fl!("options-opt"),
+//!     usage = fl!("usage-opt"),
+//! })]
+//! struct Cli {
+//!     #[arg(long, value_enum)]
+//!     #[couture(prompt)]
+//!     region: Option<Region>,
+//!
+//!     #[command(subcommand)]
+//!     cmd: Cmd,
+//! }
+//!
+//! #[couture(categories = { "deploy" = { title = fl!("deploy-opt") } })]
+//! enum Cmd {
+//!     #[category("deploy")]
+//!     Ship,
+//! }
+//!
+//! Cli::couture_command().print_help().unwrap();
+//! ```
+//!
+//! For a full example, see
+//! [`examples/04-interactive-i18n.rs`](https://github.com/markovejnovic/clap-couture/blob/main/crates/clap-couture/examples/04-interactive-i18n.rs).
 
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/logo.svg",
@@ -338,7 +367,7 @@ impl CommandName {
 ///
 /// Cli::couture_command().print_help().unwrap();
 /// ```
-/// 
+///
 /// `tool --help` renders
 /// ```text
 /// 用法：
@@ -351,7 +380,7 @@ impl CommandName {
 ///       --region <REGION>  部署区域 [possible values: eu, us]
 ///   -h, --help             Print help
 /// ```
-/// 
+///
 /// and `tool ship`, run on a terminal without `--region`, asks for the optional region with
 /// `none` as its last choice. Picking it leaves `region` unset. With the
 /// `interactive-cliclack` backend:
@@ -362,7 +391,7 @@ impl CommandName {
 /// │  ○ 无
 /// └
 /// ```
-/// 
+///
 /// `Print help` and `[possible values: ...]` are clap's own text; for the help flag, disable
 /// clap's and add your own.
 #[derive(Clone, Copy, Debug)]
@@ -608,6 +637,9 @@ impl CommandExt for Command {
              {{usage}}\n\n{{before-help}}{header}{options_heading}{header:#}\n{{options}}"
         );
 
-        self.before_help(before).help_template(template)
+        // clap follows a set `before_help` with a blank line, even an empty one, so a command
+        // without subcommands would get a gap where the menu goes.
+        let command = if before.to_string().is_empty() { self } else { self.before_help(before) };
+        command.help_template(template)
     }
 }

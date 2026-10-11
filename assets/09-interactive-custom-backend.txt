@@ -1,17 +1,18 @@
 >
 ────────────────────────────────────────────────────────────────────────────────
-> 09-advanced --help
+> 09-interactive-custom-backend --help
 ────────────────────────────────────────────────────────────────────────────────
-> 09-advanced --help
+> 09-interactive-custom-backend --help
 Deploy and manage your apps from the terminal
 
 Usage:
-  orbit <COMMAND>
+  09-interactive-custom-backend <COMMAND>
 
-Everyday:        The commands you'll reach for daily
+  status    Show recent activity
+
+Everyday:        What you'll reach for daily
   logs      Tail live logs
   search    Search your deployment history
-  status    Show recent activity
 
 Deploy:          Ship code to production
   deploy    Ship the current project
@@ -22,8 +23,7 @@ Account & sync:
   login     Sign in to your account
   sync      Sync settings across machines
 
-Options:
-  -h, --help     Print help
-  -V, --version  Print version
+Flags:
+  -h, --help  Print help
 >
 ────────────────────────────────────────────────────────────────────────────────

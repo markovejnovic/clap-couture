@@ -72,6 +72,9 @@ impl<'run, B: Backend + ?Sized> EditorInteraction<'run, B> {
         }
     }
 
+    /// # Errors
+    /// - [`PromptError::Io`] when `$EDITOR` can't be used, the file can't be written, or the editor
+    ///   can't be started.
     pub fn start(backend: &'run B, prompt: &'run EditorPrompt<'run>) -> Result<Self, PromptError> {
         let editor = Editor::read()?;
         let (question, instructions) = (prompt.question, prompt.instructions);

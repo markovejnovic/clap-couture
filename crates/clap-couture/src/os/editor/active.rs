@@ -24,7 +24,7 @@ const RETURNED_EARLY: Duration = Duration::from_millis(500);
 
 /// The waiting hint, while the editor is open.
 ///
-/// Some editors they kind of suck in that they do not wait until the file passed is open. VsCode
+/// Some editors they kind of suck in that they do not wait until the file passed is open. `VsCode`
 /// et al. Consequently, we have to tell the user to "finish" their command.
 ///
 /// When they're done, we need to erase the hint.

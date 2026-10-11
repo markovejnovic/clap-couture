@@ -85,6 +85,14 @@ impl Editor {
         EDITOR_BEHAVIORS.iter().find(|(name, _)| *name == program).map(|(_, behavior)| behavior)
     }
 
+    /// The editor string split into words.
+    fn cmd_args(&self) -> impl Iterator<Item = Result<OsString, EditorError>> + '_ {
+        command::split(&self.command).map(|word| {
+            word.map(expand_tilde)
+                .map_err(|_unclosed_quote| EditorError::UnclosedQuote(self.command.clone()))
+        })
+    }
+
     /// The editor's process for `path`: its words, the wait flag a known editor needs, then the
     /// file. The program is looked up on
     /// `PATH` first, with `PATHEXT` on Windows.
@@ -157,14 +165,6 @@ impl Editor {
             .skip(1)
             .any(|word| word.is_ok_and(|word| word == first_flag || word == "--wait"));
         (!given).then_some(flag)
-    }
-
-    /// The editor string split into words.
-    fn cmd_args(&self) -> impl Iterator<Item = Result<OsString, EditorError>> + '_ {
-        command::split(&self.command).map(|word| {
-            word.map(expand_tilde)
-                .map_err(|_unclosed_quote| EditorError::UnclosedQuote(self.command.clone()))
-        })
     }
 }
 

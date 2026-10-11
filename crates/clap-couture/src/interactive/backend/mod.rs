@@ -76,9 +76,11 @@ pub trait Backend {
     /// Ask in the user's editor, returning `None` for an empty answer. Whether an empty answer is
     /// allowed is decided by the caller, from `prompt.optional`.
     ///
-    /// The default opens the editor through [`edit`](crate::interactive::edit), asking with
-    /// [`Backend::confirm`] whether the user is done when the editor returns right away. Override
-    /// it to draw something around the editor, and call `edit` from the override.
+    /// The default opens the editor through
+    /// [`EditorInteraction`](crate::interactive::EditorInteraction), asking with
+    /// [`Backend::confirm`] whether the user is done when the editor returns right
+    /// away. Override it to draw something around the editor, and use `EditorInteraction` from the
+    /// override.
     ///
     /// # Errors
     /// - [`PromptError::Signalled`] when the editor dies of Ctrl-C or of the terminal closing;

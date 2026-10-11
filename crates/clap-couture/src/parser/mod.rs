@@ -24,7 +24,8 @@ pub trait CoutureParser: Parser + Couture {
 
     /// Equivalent to [`Parser::parse`], with couture's help.
     ///
-    /// Exits with status 130 when the user cancels a prompt.
+    /// Exits with status 130 when the user cancels a prompt, and 1 when they decline a
+    /// confirmation.
     #[must_use]
     fn couture_parse() -> Self {
         Self::couture_parse_from(std::env::args_os())
@@ -45,7 +46,7 @@ pub trait CoutureParser: Parser + Couture {
     ///
     /// # Errors
     /// The [`clap::Error`] clap would report for the same arguments, or one of kind
-    /// [`Io`](clap::error::ErrorKind::Io) when a prompt fails or is cancelled.
+    /// [`Io`](clap::error::ErrorKind::Io) when a prompt fails, is cancelled or is declined.
     fn couture_try_parse() -> Result<Self, clap::Error> {
         Self::couture_try_parse_from(std::env::args_os())
     }
@@ -54,7 +55,7 @@ pub trait CoutureParser: Parser + Couture {
     ///
     /// # Errors
     /// The [`clap::Error`] clap would report for the same arguments, or one of kind
-    /// [`Io`](clap::error::ErrorKind::Io) when a prompt fails or is cancelled.
+    /// [`Io`](clap::error::ErrorKind::Io) when a prompt fails, is cancelled or is declined.
     fn couture_try_parse_from<I, T>(itr: I) -> Result<Self, clap::Error>
     where
         I: IntoIterator<Item = T>,
@@ -95,16 +96,22 @@ pub(crate) enum Failure {
     Cancelled,
     /// clap rejected the arguments, or a prompt failed.
     Clap(clap::Error),
+    /// The user answered no to a confirmation.
+    #[cfg(feature = "interactive")]
+    Declined,
 }
 
 impl Failure {
-    /// Exit the process the way clap would for this failure; 130 for a cancelled prompt.
+    /// Exit the process the way clap would for this failure; 130 for a cancelled prompt, 1 for a
+    /// declined confirmation.
     fn exit(self) -> ! {
         match self {
             // 130 is the conventional status for an interrupted command.
             #[cfg(feature = "interactive")]
             Self::Cancelled => std::process::exit(130),
             Self::Clap(err) => err.exit(),
+            #[cfg(feature = "interactive")]
+            Self::Declined => std::process::exit(1),
         }
     }
 
@@ -113,6 +120,10 @@ impl Failure {
             #[cfg(feature = "interactive")]
             Self::Cancelled => clap::Error::raw(clap::error::ErrorKind::Io, "prompt cancelled\n"),
             Self::Clap(err) => err,
+            #[cfg(feature = "interactive")]
+            Self::Declined => {
+                clap::Error::raw(clap::error::ErrorKind::Io, "confirmation declined\n")
+            }
         }
     }
 }

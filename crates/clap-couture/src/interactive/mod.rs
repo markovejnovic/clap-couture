@@ -27,6 +27,10 @@
 //! answer. An arg passed on the command line or through its env var is never
 //! asked, and neither is one that conflicts with a passed arg or an earlier answer. Answers are
 //! not re-checked against `requires`, `required_if_eq` and similar rules between args.
+//!
+//! `#[couture(confirm)]` on a `bool` flag the user left out asks whether to go ahead, after every
+//! other prompt, with each `{id}` in the question replaced by arg `id`'s value. A yes sets the
+//! flag; a no fails the parse. Without a terminal, the flag must be passed, as if it were required.
 
 mod backend;
 mod prompted_args;
@@ -42,7 +46,9 @@ pub use backend::Inquire;
 pub use backend::{Backend, CommandStyles, DefaultBackend, NonInteractive};
 use clap::builder::PossibleValue;
 #[doc(hidden)]
-pub use prompted_args::{PromptAttr, PromptedArg, PromptedArgBranch, PromptedArgTree};
+pub use prompted_args::{
+    PromptAttr, PromptPurpose, PromptedArg, PromptedArgBranch, PromptedArgTree,
+};
 
 /// Why a prompt produced no answer.
 #[derive(Debug, thiserror::Error)]

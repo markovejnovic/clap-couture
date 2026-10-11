@@ -296,6 +296,63 @@ struct Split {
     labels: Vec<String>,
 }
 
+#[derive(Parser, Couture, Debug)]
+struct Delete {
+    #[arg(long, conflicts_with = "force")]
+    dry_run: bool,
+
+    #[arg(long)]
+    #[couture(confirm = "Delete {name} from {regions}?")]
+    force: bool,
+
+    #[arg(long)]
+    #[couture(prompt = "Which app?")]
+    name: String,
+
+    #[arg(long)]
+    regions: Vec<String>,
+}
+
+/// `Delete` minus its conflicts and prompts: the plainest command a confirmation guards.
+#[derive(Parser, Couture, Debug)]
+struct Wipe {
+    #[arg(long)]
+    #[couture(confirm = "Wipe {name}?")]
+    force: bool,
+
+    #[arg(long)]
+    name: String,
+}
+
+#[derive(Parser, Couture, Debug)]
+struct Braces {
+    #[arg(long)]
+    name: Option<String>,
+
+    #[arg(long)]
+    #[couture(confirm = "{{name}} {name} {nope} {")]
+    yes: bool,
+}
+
+#[derive(Parser, Couture, Debug)]
+struct Store {
+    #[command(subcommand)]
+    cmd: StoreCmd,
+}
+
+#[derive(Subcommand, Couture, Debug)]
+enum StoreCmd {
+    Drop {
+        bucket: String,
+
+        /// Drop {bucket} for good?
+        #[arg(long)]
+        #[couture(confirm)]
+        yes: bool,
+    },
+    List,
+}
+
 #[expect(clippy::unnecessary_wraps, reason = "clap's value_parser takes a fallible fn")]
 fn count_plain(value: &str) -> Result<String, String> {
     PLAIN_PARSES.fetch_add(1, Ordering::Relaxed);
@@ -741,4 +798,89 @@ fn splits_a_delimited_default_into_its_values() {
         text("Which labels?", Some("a"), true),
         text("Which labels?", Some("b"), true),
     ]);
+}
+
+#[rstest]
+fn confirms_after_every_prompt_with_the_answers_filled_in() {
+    let backend = ScriptedBackend::new([Reply::Text(Some("web")), Reply::Confirm(true)]);
+    let argv = ["delete", "--regions", "eu", "--regions", "us"];
+    let delete = Delete::couture_try_parse_from_with(&backend, argv);
+    assert_eq!(delete.map(|delete| delete.force).ok(), Some(true));
+    assert_eq!(backend.asked(), [
+        asked(Kind::Text, "Which app?", None, &[]),
+        asked(Kind::Confirm, "Delete web from eu, us?", Some("false"), &[]),
+    ]);
+}
+
+#[rstest]
+fn a_declined_confirmation_is_an_io_error() {
+    let backend = ScriptedBackend::new([Reply::Confirm(false)]);
+    let delete = Delete::couture_try_parse_from_with(&backend, ["delete", "--name", "web"]);
+    assert_eq!(delete.map_err(|err| err.kind()).err(), Some(ErrorKind::Io));
+}
+
+#[rstest]
+#[case::flag_passed(&["delete", "--name", "web", "--force"], true)]
+#[case::conflicting_arg_passed(&["delete", "--name", "web", "--dry-run"], false)]
+fn never_confirms_a_passed_or_conflicting_flag(#[case] argv: &[&str], #[case] force: bool) {
+    let backend = ScriptedBackend::new([]);
+    let delete = Delete::couture_try_parse_from_with(&backend, argv);
+    assert_eq!(delete.map(|delete| delete.force).ok(), Some(force));
+    assert_eq!(backend.asked(), []);
+}
+
+#[rstest]
+#[case::flag_passed(&["delete", "--name", "web", "--force"], true)]
+#[case::conflicting_arg_passed(&["delete", "--name", "web", "--dry-run"], false)]
+fn without_a_terminal_a_passed_or_conflicting_flag_parses(
+    #[case] argv: &[&str],
+    #[case] force: bool,
+) {
+    let backend = ScriptedBackend::unavailable();
+    let delete = Delete::couture_try_parse_from_with(&backend, argv);
+    assert_eq!(delete.map(|delete| delete.force).ok(), Some(force));
+}
+
+#[rstest]
+fn without_a_terminal_an_unconfirmed_flag_is_a_missing_required_arg() {
+    let backend = ScriptedBackend::unavailable();
+    let wipe = Wipe::couture_try_parse_from_with(&backend, ["wipe", "--name", "web"]);
+    let err = wipe.map_err(|err| (err.kind(), err.render().to_string())).err();
+    assert!(
+        err.as_ref().is_some_and(|(kind, rendered)| {
+            *kind == ErrorKind::MissingRequiredArgument && rendered.contains("--force")
+        }),
+        "{err:?}"
+    );
+}
+
+#[rstest]
+fn without_a_terminal_help_leaves_the_confirmed_flag_optional() {
+    let backend = ScriptedBackend::unavailable();
+    let help = Delete::couture_try_parse_from_with(&backend, ["delete", "--help"])
+        .map(drop)
+        .map_err(|err| err.render().to_string());
+    let help = help.err().unwrap_or_default();
+    let usage = help.lines().skip_while(|line| !line.starts_with("Usage:")).nth(1);
+    assert!(usage.is_some_and(|usage| !usage.contains("--force")), "{help}");
+}
+
+#[rstest]
+fn a_confirmation_keeps_escaped_braces_and_unknown_placeholders() {
+    let backend = ScriptedBackend::new([Reply::Confirm(true)]);
+    let braces = Braces::couture_try_parse_from_with(&backend, ["braces", "--name", "x"]);
+    assert_eq!(braces.map(|braces| braces.yes).ok(), Some(true));
+    let questions: Vec<_> = backend.asked().into_iter().map(|asked| asked.question).collect();
+    assert_eq!(questions, ["{name} x {nope} {"]);
+}
+
+#[rstest]
+#[case::taken(&["store", "drop", "b1"], &["Drop b1 for good?"])]
+#[case::not_taken(&["store", "list"], &[])]
+fn confirms_only_on_the_subcommand_path_taken(#[case] argv: &[&str], #[case] questions: &[&str]) {
+    let backend = ScriptedBackend::new([Reply::Confirm(true)]);
+    let store = Store::couture_try_parse_from_with(&backend, argv);
+    assert!(store.is_ok(), "{store:?}");
+    let asked: Vec<_> = backend.asked().into_iter().map(|asked| asked.question).collect();
+    assert_eq!(asked, questions);
 }

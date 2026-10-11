@@ -27,6 +27,9 @@ use crate::{couture_impl::CoutureImpl, input::CoutureInput};
 ///   subcommand enum must derive `Couture` too; a flattened `Args` type need not.
 /// - With the `interactive` feature, `#[couture(prompt)]` or `#[couture(prompt = "...")]` on a
 ///   field asks for that arg when the user leaves it out.
+/// - With the `interactive` feature, `#[couture(confirm)]` or `#[couture(confirm = "...")]` on a
+///   `bool` flag asks to go ahead after every prompt, unless the flag is passed. A no, or no
+///   terminal to ask on, fails the parse. `{arg}` in the question stands for that arg's value.
 /// - `#[couture(messages = { usage = ..., options = ..., none = ... })]` replaces the text couture
 ///   prints itself, eg. to localize it. Any of the three may be left out. It applies on the type
 ///   you parse, or the one you pass to `with_couture`.

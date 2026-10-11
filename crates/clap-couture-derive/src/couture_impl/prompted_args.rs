@@ -1,17 +1,14 @@
-//! `PROMPTED_ARGS`: the args `#[couture(prompt)]` marks, and the command path to each.
+//! `PROMPTED_ARGS`: the args `#[couture(prompt)]` and `#[couture(confirm)]` mark, and the command
+//! path to each.
 
-use darling::{
-    Error,
-    ast::Style,
-    util::{Override, SpannedValue},
-};
+use darling::{Error, ast::Style, util::Override};
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{ToTokens, quote};
 use syn::Type;
 
 use crate::{
     clap_compat::{ClapAttrs as _, ClapFieldType as _, FieldKind, SubcommandNaming},
-    input::{FieldInput, VariantInput},
+    input::{FieldInput, Question, VariantInput},
     text::{OptionalText, TextExpr},
 };
 
@@ -33,12 +30,21 @@ enum PromptedArgBranch {
     Subcommand(String, Type),
 }
 
-/// One `#[couture(prompt)]` or `#[couture(prompt = "...")]`.
+/// One `#[couture(prompt)]` or `#[couture(confirm)]`, with or without `= "..."`.
 struct PromptAttr {
     /// The clap id of the arg it is on.
     arg_id: String,
-    /// The `prompt = ...` override; `None` asks the arg's help text.
+    /// What the answer is for.
+    purpose: Purpose,
+    /// The `= ...` override; `None` asks the arg's help text.
     question: Option<TextExpr>,
+}
+
+/// What a prompt's answer is for.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Purpose {
+    Confirmation,
+    Value,
 }
 
 impl PromptedArgTree {
@@ -46,8 +52,9 @@ impl PromptedArgTree {
     /// subcommand types.
     ///
     /// # Errors
-    /// - A `#[couture(prompt)]` without the `interactive` feature.
-    /// - A `#[couture(prompt)]` on a field that is not a single named arg.
+    /// - A `#[couture(prompt)]` or `#[couture(confirm)]` without the `interactive` feature.
+    /// - Either on a field that is not a single named arg, or both on one field.
+    /// - A `#[couture(confirm)]` on a field that is not a `bool`.
     pub(crate) fn of_fields(fields: &[FieldInput]) -> darling::Result<Self> {
         let mut errors = Error::accumulator();
         let own_args = fields
@@ -112,44 +119,63 @@ impl PromptedArgBranch {
 }
 
 impl PromptAttr {
-    fn new(field: &FieldInput, prompt: &SpannedValue<Override<TextExpr>>) -> darling::Result<Self> {
-        let span = prompt.span();
+    fn new(field: &FieldInput, purpose: Purpose, question: &Question) -> darling::Result<Self> {
+        let (span, attr) = (question.span(), purpose.attr());
         if !cfg!(feature = "interactive") {
-            return Err(Error::custom(
-                "`#[couture(prompt)]` needs clap-couture's `interactive` feature; enable it or \
-                 one of `interactive-cliclack`, `interactive-dialoguer`, `interactive-inquire`",
-            )
+            return Err(Error::custom(format!(
+                "{attr} needs clap-couture's `interactive` feature; enable it or one of \
+                 `interactive-cliclack`, `interactive-dialoguer`, `interactive-inquire`",
+            ))
             .with_span(&span));
         }
         let Some(arg_id) = field.clap_arg_id() else {
-            return Err(Error::custom("`#[couture(prompt)]` needs a named field").with_span(&span));
+            return Err(Error::custom(format!("{attr} needs a named field")).with_span(&span));
         };
-        let question = match &**prompt {
+        if purpose == Purpose::Confirmation && !is_bool(&field.ty) {
+            return Err(Error::custom(format!("{attr} marks a `bool` flag")).with_span(&span));
+        }
+        let question = match &**question {
             Override::Inherit => None,
             Override::Explicit(question) => Some(question.clone()),
         };
-        Ok(Self { arg_id, question })
+        Ok(Self { arg_id, purpose, question })
     }
 
-    /// The field's `#[couture(prompt)]`, if it has one.
+    /// The field's `#[couture(prompt)]` or `#[couture(confirm)]`, if it has one.
     fn of_field(field: &FieldInput) -> darling::Result<Option<Self>> {
-        field
-            .prompt
-            .as_ref()
-            .map(|prompt| match FieldKind::from(field.attrs.as_slice()) {
-                FieldKind::Arg => Self::new(field, prompt),
-                FieldKind::Flatten => {
-                    Err(misplaced(prompt.span(), "the fields of the flattened type"))
-                }
-                FieldKind::Skip => {
-                    Err(Error::custom("`#[couture(prompt)]` cannot mark a field clap skips")
-                        .with_span(&prompt.span()))
-                }
-                FieldKind::Subcommand => {
-                    Err(misplaced(prompt.span(), "the fields of the subcommand's variants"))
-                }
-            })
-            .transpose()
+        let (purpose, question) = match (&field.prompt, &field.confirm) {
+            (None, None) => return Ok(None),
+            (Some(prompt), None) => (Purpose::Value, prompt),
+            (None, Some(confirm)) => (Purpose::Confirmation, confirm),
+            (Some(_), Some(confirm)) => {
+                return Err(Error::custom(
+                    "`#[couture(prompt)]` and `#[couture(confirm)]` cannot mark the same field",
+                )
+                .with_span(&confirm.span()));
+            }
+        };
+        let (span, attr) = (question.span(), purpose.attr());
+        match FieldKind::from(field.attrs.as_slice()) {
+            FieldKind::Arg => Self::new(field, purpose, question).map(Some),
+            FieldKind::Flatten => Err(misplaced(span, attr, "the fields of the flattened type")),
+            FieldKind::Skip => {
+                Err(Error::custom(format!("{attr} cannot mark a field clap skips"))
+                    .with_span(&span))
+            }
+            FieldKind::Subcommand => {
+                Err(misplaced(span, attr, "the fields of the subcommand's variants"))
+            }
+        }
+    }
+}
+
+impl Purpose {
+    /// The attribute that declares it, as error messages name it.
+    const fn attr(self) -> &'static str {
+        match self {
+            Self::Confirmation => "`#[couture(confirm)]`",
+            Self::Value => "`#[couture(prompt)]`",
+        }
     }
 }
 
@@ -194,15 +220,28 @@ impl ToTokens for PromptedArgBranch {
 impl ToTokens for PromptAttr {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         let arg_id = &self.arg_id;
+        let purpose = match self.purpose {
+            Purpose::Confirmation => quote!(Confirmation),
+            Purpose::Value => quote!(Value),
+        };
         let question = OptionalText::from(&self.question);
         tokens.extend(quote! {
-            ::clap_couture::interactive::PromptAttr { arg_id: #arg_id, question: #question }
+            ::clap_couture::interactive::PromptAttr {
+                arg_id: #arg_id,
+                purpose: ::clap_couture::interactive::PromptPurpose::#purpose,
+                question: #question,
+            }
         });
     }
 }
 
-fn misplaced(span: Span, instead: &str) -> Error {
-    Error::custom(format!("`#[couture(prompt)]` marks a single arg; put it on {instead} instead"))
+/// Check whether `field_type` is spelled `bool`, which clap makes a flag.
+fn is_bool(field_type: &Type) -> bool {
+    matches!(field_type, Type::Path(type_path) if type_path.qself.is_none() && type_path.path.is_ident("bool"))
+}
+
+fn misplaced(span: Span, attr: &str, instead: &str) -> Error {
+    Error::custom(format!("{attr} marks a single arg; put it on {instead} instead"))
         .with_span(&span)
 }
 

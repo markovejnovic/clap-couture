@@ -166,6 +166,26 @@
 //! }
 //! ```
 //! 
+//! A confirmation's question can't name a secret, which would show its value; a computed question
+//! that does shows `********` in its place:
+//! ```compile_fail
+//! use clap::Parser;
+//! use clap_couture::{Couture, interactive::secrecy::SecretString};
+//!
+//! #[derive(Parser, Couture)]
+//! struct Cli {
+//!     #[arg(long)]
+//!     #[couture(prompt, secret)]
+//!     token: SecretString,
+//!     #[arg(long)]
+//!     #[couture(confirm = "Use token {token}?")]
+//!     yes: bool,
+//! }
+//! ```
+//! 
+//! A required secret left out with no terminal to ask on fails the parse naming its env var, not
+//! the flag the command line can't pass it with; usage leaves that flag out too.
+//!
 //! # Reading stdin
 //!
 //! `#[couture(stdin)]` reads all of stdin into an arg passed `-`, as in `kubectl apply -f -`;

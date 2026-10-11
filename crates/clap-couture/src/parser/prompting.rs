@@ -32,7 +32,7 @@ use clap::{
 use super::{
     ParseError,
     dash::{DashArgs, Dashed},
-    secrets::{self, Vault},
+    secrets::{self, SecretRequirement as _, Vault},
     stdin::{StdinArgs, StdinValue},
 };
 use crate::{
@@ -87,6 +87,8 @@ struct Session<'run> {
     dashed: &'run Dashed<'run>,
     messages: &'run Messages,
     prompted_args: &'run [PromptedArg],
+    /// Every secret arg, asked or not; a confirmation masks their values.
+    secret_args: &'run [PromptedArg],
     /// Holds the secret answers; `cmd` resolves their placeholders from it.
     vault: &'run Vault,
 }
@@ -268,10 +270,16 @@ impl Session<'_> {
             .and_then(|answered| matches_at(answered, &prompted_arg.subcommand_path))
         {
             Some(level) => interpolate(&question, |id| {
-                self.dashed
-                    .text(&prompted_arg.subcommand_path, id)
+                let path = &prompted_arg.subcommand_path;
+                let values = self
+                    .dashed
+                    .text(path, id)
                     .map(|text| vec![text])
-                    .or_else(|| level.try_get_raw(id).ok().map(|_| raw_values(level, id)))
+                    .or_else(|| level.try_get_raw(id).ok().map(|_| raw_values(level, id)))?;
+                if self.is_secret(path, id) {
+                    return Some(values.iter().map(|_| secrets::MASKED.to_owned()).collect());
+                }
+                Some(values)
             }),
             None => question,
         };
@@ -342,6 +350,13 @@ impl Session<'_> {
                 }
             }
         }
+    }
+
+    /// Check whether arg `id` at `path` is a secret, its own or a global one from a level above.
+    fn is_secret(&self, path: &[&str], id: &str) -> bool {
+        self.secret_args.iter().any(|secret_arg| {
+            secret_arg.attr.arg_id == id && path.starts_with(&secret_arg.subcommand_path)
+        })
     }
 
     /// The `= ...` override, else the arg's help text, else its id.
@@ -468,6 +483,12 @@ where
         return parse_unprompted(dash_args.typed(cmd), &prompted_args, argv);
     }
     let checking = dash_args.checking(cmd.clone());
+    // Taken before any were dropped from `prompted_args`: a secret read from stdin is masked too.
+    let secret_args: Vec<PromptedArg> = prompted_arg_tree
+        .prompted_args()
+        .into_iter()
+        .filter(|prompted_arg| prompted_arg.attr.secret.is_some())
+        .collect();
     // Help, usage and errors come from the command the user sees, not the relaxed one.
     let Ok(matches) = relax(checking.clone(), prompted_args.iter()).try_get_matches_from(argv)
     else {
@@ -482,6 +503,7 @@ where
         dashed: &dashed,
         messages,
         prompted_args: &prompted_args,
+        secret_args: &secret_args,
         vault: &vault,
     };
     let mut answers = Vec::new();
@@ -763,7 +785,9 @@ pub(super) fn unfilled(
     let arg = arg_at(built, path, id)?;
     let level = matches_at(matches, path)?;
     match level.value_source(id) {
-        None if default_values(arg).next().is_none() => Some(Vec::new()),
+        None if arg.is_required_by_default() || default_values(arg).next().is_none() => {
+            Some(Vec::new())
+        }
         Some(ValueSource::DefaultValue) => {
             let current = raw_values(level, id);
             current.iter().map(String::as_str).eq(default_values(arg)).then_some(current)
@@ -813,8 +837,8 @@ fn summary(err: &clap::Error, values: &[String]) -> String {
 }
 
 /// Drop the rules that make arg `id` of the command at `path` required: its `required`, its
-/// `required_unless_present`, and the `required` of the groups it belongs to. clap can't clear
-/// `required_unless_present_all` or `required_if_eq`, so those stay.
+/// `required_unless_present`, a secret's required default, and the `required` of the groups it
+/// belongs to. clap can't clear `required_unless_present_all` or `required_if_eq`, so those stay.
 pub(super) fn unrequire(cmd: Command, path: &[&str], id: &str) -> Command {
     with_command_at(cmd, path, |level| {
         if !level.get_arguments().any(|arg| arg.get_id() == id) {
@@ -825,8 +849,11 @@ pub(super) fn unrequire(cmd: Command, path: &[&str], id: &str) -> Command {
             .filter(|group| group.is_required_set() && group.get_args().any(|arg| arg == id))
             .map(|group| group.get_id().clone())
             .collect();
-        let level =
-            level.mut_arg(id, |arg| arg.required(false).required_unless_present(Resettable::Reset));
+        let level = level.mut_arg(id, |arg| {
+            arg.required(false)
+                .required_unless_present(Resettable::Reset)
+                .without_required_default()
+        });
         groups
             .iter()
             .fold(level, |level, group| level.mut_group(group, |group| group.required(false)))

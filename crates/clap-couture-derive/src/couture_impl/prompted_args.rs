@@ -101,10 +101,15 @@ impl PromptedArgTree {
     /// - A `dash` on an arg that does not take one value.
     pub(crate) fn of_fields(fields: &[FieldInput]) -> darling::Result<Self> {
         let mut errors = Error::accumulator();
-        let own_args = fields
+        let own_args: Vec<PromptAttr> = fields
             .iter()
             .filter_map(|field| errors.handle(PromptAttr::of_field(field)).flatten())
             .collect();
+        for prompt_attr in &own_args {
+            for error in prompt_attr.secrets_named(&own_args) {
+                errors.push(error);
+            }
+        }
         let branches = fields.iter().filter_map(PromptedArgBranch::of_field).collect();
         let mut marked_stdin =
             fields.iter().filter_map(|field| field.stdin.as_ref().map(|attr| (field, attr)));
@@ -324,6 +329,34 @@ impl PromptAttr {
                 Err(purpose.misplaced(span, "the fields of the subcommand's variants"))
             }
         }
+    }
+
+    /// An error for each secret among `level_args` its confirmation's question names, whose
+    /// value the confirmation would show.
+    fn secrets_named(&self, level_args: &[Self]) -> Vec<Error> {
+        let Some(question) =
+            self.question.as_ref().filter(|_| self.purpose == Purpose::Confirmation)
+        else {
+            return Vec::new();
+        };
+        let is_secret = |id: &str| {
+            level_args.iter().any(|arg| {
+                arg.secret.is_some()
+                    && matches!(&arg.arg_id, ClapName::Literal(secret_id) if secret_id == id)
+            })
+        };
+        question
+            .named_ids()
+            .into_iter()
+            .filter(|id| is_secret(id))
+            .map(|id| {
+                Error::custom(format!(
+                    "`{{{id}}}` names a `#[couture(secret)]`; the confirmation would show its \
+                     value"
+                ))
+                .with_span(&question.span())
+            })
+            .collect()
     }
 }
 

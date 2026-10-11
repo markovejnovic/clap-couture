@@ -238,6 +238,7 @@
 //! | `Option<T>`               | `fruit: Option<String>` | Optional input | Which fruit (none): **`<enter>`**               |
 //! | `Vec<T>`, possible values | `envs: Vec<Env>`        | Multi-picker   | Which envs? **dev, stage**                      |
 //! | `Vec<T>`, arbitrary type  | `tags: Vec<String>`     | Repeated input | Which tags `(<enter> to finish)`: **`<enter>`** |
+//! | `SecretString`, `secret`  | `token: SecretString`   | Masked input   | Deploy token: **▪▪▪▪▪▪▪**                       |
 //!
 //! ### Confirmation
 //!
@@ -269,6 +270,36 @@
 //! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/05-interactive-confirm-light.gif" alt="running orbit-destroy with no flags: it asks for the app and the region, then asks whether to destroy web in eu, and goes ahead on a yes" width="600">
 //!
 //! See [`examples/05-interactive-confirm.rs`](https://github.com/markovejnovic/clap-couture/blob/main/crates/clap-couture/examples/05-interactive-confirm.rs).
+//!
+//! ### Secrets
+//!
+//! `#[couture(prompt, secret)]` on a [`SecretString`](interactive::secrecy::SecretString) field
+//! asks without echoing the answer, just like `sudo`. Note that this flag is refused on the CLI,
+//! by default, as that is considered unsafe. `secret(allow_argv)` allows it.
+//!
+//! A value from its env var is used without asking, and `--help` hides it.
+//!
+//! ```no_run
+//! use clap::Parser;
+//! use clap_couture::{Couture, CoutureParser as _, interactive::secrecy::SecretString};
+//!
+//! #[derive(Parser, Couture)]
+//! struct Cli {
+//!     /// Deploy token.
+//!     #[arg(long, env = "ORBIT_TOKEN")]
+//!     #[couture(prompt, secret)]
+//!     token: SecretString,
+//! }
+//!
+//! let cli = Cli::couture_parse();
+//! ```
+//!
+//! An example of this interaction is:
+//!
+//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/07-interactive-secret-dark.gif" alt="running orbit-deploy with no flags: it asks for the app, then for the deploy token, showing only a mask as it is typed, and deploys" width="600">
+//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/07-interactive-secret-light.gif" alt="running orbit-deploy with no flags: it asks for the app, then for the deploy token, showing only a mask as it is typed, and deploys" width="600">
+//!
+//! See [`examples/07-interactive-secret.rs`](https://github.com/markovejnovic/clap-couture/blob/main/crates/clap-couture/examples/07-interactive-secret.rs).
 //!
 //! ### Backends
 //!
@@ -334,6 +365,7 @@ mod strings;
 mod text;
 
 use alloc::borrow::Cow;
+use core::fmt::Write as _;
 
 use clap::{Command, builder::StyledStr};
 #[cfg(feature = "derive")]
@@ -454,6 +486,7 @@ pub struct Messages {
     /// Shown while the editor is open; empty shows nothing. The default is
     /// `"hint: Waiting for your editor to close the file..."`.
     pub editor_waiting: Text,
+    pub environment: Text,
     /// The hint beside each prompt for one more value of a multi-value arg, telling that an empty
     /// answer finishes the list. The default is `"(<enter> to finish)"`.
     pub finish_hint: Text,
@@ -483,6 +516,7 @@ impl Messages {
             "Your editor returned right away. Done editing the file?",
         ),
         editor_waiting: Text::Literal("hint: Waiting for your editor to close the file..."),
+        environment: Text::Literal("Environment:"),
         finish_hint: Text::Literal("(<enter> to finish)"),
         none: Text::Literal("(none)"),
         options: Text::Literal("Options:"),
@@ -713,10 +747,11 @@ impl CommandExt for Command {
         // than clap's `{usage-heading}`, which is always English.
         let (header, usage) = (styles.get_header(), styles.get_usage());
         let (options_heading, usage_heading) = (T::MESSAGES.options.get(), T::MESSAGES.usage.get());
-        let template = format!(
-            "{{about-with-newline}}\n{usage}{usage_heading}{usage:#}\n  \
-             {{usage}}\n\n{{before-help}}{header}{options_heading}{header:#}\n{{options}}"
-        );
+        let mut template =
+            format!("{{about-with-newline}}\n{usage}{usage_heading}{usage:#}\n  {{usage}}\n\n");
+        // `String`'s `fmt::Write` is infallible.
+        writeln!(template, "{{before-help}}{header}{options_heading}{header:#}").ok();
+        template.push_str("{options}{after-help}");
 
         // clap follows a set `before_help` with a blank line, even an empty one, so a command
         // without subcommands would get a gap where the menu goes.

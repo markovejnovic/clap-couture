@@ -160,7 +160,12 @@ where
     T: Couture,
 {
     let prompted_arg_tree: &'static crate::interactive::PromptedArgTree = &T::PROMPTED_ARGS;
-    secrets::guard(cmd, &prompted_arg_tree.prompted_args(), &secrets::Vault::default())
+    secrets::guard(
+        cmd,
+        &prompted_arg_tree.prompted_args(),
+        &secrets::Vault::default(),
+        &T::MESSAGES.environment.get(),
+    )
 }
 
 /// Parse through [`DefaultBackend`](crate::interactive::DefaultBackend), or without prompting

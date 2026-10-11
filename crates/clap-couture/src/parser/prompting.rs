@@ -390,7 +390,7 @@ where
     }
     // Re-guarded with the vault this parse's answers go into; trial and final parses share it.
     let vault = Vault::default();
-    let cmd = secrets::guard(cmd, &prompted_args, &vault);
+    let cmd = secrets::guard(cmd, &prompted_args, &vault, &messages.environment.get());
     // Help, usage and errors come from the command the user sees, not the relaxed one.
     let Ok(matches) = relax(cmd.clone(), prompted_args.iter()).try_get_matches_from(argv) else {
         return super::parse(cmd, argv);
@@ -532,7 +532,7 @@ fn default_values(arg: &Arg) -> impl Iterator<Item = &str> {
 }
 
 /// The command at `path` passed through `edit`; unchanged when the path is missing.
-fn with_command_at<F>(cmd: Command, path: &[&str], edit: F) -> Command
+pub(super) fn with_command_at<F>(cmd: Command, path: &[&str], edit: F) -> Command
 where
     F: FnOnce(Command) -> Command,
 {

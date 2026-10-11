@@ -3,15 +3,22 @@
 //! raw value, as for any arg.
 
 use alloc::sync::Arc;
+use core::fmt::Write as _;
 use std::{
     ffi::OsStr,
     sync::{Mutex, MutexGuard, PoisonError},
 };
 
-use clap::{Arg, Command, builder::TypedValueParser, error::ErrorKind, parser::ValueSource};
+use clap::{
+    Arg, Command,
+    builder::{StyledStr, Styles, TypedValueParser},
+    error::ErrorKind,
+    parser::ValueSource,
+};
 use secrecy::SecretString;
+use unicode_width::UnicodeWidthStr as _;
 
-use super::prompting::with_arg_at;
+use super::prompting::{with_arg_at, with_command_at};
 use crate::interactive::PromptedArg;
 
 /// What a prompted secret's placeholder starts with. Neither argv nor env vars can hold NUL, so no
@@ -93,15 +100,86 @@ impl TypedValueParser for SecretValueParser {
     }
 }
 
+struct HiddenSecrets<'path> {
+    // Each env var that can pass one of them, with that arg's help.
+    env_vars: Vec<(String, String)>,
+    path: &'path [&'static str],
+}
+
+impl HiddenSecrets<'_> {
+    fn after_help(
+        &self,
+        heading: &str,
+        styles: &Styles,
+        after_help: Option<&StyledStr>,
+    ) -> StyledStr {
+        let (header, literal) = (styles.get_header(), styles.get_literal());
+        let width = self.env_vars.iter().map(|(env, _)| env.width()).max().unwrap_or_default();
+        let mut section = format!("{header}{heading}{header:#}");
+        // `String`'s `fmt::Write` is infallible.
+        for (env, help) in &self.env_vars {
+            let pad = " ".repeat(width.saturating_sub(env.width()));
+            write!(section, "\n  {literal}{env}{literal:#}{pad}  {help}").ok();
+        }
+        if let Some(after_help) = after_help {
+            write!(section, "\n\n{}", after_help.ansi()).ok();
+        }
+        StyledStr::from(section)
+    }
+}
+
 /// Give each secret arg in `prompted_args` a [`SecretValueParser`] on `vault`, and keep its env
 /// var's value and any placeholder default out of `--help`.
-pub(crate) fn guard(cmd: Command, prompted_args: &[PromptedArg], vault: &Vault) -> Command {
-    prompted_args.iter().fold(cmd, |cmd, prompted_arg| {
+pub(crate) fn guard(
+    cmd: Command,
+    prompted_args: &[PromptedArg],
+    vault: &Vault,
+    environment_heading: &str,
+) -> Command {
+    let cmd = prompted_args.iter().fold(cmd, |cmd, prompted_arg| {
         let Some(secret_attr) = &prompted_arg.attr.secret else { return cmd };
         let parser =
             SecretValueParser { allow_argv: secret_attr.allow_argv(), vault: vault.clone() };
         with_arg_at(cmd, &prompted_arg.subcommand_path, prompted_arg.attr.arg_id, |arg| {
             arg.value_parser(parser).hide_default_value(true).hide_env_values(true)
+        })
+    });
+    // Help offers no flag the command line can only fail with; the env vars that pass those
+    // secret args are listed instead. An arg already hidden is left alone, so guarding twice adds
+    // nothing.
+    let mut hidden: Vec<HiddenSecrets<'_>> = Vec::new();
+    let refused = prompted_args.iter().filter(|prompted_arg| {
+        prompted_arg.attr.secret.as_ref().is_some_and(|secret| !secret.allow_argv())
+    });
+    let cmd = refused.fold(cmd, |cmd, prompted_arg| {
+        let path = prompted_arg.subcommand_path.as_slice();
+        let id = prompted_arg.attr.arg_id;
+        with_command_at(cmd, path, |level| {
+            let Some(arg) = level.get_arguments().find(|arg| arg.get_id() == id) else {
+                return level;
+            };
+            if arg.is_hide_set() {
+                return level;
+            }
+            if let Some(env) = arg.get_env() {
+                let help = arg.get_help().map(|help| help.ansi().to_string()).unwrap_or_default();
+                let env_var = (env.to_string_lossy().into_owned(), help);
+                match hidden.iter_mut().find(|level_secrets| level_secrets.path == path) {
+                    Some(level_secrets) => level_secrets.env_vars.push(env_var),
+                    None => hidden.push(HiddenSecrets { env_vars: vec![env_var], path }),
+                }
+            }
+            level.mut_arg(id, |arg| arg.hide(true))
+        })
+    });
+    hidden.into_iter().fold(cmd, |cmd, level_secrets| {
+        with_command_at(cmd, level_secrets.path, |level| {
+            let after_help = level_secrets.after_help(
+                environment_heading,
+                level.get_styles(),
+                level.get_after_help(),
+            );
+            level.after_help(after_help)
         })
     })
 }
@@ -163,7 +241,7 @@ mod tests {
 
     fn guarded(attr: &'static PromptAttr, vault: &Vault) -> Command {
         let cmd = Command::new("app").arg(Arg::new("token").long("token"));
-        guard(cmd, &[PromptedArg { attr, subcommand_path: Vec::new() }], vault)
+        guard(cmd, &[PromptedArg { attr, subcommand_path: Vec::new() }], vault, "Environment:")
     }
 
     /// The rendered error of parsing `argv`, empty when the parse succeeds.
@@ -217,8 +295,7 @@ mod tests {
         assert_eq!(
             message,
             "error: --token <token> is a secret and can't be passed on the command line; leave it \
-             out to be asked at a terminal\n\nUsage: app [OPTIONS]\n\nFor more information, try \
-             '--help'.\n"
+             out to be asked at a terminal\n\nUsage: app\n\nFor more information, try '--help'.\n"
         );
     }
 
@@ -261,5 +338,48 @@ mod tests {
         let signed = format!("{PLACEHOLDER_PREFIX}+0");
         let cmd = guarded(&TOKEN, &vault).mut_arg("token", |arg| arg.default_value(signed));
         assert_eq!(token(cmd, &["app"]), Err(ErrorKind::ValueValidation));
+    }
+
+    fn help_of(
+        attr: &'static PromptAttr,
+        after_help: Option<&'static str>,
+        times: usize,
+    ) -> String {
+        let arg = Arg::new("token").long("token").env("APP_TOKEN").help("API token");
+        let cmd = Command::new("app").arg(arg);
+        let cmd = match after_help {
+            Some(after_help) => cmd.after_help(after_help),
+            None => cmd,
+        };
+        let prompted_args = [PromptedArg { attr, subcommand_path: Vec::new() }];
+        let mut cmd = (0..times)
+            .fold(cmd, |cmd, _| guard(cmd, &prompted_args, &Vault::default(), "Environment:"));
+        cmd.render_help().to_string()
+    }
+
+    #[test]
+    fn a_refused_secret_is_hidden_and_its_env_var_listed() {
+        let help = help_of(&TOKEN, None, 1);
+        assert!(!help.contains("--token <token>  API token"), "{help}");
+        assert!(help.ends_with("Environment:\n  APP_TOKEN  API token\n"), "{help}");
+    }
+
+    #[test]
+    fn a_secret_the_command_line_may_pass_keeps_its_flag() {
+        let help = help_of(&SCRIPTED_TOKEN, None, 1);
+        assert!(help.contains("--token <token>  API token [env: APP_TOKEN]"), "{help}");
+        assert!(!help.contains("Environment:"), "{help}");
+    }
+
+    #[test]
+    fn guarding_twice_lists_the_env_var_once() {
+        let help = help_of(&TOKEN, None, 2);
+        assert_eq!(help.matches("APP_TOKEN").count(), 1, "{help}");
+    }
+
+    #[test]
+    fn the_commands_own_after_help_follows_the_env_vars() {
+        let help = help_of(&TOKEN, Some("See the docs."), 1);
+        assert!(help.ends_with("  APP_TOKEN  API token\n\nSee the docs.\n"), "{help}");
     }
 }

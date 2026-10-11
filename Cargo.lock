@@ -124,6 +124,7 @@ dependencies = [
  "heck",
  "proc-macro2",
  "quote",
+ "strsim",
  "syn 3.0.6",
 ]
 

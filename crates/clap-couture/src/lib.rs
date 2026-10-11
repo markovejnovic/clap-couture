@@ -113,6 +113,44 @@
 //! You need to call [`CoutureParser::couture_parse`] instead of
 //! [`Parser::parse`](clap::Parser::parse), and you'll get the organized `--help` menu.
 //!
+//! Each category is declared once:
+//! ```compile_fail
+//! # use clap::Subcommand;
+//! # use clap_couture::Couture;
+//! #[derive(Subcommand, Couture)]
+//! #[couture(categories = { "deploy" = {}, "deploy" = { title = "Shipping:" } })]
+//! enum Cmd {
+//!     #[couture(category = "deploy")]
+//!     Deploy,
+//! }
+//! ```
+//!
+//! and files only a subcommand clap parses, so not a skipped variant:
+//! ```compile_fail
+//! # use clap::Subcommand;
+//! # use clap_couture::Couture;
+//! #[derive(Subcommand, Couture)]
+//! enum Cmd {
+//!     Deploy,
+//!     #[command(skip)]
+//!     #[couture(category = "deploy")]
+//!     Internal,
+//! }
+//! ```
+//!
+//! nor an external subcommand:
+//! ```compile_fail
+//! # use clap::Subcommand;
+//! # use clap_couture::Couture;
+//! #[derive(Subcommand, Couture)]
+//! enum Cmd {
+//!     Deploy,
+//!     #[command(external_subcommand)]
+//!     #[couture(category = "plugins")]
+//!     Plugin(Vec<String>),
+//! }
+//! ```
+//!
 //! ## Markdown Support
 //!
 //! [`clap_couture`](self) also has support for markdown with the `markdown` feature flag.

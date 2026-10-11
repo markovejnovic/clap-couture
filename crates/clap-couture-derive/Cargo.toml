@@ -23,6 +23,7 @@ proc-macro2 = { workspace = true }
 quote = { workspace = true }
 syn = { workspace = true }
 darling = { workspace = true }
+strsim = { workspace = true }
 
 [dev-dependencies]
 clap = { workspace = true, features = ["derive"] }

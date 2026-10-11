@@ -33,7 +33,7 @@ enum PromptedArgBranch {
     Subcommand(ClapName, Type),
 }
 
-/// A `dash` in `prompt(dash)`, or a `stdin` without `piped`.
+/// A `dash` in `prompt(dash)`, or a `stdin`.
 struct DashAttr {
     /// The field's type, `Option` peeled: what `-` becomes.
     field_type: Type,
@@ -76,8 +76,10 @@ enum Purpose {
 struct StdinAttr {
     /// The clap id of the arg it is on.
     arg_id: ClapName,
-    /// Stdin is read only when `-` is its value; `None` for `stdin(piped)`.
-    dash: Option<DashAttr>,
+    /// Stdin is read when `-` is its value.
+    dash: DashAttr,
+    /// `stdin(piped)`: a pipe is read too when the arg is left out.
+    piped: bool,
 }
 
 /// A `secret` beside a prompt, and the type it must hold.
@@ -348,12 +350,12 @@ impl ToTokens for PromptedArgTree {
         let (branches, own_args) = (&self.branches, &self.own_args);
         let stdin_arg = self.stdin_arg.as_ref().map_or_else(
             || quote!(::core::option::Option::None),
-            |StdinAttr { arg_id, dash }| {
-                let dash = OptionalDash(dash.as_ref());
+            |StdinAttr { arg_id, dash, piped }| {
                 quote! {
                     ::core::option::Option::Some(#Runtime::__private::StdinAttr {
                         arg_id: #arg_id,
                         dash: #dash,
+                        piped: #piped,
                     })
                 }
             },
@@ -479,11 +481,11 @@ impl StdinAttr {
         if field.ty.is_multi_value() {
             return error("`#[couture(stdin)]` takes a single value");
         }
-        let dash = match &**stdin {
-            Override::Explicit(StdinOptions { piped }) if piped.is_present() => None,
-            Override::Inherit | Override::Explicit(_) => Some(DashAttr::new(field, span)?),
+        let piped = match &**stdin {
+            Override::Explicit(StdinOptions { piped }) => piped.is_present(),
+            Override::Inherit => false,
         };
-        Ok(Self { arg_id, dash })
+        Ok(Self { arg_id, dash: DashAttr::new(field, span)?, piped })
     }
 }
 
@@ -505,18 +507,19 @@ impl DashAttr {
     }
 }
 
-impl ToTokens for OptionalDash<'_> {
+impl ToTokens for DashAttr {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         // The type keeps the user's span, so a field clap can't hand over is the error's location.
+        let field_type = &self.field_type;
+        tokens.extend(quote!(#Runtime::__private::DashAttr::new::<#field_type>()));
+    }
+}
+
+impl ToTokens for OptionalDash<'_> {
+    fn to_tokens(&self, tokens: &mut TokenStream2) {
         tokens.extend(self.0.map_or_else(
             || quote!(::core::option::Option::None),
-            |DashAttr { field_type }| {
-                quote! {
-                    ::core::option::Option::Some(
-                        #Runtime::__private::DashAttr::new::<#field_type>()
-                    )
-                }
-            },
+            |dash| quote!(::core::option::Option::Some(#dash)),
         ));
     }
 }

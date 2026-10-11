@@ -118,8 +118,10 @@ pub struct PromptedArgTree {
 pub struct StdinAttr {
     /// The clap id of the arg it is on.
     pub arg_id: &'static str,
-    /// Stdin is read only when `-` is its value; `None` for `stdin(piped)`.
-    pub dash: Option<DashAttr>,
+    /// Stdin is read when `-` is its value.
+    pub dash: DashAttr,
+    /// `stdin(piped)`: a pipe is read too when the arg is left out.
+    pub piped: bool,
 }
 
 /// An arg marked `#[couture(stdin)]`, and the subcommand path to the command that owns it.

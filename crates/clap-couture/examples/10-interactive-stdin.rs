@@ -4,7 +4,7 @@
 //! `#[couture(stdin(piped))]`.
 //!
 //!   - `echo "Fix login" | orbit-release` works like `orbit-release --notes "Fix login"`.
-//!   - Stdin is read only when it is a pipe and `--notes` was left out.
+//!   - Stdin is read only when it is a pipe and `--notes` was left out, or `--notes` is `-`.
 //!   - Beside `prompt`, the notes are asked for when nothing is piped. Prompts read stdin, so with
 //!     stdin piped nothing is asked: every other arg comes from argv or env.
 //!   - One trailing newline is dropped, so `echo` reads as typed.

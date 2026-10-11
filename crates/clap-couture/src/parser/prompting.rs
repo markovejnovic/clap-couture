@@ -877,7 +877,11 @@ mod tests {
             question: None,
             secret: None,
         }],
-        stdin_arg: Some(StdinAttr { arg_id: "message", dash: Some(DashAttr::new::<String>()) }),
+        stdin_arg: Some(StdinAttr {
+            arg_id: "message",
+            dash: DashAttr::new::<String>(),
+            piped: false,
+        }),
     };
 
     /// Answers every text prompt with `"asked"`, when available.

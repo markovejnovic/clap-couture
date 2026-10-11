@@ -293,7 +293,8 @@
 //! ### Custom interactive input
 //!
 //! Some questions only make sense after the parse. [`CoutureParser::prompter`] asks them in the
-//! same UI, styles and behavior as clap-couture does.
+//! same UI, styles and behavior as clap-couture does. With `interactive-editor`,
+//! [`Prompter::editor`](interactive::Prompter::editor) asks in the user's `$EDITOR`.
 //!
 //! ```
 //! use clap::{Parser, ValueEnum};

@@ -410,3 +410,28 @@ fn an_answered_group_member_satisfies_the_group() {
     // The group allows one member, so the summary isn't asked once the body is answered.
     assert_eq!(optional(&editor), [true]);
 }
+
+#[rstest]
+fn the_prompter_asks_in_the_editor() {
+    let editor = Editor::new([Some("Faster builds.")]);
+    let answer =
+        Release::prompter_with(&editor).and_then(|prompter| prompter.editor("Notes?", "md").ok());
+    assert_eq!(answer.as_deref(), Some("Faster builds."));
+    assert_eq!(editor.opened.take(), [Opened {
+        default: None,
+        error: None,
+        extension: "md".to_owned(),
+        file_stem: "release".to_owned(),
+        instructions: "These lines are removed. Leave the file empty to cancel.".to_owned(),
+        optional: false,
+        question: "Notes?".to_owned(),
+    }]);
+}
+
+#[rstest]
+fn an_empty_prompter_editor_answer_cancels() {
+    let editor = Editor::new([None]);
+    let answer = Release::prompter_with(&editor).map(|prompter| prompter.editor("Notes?", "md"));
+    assert!(matches!(answer, Some(Err(PromptError::Cancelled))));
+    assert_eq!(editor.reported.take(), ["Aborting due to an empty answer."]);
+}

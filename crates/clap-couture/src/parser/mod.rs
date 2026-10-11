@@ -109,7 +109,7 @@ pub trait CoutureParser: Parser + Couture {
     where
         B: Backend,
     {
-        Prompter::new(backend, Self::MESSAGES, Self::couture_command().get_styles().clone())
+        Prompter::new(backend, Self::MESSAGES, &Self::couture_command())
     }
 }
 

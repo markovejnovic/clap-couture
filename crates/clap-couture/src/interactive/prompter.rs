@@ -1,10 +1,12 @@
 //! Ask your own questions after the parse, in the same UI as the prompted args.
 
 use clap::{
-    ValueEnum,
+    Command, ValueEnum,
     builder::{PossibleValue, Styles},
 };
 
+#[cfg(feature = "interactive-editor")]
+use super::EditorPrompt;
 use super::{
     Backend, CommandStyles, ConfirmPrompt, DefaultBackend, MultiSelectPrompt, PromptError,
     SelectPrompt, TextPrompt,
@@ -18,6 +20,9 @@ use crate::Messages;
 pub struct Prompter<B = DefaultBackend> {
     backend: B,
     messages: Messages,
+    /// The command's name, which the editor's temp file is named after.
+    #[cfg(feature = "interactive-editor")]
+    name: String,
     styles: Styles,
 }
 
@@ -31,6 +36,36 @@ where
     /// - [`PromptError::Cancelled`] when the user backs out.
     pub fn confirm(&self, question: &str, default: bool) -> Result<bool, PromptError> {
         self.backend.confirm(&ConfirmPrompt { default, question, styles: self.styles() })
+    }
+
+    /// Ask in the user's editor, in a temp file with `extension`, like `md`. An empty answer
+    /// reports [`Messages::editor_empty`] and cancels.
+    ///
+    /// # Errors
+    /// - [`PromptError::Cancelled`] when the user backs out or leaves the file empty.
+    /// - [`PromptError::Signalled`] when the editor dies of a signal.
+    /// - [`PromptError::Io`] when the editor cannot be found or started, or exits unsuccessfully.
+    #[cfg(feature = "interactive-editor")]
+    pub fn editor(&self, question: &str, extension: &str) -> Result<String, PromptError> {
+        let answer = self.backend.editor(&EditorPrompt {
+            default: None,
+            error: None,
+            extension,
+            file_stem: &self.name,
+            instructions: &self.messages.editor_instructions.get(),
+            not_utf8: &self.messages.editor_not_utf8.get(),
+            optional: false,
+            question,
+            returned_early: &self.messages.editor_returned_early.get(),
+            styles: self.styles(),
+            waiting: &self.messages.editor_waiting.get(),
+        })?;
+        answer.ok_or_else(|| {
+            match self.backend.report(&self.messages.editor_empty.get(), self.styles()) {
+                Ok(()) => PromptError::Cancelled,
+                Err(err) => err,
+            }
+        })
     }
 
     /// Ask to pick at least one of `T`'s visible values, returned in declared order.
@@ -60,8 +95,14 @@ where
     }
 
     /// `None` when `backend` has no terminal to ask on.
-    pub(crate) fn new(backend: B, messages: Messages, styles: Styles) -> Option<Self> {
-        backend.is_available().then_some(Self { backend, messages, styles })
+    pub(crate) fn new(backend: B, messages: Messages, cmd: &Command) -> Option<Self> {
+        backend.is_available().then(|| Self {
+            backend,
+            messages,
+            #[cfg(feature = "interactive-editor")]
+            name: cmd.get_name().to_owned(),
+            styles: cmd.get_styles().clone(),
+        })
     }
 
     /// Ask to pick one of `T`'s visible values.

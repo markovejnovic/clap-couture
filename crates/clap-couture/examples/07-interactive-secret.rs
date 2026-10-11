@@ -1,56 +1,50 @@
-//! Prompted args: leave out `--region`, `--strategy` or `--follow` and couture asks; the token
-//! comes from `DEPLOY_TOKEN` or is asked for, masked.
+//! Example demonstrating clap-couture's secret prompts.
 //!
-//! ```sh
-//! cargo run -p clap-couture --example 07-interactive-secret
+//! clap-couture can ask for a password or a token without echoing it. You do so by decorating a
+//! `SecretString` field with `#[couture(prompt, secret)]`.
+//!
+//!   - The answer is masked as it's typed, and never reaches clap as plaintext.
+//!   - `--token` is refused on the command line, where `ps` and shell history would see it;
+//!     `secret(allow_argv)` allows it.
+//!   - A token in `ORBIT_TOKEN` is used without asking, and `--help` doesn't show its value.
+//!   - An `Option<SecretString>` field makes the secret optional: left empty, it stays `None`.
+//!
+//! # Example Output
+//!
+//! `cargo run -p clap-couture --example 07-interactive-secret` outputs:
+//!
+//! ```terminal
+//! ◇  Application name
+//! │  web
+//! │
+//! ◇  Deploy token
+//! │  ▪▪▪▪▪▪▪
+//! │
+//! deploying web with the token
 //! ```
 
 #![expect(clippy::print_stdout, reason = "a runnable demo prints its result")]
 
-use clap::{Parser, ValueEnum};
+use clap::Parser;
 use clap_couture::{Couture, CoutureParser as _, interactive::secrecy::SecretString};
 
 #[derive(Parser, Couture)]
-#[command(name = "deploy", about = "Ship the current project.")]
 struct Cli {
-    /// Tail the logs afterwards.
+    /// Application name.
     #[arg(long)]
     #[couture(prompt)]
-    follow: bool,
+    app: String,
 
-    /// Region to deploy to.
-    #[arg(long)]
-    #[couture(prompt)]
-    region: String,
-
-    /// How to roll the release out.
-    #[arg(long, value_enum, default_value = "rolling")]
-    #[couture(prompt)]
-    strategy: Strategy,
-
-    /// Token to deploy with.
-    #[arg(long, env = "DEPLOY_TOKEN")]
+    /// Deploy token.
+    #[arg(long, env = "ORBIT_TOKEN")]
     #[couture(prompt, secret)]
     token: SecretString,
 }
 
-#[derive(Clone, Copy, ValueEnum)]
-enum Strategy {
-    /// A slice of traffic first.
-    Canary,
-    /// One instance at a time.
-    Rolling,
-}
-
 fn main() {
     let cli = Cli::couture_parse();
-    let strategy = cli.strategy.to_possible_value().map(|value| value.get_name().to_owned());
+
     // A real deploy hands the token on; the demo only says it arrived.
     let _token: SecretString = cli.token;
-    println!(
-        "deploying to {} ({}), following logs: {}, token: received",
-        cli.region,
-        strategy.unwrap_or_default(),
-        cli.follow
-    );
+    println!("deploying {} with the token", cli.app);
 }

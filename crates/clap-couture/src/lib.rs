@@ -286,7 +286,7 @@
 //! `clap-couture` allows you to accept *any* expression instead of plain strings, which can be
 //! useful to localize with something like [fluent](https://projectfluent.org/).
 //!
-//! ```rust,no_compile
+//! ```rust,ignore
 //! #[couture(messages = {
 //!     none = fl!("none-opt"),
 //!     options = fl!("options-opt"),

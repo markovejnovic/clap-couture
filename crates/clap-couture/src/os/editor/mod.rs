@@ -334,7 +334,6 @@ mod tests {
     #[rstest]
     #[case::code("code", Some("--wait"))]
     #[case::code_with_args("code -n", Some("--wait"))]
-    #[case::code_cmd_path(r"C:\Tools\Code.cmd", None)]
     #[case::subl_path("/usr/local/bin/subl", Some("-w"))]
     #[case::already_waits("code --wait", None)]
     #[case::subl_long_flag("subl --wait", None)]
@@ -346,6 +345,14 @@ mod tests {
     #[case::xcode("xed", Some("--wait"))]
     fn wait_flag_for_known_editors(#[case] command: &str, #[case] expected: Option<&str>) {
         assert_eq!(editor(command).wait_flag(), expected);
+    }
+
+    #[test]
+    fn a_windows_path_to_code_waits_on_windows() {
+        // Only Windows splits a backslashed path whole; a shell reads the backslashes as escapes,
+        // so elsewhere the program isn't `code`.
+        let expected = cfg!(windows).then_some("--wait");
+        assert_eq!(editor(r"C:\Tools\Code.cmd").wait_flag(), expected);
     }
 
     #[rstest]

@@ -24,7 +24,9 @@ pub trait CoutureParser: Parser + Couture {
 
     /// Equivalent to [`Parser::parse`], with couture's help.
     ///
-    /// Exits with status 130 when the user cancels a prompt.
+    /// When the user cancels a prompt, dies of Ctrl-C's signal, or of the one the editor died of,
+    /// so a shell loop around the CLI stops too; exits with status 130 where there are no
+    /// signals. Exits with status 1 when a prompt fails.
     #[must_use]
     fn couture_parse() -> Self {
         Self::couture_parse_from(std::env::args_os())
@@ -153,15 +155,25 @@ fn die_of(signal: Option<i32>) -> ! {
         let mut set: libc::sigset_t = unsafe { core::mem::zeroed() };
         // A blocked signal would stay pending instead of killing, so it is unblocked first.
         // SAFETY: `set` is live for the call.
-        unsafe { libc::sigemptyset(&raw mut set) };
+        unsafe {
+            libc::sigemptyset(&raw mut set);
+        }
         // SAFETY: as above; `signal` is a real signal, the one that ended the prompt.
-        unsafe { libc::sigaddset(&raw mut set, signal) };
+        unsafe {
+            libc::sigaddset(&raw mut set, signal);
+        }
         // SAFETY: `set` is live, and the old mask is not asked for.
-        unsafe { libc::pthread_sigmask(libc::SIG_UNBLOCK, &raw const set, core::ptr::null_mut()) };
+        unsafe {
+            libc::pthread_sigmask(libc::SIG_UNBLOCK, &raw const set, core::ptr::null_mut());
+        }
         // SAFETY: the default action is valid for every signal.
-        unsafe { libc::signal(signal, libc::SIG_DFL) };
+        unsafe {
+            libc::signal(signal, libc::SIG_DFL);
+        }
         // SAFETY: raising a real signal; with its default action, it ends the process.
-        unsafe { libc::raise(signal) };
+        unsafe {
+            libc::raise(signal);
+        }
     }
     // 128 plus the signal is how a shell reports a death by it: 130 for SIGINT.
     #[cfg(not(unix))]
@@ -203,17 +215,20 @@ where
 
 #[cfg(test)]
 mod tests {
-    #![cfg(all(unix, feature = "interactive"))]
-
+    #[cfg(all(unix, feature = "interactive"))]
     use std::{os::unix::process::ExitStatusExt as _, process::Command};
 
+    #[cfg(all(unix, feature = "interactive"))]
     use rstest::rstest;
 
+    #[cfg(all(unix, feature = "interactive"))]
     use super::Failure;
 
+    #[cfg(all(unix, feature = "interactive"))]
     /// Set to the signal for [`die_in_child`] to die of, or empty for none.
     const DIE_OF: &str = "CLAP_COUTURE_TEST_DIE_OF";
 
+    #[cfg(all(unix, feature = "interactive"))]
     /// Run by [`a_cancelled_parse_dies_of_its_signal`] in a child process of this binary.
     #[test]
     #[ignore = "run in a child process by `a_cancelled_parse_dies_of_its_signal`"]
@@ -222,6 +237,7 @@ mod tests {
         Failure::Cancelled { signal: signal.parse().ok() }.exit();
     }
 
+    #[cfg(all(unix, feature = "interactive"))]
     #[rstest]
     #[case::backed_out("", libc::SIGINT)]
     #[case::editor_hung_up("1", libc::SIGHUP)]

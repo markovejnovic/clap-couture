@@ -106,7 +106,7 @@ enum Cmd {
 }
 ```
 
-### Prompts
+## Prompts
 
 Clap isn't really interactive. clap-couture fills that gap! Mark an arg with
 `#[couture(prompt)]`, and when the user leaves it out, couture asks for it
@@ -153,7 +153,7 @@ again.
 ### Confirmations
 
 `#[couture(confirm = "...")]` on a `bool` asks before doing something you can't
-take back.
+revert.
 
 ```rust
 #[arg(long)]
@@ -182,10 +182,12 @@ message: String,
   <img src="assets/10-interactive-stdin-dark.gif" alt="piping release notes into orbit-release, which takes them without asking, then running orbit-release alone, which asks for the notes" width="623">
 </picture>
 
-### Dash as a value
+You can only set it on one field!
 
-`dash` makes `-` mean something, and only `-`: `prompt(dash)` asks for the arg,
-`stdin(dash)` reads stdin into it.
+### Dash inputs
+
+`#[couture(prompt(dash))]` asks for an argument interactively if the user
+passes `-` as the command line flag.
 
 ```rust
 #[arg(short, long)]

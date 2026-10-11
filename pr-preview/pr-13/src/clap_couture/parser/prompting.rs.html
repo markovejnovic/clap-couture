@@ -14,709 +14,745 @@
 <a href=#8 id=8 data-nosnippet>8</a>//!
 <a href=#9 id=9 data-nosnippet>9</a>//! Confirmations come last, so their questions can name the answers. A declined one fails the
 <a href=#10 id=10 data-nosnippet>10</a>//! parse; without a terminal to ask on, one left unanswered fails it as a missing required arg.
-<a href=#11 id=11 data-nosnippet>11</a>
-<a href=#12 id=12 data-nosnippet>12</a></span><span class="kw">use </span>core::iter;
-<a href=#13 id=13 data-nosnippet>13</a><span class="kw">use </span>std::ffi::OsString;
-<a href=#14 id=14 data-nosnippet>14</a>
-<a href=#15 id=15 data-nosnippet>15</a><span class="kw">use </span>clap::{
-<a href=#16 id=16 data-nosnippet>16</a>    Arg, ArgAction, ArgGroup, ArgMatches, Command, FromArgMatches, Id,
-<a href=#17 id=17 data-nosnippet>17</a>    builder::{PossibleValue, Resettable},
-<a href=#18 id=18 data-nosnippet>18</a>    error::ErrorKind,
-<a href=#19 id=19 data-nosnippet>19</a>    parser::ValueSource,
-<a href=#20 id=20 data-nosnippet>20</a>};
-<a href=#21 id=21 data-nosnippet>21</a>
-<a href=#22 id=22 data-nosnippet>22</a><span class="kw">use </span><span class="kw">super</span>::Failure;
-<a href=#23 id=23 data-nosnippet>23</a><span class="attr">#[cfg(feature = <span class="string">"interactive-editor"</span>)]
-<a href=#24 id=24 data-nosnippet>24</a></span><span class="kw">use </span><span class="kw">crate</span>::interactive::{EditorAttr, EditorPrompt};
-<a href=#25 id=25 data-nosnippet>25</a><span class="kw">use crate</span>::{
-<a href=#26 id=26 data-nosnippet>26</a>    Messages,
-<a href=#27 id=27 data-nosnippet>27</a>    interactive::{
-<a href=#28 id=28 data-nosnippet>28</a>        Backend, CommandStyles, ConfirmPrompt, MultiSelectPrompt, PromptError, PromptPurpose,
-<a href=#29 id=29 data-nosnippet>29</a>        PromptedArg, PromptedArgTree, SelectPrompt, TextPrompt,
-<a href=#30 id=30 data-nosnippet>30</a>    },
-<a href=#31 id=31 data-nosnippet>31</a>    os::signal::Signal,
-<a href=#32 id=32 data-nosnippet>32</a>};
-<a href=#33 id=33 data-nosnippet>33</a>
-<a href=#34 id=34 data-nosnippet>34</a><span class="doccomment">/// A prompted arg's accepted answer.
-<a href=#35 id=35 data-nosnippet>35</a></span><span class="kw">struct </span>Answer&lt;<span class="lifetime">'prompted_arg</span>&gt; {
-<a href=#36 id=36 data-nosnippet>36</a>    prompted_arg: <span class="kw-2">&amp;</span><span class="lifetime">'prompted_arg </span>PromptedArg,
-<a href=#37 id=37 data-nosnippet>37</a>    <span class="doccomment">/// One value, or any number for an arg that takes many.
-<a href=#38 id=38 data-nosnippet>38</a>    </span>values: Vec&lt;String&gt;,
-<a href=#39 id=39 data-nosnippet>39</a>}
+<a href=#11 id=11 data-nosnippet>11</a>//!
+<a href=#12 id=12 data-nosnippet>12</a>//! A secret's answer goes into a vault instead, and clap gets a placeholder that the secret's
+<a href=#13 id=13 data-nosnippet>13</a>//! value parser swaps back. It skips the trial parse: that parser takes any string, so there is
+<a href=#14 id=14 data-nosnippet>14</a>//! nothing to ask again.
+<a href=#15 id=15 data-nosnippet>15</a>
+<a href=#16 id=16 data-nosnippet>16</a></span><span class="kw">use </span>core::iter;
+<a href=#17 id=17 data-nosnippet>17</a><span class="kw">use </span>std::ffi::OsString;
+<a href=#18 id=18 data-nosnippet>18</a>
+<a href=#19 id=19 data-nosnippet>19</a><span class="kw">use </span>clap::{
+<a href=#20 id=20 data-nosnippet>20</a>    Arg, ArgAction, ArgGroup, ArgMatches, Command, FromArgMatches, Id,
+<a href=#21 id=21 data-nosnippet>21</a>    builder::{PossibleValue, Resettable},
+<a href=#22 id=22 data-nosnippet>22</a>    error::ErrorKind,
+<a href=#23 id=23 data-nosnippet>23</a>    parser::ValueSource,
+<a href=#24 id=24 data-nosnippet>24</a>};
+<a href=#25 id=25 data-nosnippet>25</a>
+<a href=#26 id=26 data-nosnippet>26</a><span class="kw">use super</span>::{
+<a href=#27 id=27 data-nosnippet>27</a>    Failure,
+<a href=#28 id=28 data-nosnippet>28</a>    secrets::{<span class="self">self</span>, Vault},
+<a href=#29 id=29 data-nosnippet>29</a>};
+<a href=#30 id=30 data-nosnippet>30</a><span class="attr">#[cfg(feature = <span class="string">"interactive-editor"</span>)]
+<a href=#31 id=31 data-nosnippet>31</a></span><span class="kw">use </span><span class="kw">crate</span>::interactive::{EditorAttr, EditorPrompt};
+<a href=#32 id=32 data-nosnippet>32</a><span class="kw">use crate</span>::{
+<a href=#33 id=33 data-nosnippet>33</a>    Messages,
+<a href=#34 id=34 data-nosnippet>34</a>    interactive::{
+<a href=#35 id=35 data-nosnippet>35</a>        Backend, CommandStyles, ConfirmPrompt, MultiSelectPrompt, PromptError, PromptPurpose,
+<a href=#36 id=36 data-nosnippet>36</a>        PromptedArg, PromptedArgTree, SecretPrompt, SelectPrompt, TextPrompt,
+<a href=#37 id=37 data-nosnippet>37</a>    },
+<a href=#38 id=38 data-nosnippet>38</a>    os::signal::Signal,
+<a href=#39 id=39 data-nosnippet>39</a>};
 <a href=#40 id=40 data-nosnippet>40</a>
-<a href=#41 id=41 data-nosnippet>41</a><span class="doccomment">/// A prompted arg about to be asked in the editor, and what is known about it.
-<a href=#42 id=42 data-nosnippet>42</a></span><span class="attr">#[cfg(feature = <span class="string">"interactive-editor"</span>)]
-<a href=#43 id=43 data-nosnippet>43</a></span><span class="kw">struct </span>Asked&lt;<span class="lifetime">'ask</span>&gt; {
-<a href=#44 id=44 data-nosnippet>44</a>    arg: <span class="kw-2">&amp;</span><span class="lifetime">'ask </span>Arg,
-<a href=#45 id=45 data-nosnippet>45</a>    <span class="doccomment">/// Its default's value, pre-filled.
-<a href=#46 id=46 data-nosnippet>46</a>    </span>current: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'ask </span>str&gt;,
-<a href=#47 id=47 data-nosnippet>47</a>    <span class="doccomment">/// Leaving it unset passes clap, so an empty answer is allowed.
-<a href=#48 id=48 data-nosnippet>48</a>    </span>optional: bool,
-<a href=#49 id=49 data-nosnippet>49</a>    prompted_arg: <span class="kw-2">&amp;</span><span class="lifetime">'ask </span>PromptedArg,
-<a href=#50 id=50 data-nosnippet>50</a>    question: <span class="kw-2">&amp;</span><span class="lifetime">'ask </span>str,
-<a href=#51 id=51 data-nosnippet>51</a>}
-<a href=#52 id=52 data-nosnippet>52</a>
-<a href=#53 id=53 data-nosnippet>53</a><span class="doccomment">/// An answer clap turned down, and why; an editor prompt reopens with it.
-<a href=#54 id=54 data-nosnippet>54</a></span><span class="attr">#[cfg(feature = <span class="string">"interactive-editor"</span>)]
-<a href=#55 id=55 data-nosnippet>55</a></span><span class="kw">struct </span>Rejected {
-<a href=#56 id=56 data-nosnippet>56</a>    error: String,
-<a href=#57 id=57 data-nosnippet>57</a>    value: String,
-<a href=#58 id=58 data-nosnippet>58</a>}
-<a href=#59 id=59 data-nosnippet>59</a>
-<a href=#60 id=60 data-nosnippet>60</a><span class="doccomment">/// One parse: the command, its argv, its prompted args and who to ask.
-<a href=#61 id=61 data-nosnippet>61</a></span><span class="kw">struct </span>Session&lt;<span class="lifetime">'run</span>&gt; {
-<a href=#62 id=62 data-nosnippet>62</a>    argv: <span class="kw-2">&amp;</span><span class="lifetime">'run </span>[OsString],
-<a href=#63 id=63 data-nosnippet>63</a>    backend: <span class="kw-2">&amp;</span><span class="lifetime">'run </span><span class="kw">dyn </span>Backend,
-<a href=#64 id=64 data-nosnippet>64</a>    cmd: <span class="kw-2">&amp;</span><span class="lifetime">'run </span>Command,
-<a href=#65 id=65 data-nosnippet>65</a>    messages: <span class="kw-2">&amp;</span><span class="lifetime">'run </span>Messages,
-<a href=#66 id=66 data-nosnippet>66</a>    prompted_args: <span class="kw-2">&amp;</span><span class="lifetime">'run </span>[PromptedArg],
-<a href=#67 id=67 data-nosnippet>67</a>}
-<a href=#68 id=68 data-nosnippet>68</a>
-<a href=#69 id=69 data-nosnippet>69</a><span class="kw">impl </span>Session&lt;<span class="lifetime">'_</span>&gt; {
-<a href=#70 id=70 data-nosnippet>70</a>    <span class="doccomment">/// Ask for `prompted_arg` until clap accepts the answer; `None` when an optional single-value
-<a href=#71 id=71 data-nosnippet>71</a>    /// one is left empty. `current` is the arg's default, split into its values. `later` are the
-<a href=#72 id=72 data-nosnippet>72</a>    /// prompted args still to be asked after it.
-<a href=#73 id=73 data-nosnippet>73</a>    </span><span class="kw">fn </span>answer(
-<a href=#74 id=74 data-nosnippet>74</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
-<a href=#75 id=75 data-nosnippet>75</a>        prompted_arg: <span class="kw-2">&amp;</span>PromptedArg,
-<a href=#76 id=76 data-nosnippet>76</a>        current: <span class="kw-2">&amp;</span>[String],
-<a href=#77 id=77 data-nosnippet>77</a>        answers: <span class="kw-2">&amp;</span>[Answer&lt;<span class="lifetime">'_</span>&gt;],
-<a href=#78 id=78 data-nosnippet>78</a>        later: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>PromptedArg],
-<a href=#79 id=79 data-nosnippet>79</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;Vec&lt;String&gt;&gt;, PromptError&gt; {
-<a href=#80 id=80 data-nosnippet>80</a>        <span class="kw">let </span><span class="prelude-val">Some</span>(arg) = arg_at(<span class="self">self</span>.cmd, <span class="kw-2">&amp;</span>prompted_arg.subcommand_path, prompted_arg.attr.arg_id)
-<a href=#81 id=81 data-nosnippet>81</a>        <span class="kw">else </span>{
-<a href=#82 id=82 data-nosnippet>82</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>);
-<a href=#83 id=83 data-nosnippet>83</a>        };
-<a href=#84 id=84 data-nosnippet>84</a>        <span class="kw">let </span>optional = !<span class="self">self</span>.required(answers, later);
-<a href=#85 id=85 data-nosnippet>85</a>        <span class="kw">let </span>question = <span class="self">self</span>.question(prompted_arg);
-<a href=#86 id=86 data-nosnippet>86</a>        <span class="comment">// A flag has nothing to edit, so one that slipped past the derive asks as a flag.
-<a href=#87 id=87 data-nosnippet>87</a>        </span><span class="attr">#[cfg(feature = <span class="string">"interactive-editor"</span>)]
-<a href=#88 id=88 data-nosnippet>88</a>        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(editor) = prompted_arg
-<a href=#89 id=89 data-nosnippet>89</a>            .attr
-<a href=#90 id=90 data-nosnippet>90</a>            .editor
-<a href=#91 id=91 data-nosnippet>91</a>            .as_ref()
-<a href=#92 id=92 data-nosnippet>92</a>            .filter(|<span class="kw">_</span>| arg.get_action().takes_values() &amp;&amp; !takes_many(arg))
-<a href=#93 id=93 data-nosnippet>93</a>        {
-<a href=#94 id=94 data-nosnippet>94</a>            <span class="kw">let </span>asked = Asked {
-<a href=#95 id=95 data-nosnippet>95</a>                arg,
-<a href=#96 id=96 data-nosnippet>96</a>                current: current.first().map(String::as_str),
-<a href=#97 id=97 data-nosnippet>97</a>                optional,
-<a href=#98 id=98 data-nosnippet>98</a>                prompted_arg,
-<a href=#99 id=99 data-nosnippet>99</a>                question: <span class="kw-2">&amp;</span>question,
-<a href=#100 id=100 data-nosnippet>100</a>            };
-<a href=#101 id=101 data-nosnippet>101</a>            <span class="kw">return </span><span class="self">self</span>.in_editor(<span class="kw-2">&amp;</span>asked, editor, answers);
-<a href=#102 id=102 data-nosnippet>102</a>        }
-<a href=#103 id=103 data-nosnippet>103</a>        <span class="kw">let </span>options: Vec&lt;PossibleValue&gt; =
-<a href=#104 id=104 data-nosnippet>104</a>            arg.get_possible_values().into_iter().filter(|value| !value.is_hide_set()).collect();
-<a href=#105 id=105 data-nosnippet>105</a>        <span class="kw">if </span>!takes_many(arg) {
-<a href=#106 id=106 data-nosnippet>106</a>            <span class="kw">return </span><span class="self">self</span>.until_accepted(answers, prompted_arg, || {
-<a href=#107 id=107 data-nosnippet>107</a>                <span class="kw">let </span>value = <span class="self">self</span>.ask(arg, <span class="kw-2">&amp;</span>question, <span class="kw-2">&amp;</span>options, current.first(), optional)<span class="question-mark">?</span>;
-<a href=#108 id=108 data-nosnippet>108</a>                <span class="prelude-val">Ok</span>(value.map(|value| <span class="macro">vec!</span>[value]))
-<a href=#109 id=109 data-nosnippet>109</a>            });
-<a href=#110 id=110 data-nosnippet>110</a>        }
-<a href=#111 id=111 data-nosnippet>111</a>        <span class="kw">if </span>options.is_empty() {
-<a href=#112 id=112 data-nosnippet>112</a>            <span class="kw">return </span><span class="self">self</span>.each_value(<span class="kw-2">&amp;</span>question, prompted_arg, current, answers, optional).map(<span class="prelude-val">Some</span>);
-<a href=#113 id=113 data-nosnippet>113</a>        }
-<a href=#114 id=114 data-nosnippet>114</a>        <span class="self">self</span>.until_accepted(answers, prompted_arg, || {
-<a href=#115 id=115 data-nosnippet>115</a>            <span class="self">self</span>.backend
-<a href=#116 id=116 data-nosnippet>116</a>                .multi_select(<span class="kw-2">&amp;</span>MultiSelectPrompt {
-<a href=#117 id=117 data-nosnippet>117</a>                    defaults: current,
-<a href=#118 id=118 data-nosnippet>118</a>                    optional,
-<a href=#119 id=119 data-nosnippet>119</a>                    options: <span class="kw-2">&amp;</span>options,
-<a href=#120 id=120 data-nosnippet>120</a>                    question: <span class="kw-2">&amp;</span>question,
-<a href=#121 id=121 data-nosnippet>121</a>                    selection_required: <span class="kw-2">&amp;</span><span class="self">self</span>.messages.selection_required.get(),
-<a href=#122 id=122 data-nosnippet>122</a>                    styles: CommandStyles(<span class="self">self</span>.cmd.get_styles()),
-<a href=#123 id=123 data-nosnippet>123</a>                })
-<a href=#124 id=124 data-nosnippet>124</a>                .map(<span class="prelude-val">Some</span>)
-<a href=#125 id=125 data-nosnippet>125</a>        })
-<a href=#126 id=126 data-nosnippet>126</a>    }
-<a href=#127 id=127 data-nosnippet>127</a>
-<a href=#128 id=128 data-nosnippet>128</a>    <span class="kw">fn </span>ask(
-<a href=#129 id=129 data-nosnippet>129</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
-<a href=#130 id=130 data-nosnippet>130</a>        arg: <span class="kw-2">&amp;</span>Arg,
-<a href=#131 id=131 data-nosnippet>131</a>        question: <span class="kw-2">&amp;</span>str,
-<a href=#132 id=132 data-nosnippet>132</a>        options: <span class="kw-2">&amp;</span>[PossibleValue],
-<a href=#133 id=133 data-nosnippet>133</a>        current: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>String&gt;,
-<a href=#134 id=134 data-nosnippet>134</a>        optional: bool,
-<a href=#135 id=135 data-nosnippet>135</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;String&gt;, PromptError&gt; {
-<a href=#136 id=136 data-nosnippet>136</a>        <span class="kw">let </span>styles = CommandStyles(<span class="self">self</span>.cmd.get_styles());
-<a href=#137 id=137 data-nosnippet>137</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(negate) = flag_negation(arg.get_action()) {
-<a href=#138 id=138 data-nosnippet>138</a>            <span class="kw">let </span>set = <span class="self">self</span>.backend.confirm(<span class="kw-2">&amp;</span>ConfirmPrompt { default: <span class="bool-val">false</span>, question, styles })<span class="question-mark">?</span>;
-<a href=#139 id=139 data-nosnippet>139</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>((set != negate).to_string()));
-<a href=#140 id=140 data-nosnippet>140</a>        }
-<a href=#141 id=141 data-nosnippet>141</a>        <span class="kw">if </span>options.is_empty() {
-<a href=#142 id=142 data-nosnippet>142</a>            <span class="kw">return </span><span class="self">self</span>.backend.text(<span class="kw-2">&amp;</span>TextPrompt {
-<a href=#143 id=143 data-nosnippet>143</a>                default: current.map(String::as_str),
-<a href=#144 id=144 data-nosnippet>144</a>                hint: <span class="prelude-val">None</span>,
-<a href=#145 id=145 data-nosnippet>145</a>                initial: <span class="prelude-val">None</span>,
-<a href=#146 id=146 data-nosnippet>146</a>                optional,
-<a href=#147 id=147 data-nosnippet>147</a>                question,
-<a href=#148 id=148 data-nosnippet>148</a>                styles,
-<a href=#149 id=149 data-nosnippet>149</a>            });
-<a href=#150 id=150 data-nosnippet>150</a>        }
-<a href=#151 id=151 data-nosnippet>151</a>        <span class="self">self</span>.backend.select(<span class="kw-2">&amp;</span>SelectPrompt {
-<a href=#152 id=152 data-nosnippet>152</a>            default: current.map(String::as_str),
-<a href=#153 id=153 data-nosnippet>153</a>            none_option: <span class="kw-2">&amp;</span><span class="self">self</span>.messages.none.get(),
-<a href=#154 id=154 data-nosnippet>154</a>            optional,
-<a href=#155 id=155 data-nosnippet>155</a>            options,
-<a href=#156 id=156 data-nosnippet>156</a>            question,
-<a href=#157 id=157 data-nosnippet>157</a>            styles,
-<a href=#158 id=158 data-nosnippet>158</a>        })
-<a href=#159 id=159 data-nosnippet>159</a>    }
-<a href=#160 id=160 data-nosnippet>160</a>
-<a href=#161 id=161 data-nosnippet>161</a>    <span class="doccomment">/// Ask in the user's editor, starting from the rejected answer if there is one. An empty
-<a href=#162 id=162 data-nosnippet>162</a>    /// answer to a required arg aborts, as git aborts on an empty commit message, and so does one
-<a href=#163 id=163 data-nosnippet>163</a>    /// to an arg with a default, which an empty answer would quietly bring back.
-<a href=#164 id=164 data-nosnippet>164</a>    </span><span class="attr">#[cfg(feature = <span class="string">"interactive-editor"</span>)]
-<a href=#165 id=165 data-nosnippet>165</a>    </span><span class="kw">fn </span>ask_in_editor(
-<a href=#166 id=166 data-nosnippet>166</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
-<a href=#167 id=167 data-nosnippet>167</a>        asked: <span class="kw-2">&amp;</span>Asked&lt;<span class="lifetime">'_</span>&gt;,
-<a href=#168 id=168 data-nosnippet>168</a>        editor: <span class="kw-2">&amp;</span>EditorAttr,
-<a href=#169 id=169 data-nosnippet>169</a>        rejected: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Rejected&gt;,
-<a href=#170 id=170 data-nosnippet>170</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;String&gt;, PromptError&gt; {
-<a href=#171 id=171 data-nosnippet>171</a>        <span class="kw">let </span>Asked { arg, current, optional: <span class="kw">_</span>, prompted_arg, question } = <span class="kw-2">*</span>asked;
-<a href=#172 id=172 data-nosnippet>172</a>        <span class="kw">let </span>styles = CommandStyles(<span class="self">self</span>.cmd.get_styles());
-<a href=#173 id=173 data-nosnippet>173</a>        <span class="kw">let </span>optional = asked.optional &amp;&amp; arg.get_default_values().is_empty();
-<a href=#174 id=174 data-nosnippet>174</a>        <span class="kw">let </span>instructions = <span class="kw">if </span>optional {
-<a href=#175 id=175 data-nosnippet>175</a>            <span class="self">self</span>.messages.editor_instructions_optional.get()
-<a href=#176 id=176 data-nosnippet>176</a>        } <span class="kw">else </span>{
-<a href=#177 id=177 data-nosnippet>177</a>            <span class="self">self</span>.messages.editor_instructions.get()
-<a href=#178 id=178 data-nosnippet>178</a>        };
-<a href=#179 id=179 data-nosnippet>179</a>        <span class="kw">let </span>answer = <span class="self">self</span>.backend.editor(<span class="kw-2">&amp;</span>EditorPrompt {
-<a href=#180 id=180 data-nosnippet>180</a>            default: rejected.map_or(current, |rejected| <span class="prelude-val">Some</span>(rejected.value.as_str())),
-<a href=#181 id=181 data-nosnippet>181</a>            error: rejected.map(|rejected| rejected.error.as_str()),
-<a href=#182 id=182 data-nosnippet>182</a>            extension: editor.extension,
-<a href=#183 id=183 data-nosnippet>183</a>            file_stem: <span class="kw-2">&amp;</span>iter::once(<span class="self">self</span>.cmd.get_name())
-<a href=#184 id=184 data-nosnippet>184</a>                .chain(prompted_arg.subcommand_path.iter().copied())
-<a href=#185 id=185 data-nosnippet>185</a>                .chain(iter::once(prompted_arg.attr.arg_id))
-<a href=#186 id=186 data-nosnippet>186</a>                .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()
-<a href=#187 id=187 data-nosnippet>187</a>                .join(<span class="string">"-"</span>),
-<a href=#188 id=188 data-nosnippet>188</a>            instructions: <span class="kw-2">&amp;</span>instructions,
-<a href=#189 id=189 data-nosnippet>189</a>            not_utf8: <span class="kw-2">&amp;</span><span class="self">self</span>.messages.editor_not_utf8.get(),
-<a href=#190 id=190 data-nosnippet>190</a>            optional,
-<a href=#191 id=191 data-nosnippet>191</a>            question,
-<a href=#192 id=192 data-nosnippet>192</a>            returned_early: <span class="kw-2">&amp;</span><span class="self">self</span>.messages.editor_returned_early.get(),
-<a href=#193 id=193 data-nosnippet>193</a>            styles,
-<a href=#194 id=194 data-nosnippet>194</a>            waiting: <span class="kw-2">&amp;</span><span class="self">self</span>.messages.editor_waiting.get(),
-<a href=#195 id=195 data-nosnippet>195</a>        })<span class="question-mark">?</span>;
-<a href=#196 id=196 data-nosnippet>196</a>        <span class="kw">if </span>answer.is_none() &amp;&amp; !optional {
-<a href=#197 id=197 data-nosnippet>197</a>            <span class="self">self</span>.backend.report(<span class="kw-2">&amp;</span><span class="self">self</span>.messages.editor_empty.get(), styles)<span class="question-mark">?</span>;
-<a href=#198 id=198 data-nosnippet>198</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(PromptError::Cancelled);
-<a href=#199 id=199 data-nosnippet>199</a>        }
-<a href=#200 id=200 data-nosnippet>200</a>        <span class="prelude-val">Ok</span>(answer)
-<a href=#201 id=201 data-nosnippet>201</a>    }
-<a href=#202 id=202 data-nosnippet>202</a>
-<a href=#203 id=203 data-nosnippet>203</a>    <span class="doccomment">/// Ask whether to go ahead, with each `{id}` in the question filled in from the args as
-<a href=#204 id=204 data-nosnippet>204</a>    /// passed and answered so far.
-<a href=#205 id=205 data-nosnippet>205</a>    </span><span class="kw">fn </span>confirm(
-<a href=#206 id=206 data-nosnippet>206</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
-<a href=#207 id=207 data-nosnippet>207</a>        prompted_arg: <span class="kw-2">&amp;</span>PromptedArg,
-<a href=#208 id=208 data-nosnippet>208</a>        answers: <span class="kw-2">&amp;</span>[Answer&lt;<span class="lifetime">'_</span>&gt;],
-<a href=#209 id=209 data-nosnippet>209</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;bool, PromptError&gt; {
-<a href=#210 id=210 data-nosnippet>210</a>        <span class="kw">let </span>question = <span class="self">self</span>.question(prompted_arg);
-<a href=#211 id=211 data-nosnippet>211</a>        <span class="kw">let </span>answered = inject(
-<a href=#212 id=212 data-nosnippet>212</a>            relax(<span class="self">self</span>.cmd.clone(), <span class="self">self</span>.prompted_args),
-<a href=#213 id=213 data-nosnippet>213</a>            answers.iter().map(|answer| (answer.prompted_arg, answer.values.as_slice())),
-<a href=#214 id=214 data-nosnippet>214</a>        )
-<a href=#215 id=215 data-nosnippet>215</a>        .try_get_matches_from(<span class="self">self</span>.argv);
-<a href=#216 id=216 data-nosnippet>216</a>        <span class="kw">let </span>question = <span class="kw">match </span>answered
-<a href=#217 id=217 data-nosnippet>217</a>            .as_ref()
-<a href=#218 id=218 data-nosnippet>218</a>            .ok()
-<a href=#219 id=219 data-nosnippet>219</a>            .and_then(|answered| matches_at(answered, <span class="kw-2">&amp;</span>prompted_arg.subcommand_path))
-<a href=#220 id=220 data-nosnippet>220</a>        {
-<a href=#221 id=221 data-nosnippet>221</a>            <span class="prelude-val">Some</span>(level) =&gt; interpolate(<span class="kw-2">&amp;</span>question, level),
-<a href=#222 id=222 data-nosnippet>222</a>            <span class="prelude-val">None </span>=&gt; question,
-<a href=#223 id=223 data-nosnippet>223</a>        };
-<a href=#224 id=224 data-nosnippet>224</a>        <span class="self">self</span>.backend.confirm(<span class="kw-2">&amp;</span>ConfirmPrompt {
-<a href=#225 id=225 data-nosnippet>225</a>            default: <span class="bool-val">false</span>,
-<a href=#226 id=226 data-nosnippet>226</a>            question: <span class="kw-2">&amp;</span>question,
-<a href=#227 id=227 data-nosnippet>227</a>            styles: CommandStyles(<span class="self">self</span>.cmd.get_styles()),
-<a href=#228 id=228 data-nosnippet>228</a>        })
-<a href=#229 id=229 data-nosnippet>229</a>    }
-<a href=#230 id=230 data-nosnippet>230</a>
-<a href=#231 id=231 data-nosnippet>231</a>    <span class="doccomment">/// Ask for one value at a time until an empty answer, each starting out as the default's
-<a href=#232 id=232 data-nosnippet>232</a>    /// value at its position. Only a required arg's first value may not be empty.
-<a href=#233 id=233 data-nosnippet>233</a>    ///
-<a href=#234 id=234 data-nosnippet>234</a>    /// The default goes in as initial text rather than as the answer Enter accepts, so clearing it
-<a href=#235 id=235 data-nosnippet>235</a>    /// still finishes the list.
-<a href=#236 id=236 data-nosnippet>236</a>    </span><span class="kw">fn </span>each_value(
-<a href=#237 id=237 data-nosnippet>237</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
-<a href=#238 id=238 data-nosnippet>238</a>        question: <span class="kw-2">&amp;</span>str,
-<a href=#239 id=239 data-nosnippet>239</a>        prompted_arg: <span class="kw-2">&amp;</span>PromptedArg,
-<a href=#240 id=240 data-nosnippet>240</a>        current: <span class="kw-2">&amp;</span>[String],
-<a href=#241 id=241 data-nosnippet>241</a>        answers: <span class="kw-2">&amp;</span>[Answer&lt;<span class="lifetime">'_</span>&gt;],
-<a href=#242 id=242 data-nosnippet>242</a>        optional: bool,
-<a href=#243 id=243 data-nosnippet>243</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;String&gt;, PromptError&gt; {
-<a href=#244 id=244 data-nosnippet>244</a>        <span class="kw">let </span>finish_hint = <span class="self">self</span>.messages.finish_hint.get();
-<a href=#245 id=245 data-nosnippet>245</a>        <span class="kw">let </span><span class="kw-2">mut </span>values = Vec::new();
-<a href=#246 id=246 data-nosnippet>246</a>        <span class="kw">loop </span>{
-<a href=#247 id=247 data-nosnippet>247</a>            <span class="kw">let </span>optional = !values.is_empty() || optional;
-<a href=#248 id=248 data-nosnippet>248</a>            <span class="kw">let </span><span class="prelude-val">Some</span>(value) = <span class="self">self</span>.backend.text(<span class="kw-2">&amp;</span>TextPrompt {
-<a href=#249 id=249 data-nosnippet>249</a>                default: <span class="prelude-val">None</span>,
-<a href=#250 id=250 data-nosnippet>250</a>                hint: optional.then_some(<span class="kw-2">&amp;*</span>finish_hint),
-<a href=#251 id=251 data-nosnippet>251</a>                initial: current.get(values.len()).map(String::as_str),
-<a href=#252 id=252 data-nosnippet>252</a>                optional,
-<a href=#253 id=253 data-nosnippet>253</a>                question,
-<a href=#254 id=254 data-nosnippet>254</a>                styles: CommandStyles(<span class="self">self</span>.cmd.get_styles()),
-<a href=#255 id=255 data-nosnippet>255</a>            })<span class="question-mark">?
-<a href=#256 id=256 data-nosnippet>256</a>            </span><span class="kw">else </span>{
-<a href=#257 id=257 data-nosnippet>257</a>                <span class="kw">return </span><span class="prelude-val">Ok</span>(values);
-<a href=#258 id=258 data-nosnippet>258</a>            };
-<a href=#259 id=259 data-nosnippet>259</a>            values.push(value);
-<a href=#260 id=260 data-nosnippet>260</a>            <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = <span class="self">self</span>.trial(answers, prompted_arg, <span class="kw-2">&amp;</span>values) {
-<a href=#261 id=261 data-nosnippet>261</a>                <span class="self">self</span>.backend
-<a href=#262 id=262 data-nosnippet>262</a>                    .report(<span class="kw-2">&amp;</span>summary(<span class="kw-2">&amp;</span>err, <span class="kw-2">&amp;</span>values), CommandStyles(<span class="self">self</span>.cmd.get_styles()))<span class="question-mark">?</span>;
-<a href=#263 id=263 data-nosnippet>263</a>                values.pop();
-<a href=#264 id=264 data-nosnippet>264</a>            }
-<a href=#265 id=265 data-nosnippet>265</a>        }
-<a href=#266 id=266 data-nosnippet>266</a>    }
-<a href=#267 id=267 data-nosnippet>267</a>
-<a href=#268 id=268 data-nosnippet>268</a>    <span class="doccomment">/// Ask in the editor until clap accepts the answer, reopening with the rejected one.
-<a href=#269 id=269 data-nosnippet>269</a>    </span><span class="attr">#[cfg(feature = <span class="string">"interactive-editor"</span>)]
-<a href=#270 id=270 data-nosnippet>270</a>    </span><span class="kw">fn </span>in_editor(
-<a href=#271 id=271 data-nosnippet>271</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
-<a href=#272 id=272 data-nosnippet>272</a>        asked: <span class="kw-2">&amp;</span>Asked&lt;<span class="lifetime">'_</span>&gt;,
-<a href=#273 id=273 data-nosnippet>273</a>        editor: <span class="kw-2">&amp;</span>EditorAttr,
-<a href=#274 id=274 data-nosnippet>274</a>        answers: <span class="kw-2">&amp;</span>[Answer&lt;<span class="lifetime">'_</span>&gt;],
-<a href=#275 id=275 data-nosnippet>275</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;Vec&lt;String&gt;&gt;, PromptError&gt; {
-<a href=#276 id=276 data-nosnippet>276</a>        <span class="kw">let </span><span class="kw-2">mut </span>rejected = <span class="prelude-val">None</span>;
-<a href=#277 id=277 data-nosnippet>277</a>        <span class="kw">loop </span>{
-<a href=#278 id=278 data-nosnippet>278</a>            <span class="kw">let </span><span class="prelude-val">Some</span>(value) = <span class="self">self</span>.ask_in_editor(asked, editor, rejected.as_ref())<span class="question-mark">? </span><span class="kw">else </span>{
-<a href=#279 id=279 data-nosnippet>279</a>                <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>);
+<a href=#41 id=41 data-nosnippet>41</a><span class="doccomment">/// A prompted arg's accepted answer.
+<a href=#42 id=42 data-nosnippet>42</a></span><span class="kw">struct </span>Answer&lt;<span class="lifetime">'prompted_arg</span>&gt; {
+<a href=#43 id=43 data-nosnippet>43</a>    <span class="doccomment">/// What clap gets as the arg's defaults: the answer itself, or a secret's placeholder. One
+<a href=#44 id=44 data-nosnippet>44</a>    /// value, or any number for an arg that takes many.
+<a href=#45 id=45 data-nosnippet>45</a>    </span>injected_values: Vec&lt;String&gt;,
+<a href=#46 id=46 data-nosnippet>46</a>    prompted_arg: <span class="kw-2">&amp;</span><span class="lifetime">'prompted_arg </span>PromptedArg,
+<a href=#47 id=47 data-nosnippet>47</a>}
+<a href=#48 id=48 data-nosnippet>48</a>
+<a href=#49 id=49 data-nosnippet>49</a><span class="doccomment">/// A prompted arg about to be asked in the editor, and what is known about it.
+<a href=#50 id=50 data-nosnippet>50</a></span><span class="attr">#[cfg(feature = <span class="string">"interactive-editor"</span>)]
+<a href=#51 id=51 data-nosnippet>51</a></span><span class="kw">struct </span>Asked&lt;<span class="lifetime">'ask</span>&gt; {
+<a href=#52 id=52 data-nosnippet>52</a>    arg: <span class="kw-2">&amp;</span><span class="lifetime">'ask </span>Arg,
+<a href=#53 id=53 data-nosnippet>53</a>    <span class="doccomment">/// Its default's value, pre-filled.
+<a href=#54 id=54 data-nosnippet>54</a>    </span>current: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'ask </span>str&gt;,
+<a href=#55 id=55 data-nosnippet>55</a>    <span class="doccomment">/// Leaving it unset passes clap, so an empty answer is allowed.
+<a href=#56 id=56 data-nosnippet>56</a>    </span>optional: bool,
+<a href=#57 id=57 data-nosnippet>57</a>    prompted_arg: <span class="kw-2">&amp;</span><span class="lifetime">'ask </span>PromptedArg,
+<a href=#58 id=58 data-nosnippet>58</a>    question: <span class="kw-2">&amp;</span><span class="lifetime">'ask </span>str,
+<a href=#59 id=59 data-nosnippet>59</a>}
+<a href=#60 id=60 data-nosnippet>60</a>
+<a href=#61 id=61 data-nosnippet>61</a><span class="doccomment">/// An answer clap turned down, and why; an editor prompt reopens with it.
+<a href=#62 id=62 data-nosnippet>62</a></span><span class="attr">#[cfg(feature = <span class="string">"interactive-editor"</span>)]
+<a href=#63 id=63 data-nosnippet>63</a></span><span class="kw">struct </span>Rejected {
+<a href=#64 id=64 data-nosnippet>64</a>    error: String,
+<a href=#65 id=65 data-nosnippet>65</a>    value: String,
+<a href=#66 id=66 data-nosnippet>66</a>}
+<a href=#67 id=67 data-nosnippet>67</a>
+<a href=#68 id=68 data-nosnippet>68</a><span class="doccomment">/// One parse: the command, its argv, its prompted args, who to ask and where secrets go.
+<a href=#69 id=69 data-nosnippet>69</a></span><span class="kw">struct </span>Session&lt;<span class="lifetime">'run</span>&gt; {
+<a href=#70 id=70 data-nosnippet>70</a>    argv: <span class="kw-2">&amp;</span><span class="lifetime">'run </span>[OsString],
+<a href=#71 id=71 data-nosnippet>71</a>    backend: <span class="kw-2">&amp;</span><span class="lifetime">'run </span><span class="kw">dyn </span>Backend,
+<a href=#72 id=72 data-nosnippet>72</a>    cmd: <span class="kw-2">&amp;</span><span class="lifetime">'run </span>Command,
+<a href=#73 id=73 data-nosnippet>73</a>    messages: <span class="kw-2">&amp;</span><span class="lifetime">'run </span>Messages,
+<a href=#74 id=74 data-nosnippet>74</a>    prompted_args: <span class="kw-2">&amp;</span><span class="lifetime">'run </span>[PromptedArg],
+<a href=#75 id=75 data-nosnippet>75</a>    <span class="doccomment">/// Holds the secret answers; `cmd` resolves their placeholders from it.
+<a href=#76 id=76 data-nosnippet>76</a>    </span>vault: <span class="kw-2">&amp;</span><span class="lifetime">'run </span>Vault,
+<a href=#77 id=77 data-nosnippet>77</a>}
+<a href=#78 id=78 data-nosnippet>78</a>
+<a href=#79 id=79 data-nosnippet>79</a><span class="kw">impl </span>Session&lt;<span class="lifetime">'_</span>&gt; {
+<a href=#80 id=80 data-nosnippet>80</a>    <span class="doccomment">/// Ask for `prompted_arg` until clap accepts the answer; `None` when an optional single-value
+<a href=#81 id=81 data-nosnippet>81</a>    /// one is left empty. `current` is the arg's default, split into its values. `later` are the
+<a href=#82 id=82 data-nosnippet>82</a>    /// prompted args still to be asked after it. A secret is asked once and comes back as its vault
+<a href=#83 id=83 data-nosnippet>83</a>    /// placeholder.
+<a href=#84 id=84 data-nosnippet>84</a>    </span><span class="kw">fn </span>answer(
+<a href=#85 id=85 data-nosnippet>85</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#86 id=86 data-nosnippet>86</a>        prompted_arg: <span class="kw-2">&amp;</span>PromptedArg,
+<a href=#87 id=87 data-nosnippet>87</a>        current: <span class="kw-2">&amp;</span>[String],
+<a href=#88 id=88 data-nosnippet>88</a>        answers: <span class="kw-2">&amp;</span>[Answer&lt;<span class="lifetime">'_</span>&gt;],
+<a href=#89 id=89 data-nosnippet>89</a>        later: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>PromptedArg],
+<a href=#90 id=90 data-nosnippet>90</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;Vec&lt;String&gt;&gt;, PromptError&gt; {
+<a href=#91 id=91 data-nosnippet>91</a>        <span class="kw">let </span><span class="prelude-val">Some</span>(arg) = arg_at(<span class="self">self</span>.cmd, <span class="kw-2">&amp;</span>prompted_arg.subcommand_path, prompted_arg.attr.arg_id)
+<a href=#92 id=92 data-nosnippet>92</a>        <span class="kw">else </span>{
+<a href=#93 id=93 data-nosnippet>93</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>);
+<a href=#94 id=94 data-nosnippet>94</a>        };
+<a href=#95 id=95 data-nosnippet>95</a>        <span class="kw">let </span>optional = !<span class="self">self</span>.required(answers, later);
+<a href=#96 id=96 data-nosnippet>96</a>        <span class="kw">let </span>question = <span class="self">self</span>.question(prompted_arg);
+<a href=#97 id=97 data-nosnippet>97</a>        <span class="kw">if </span>prompted_arg.attr.secret.is_some() {
+<a href=#98 id=98 data-nosnippet>98</a>            <span class="comment">// clap has nothing to reject in a string, so a secret skips the trial parse; the vault
+<a href=#99 id=99 data-nosnippet>99</a>            // keeps it and clap gets a placeholder. `current` goes unused: the derive refuses a
+<a href=#100 id=100 data-nosnippet>100</a>            // default on a secret, and showing one would echo it.
+<a href=#101 id=101 data-nosnippet>101</a>            </span><span class="kw">let </span>secret = <span class="self">self</span>.backend.secret(<span class="kw-2">&amp;</span>SecretPrompt {
+<a href=#102 id=102 data-nosnippet>102</a>                optional,
+<a href=#103 id=103 data-nosnippet>103</a>                question: <span class="kw-2">&amp;</span>question,
+<a href=#104 id=104 data-nosnippet>104</a>                styles: CommandStyles(<span class="self">self</span>.cmd.get_styles()),
+<a href=#105 id=105 data-nosnippet>105</a>            })<span class="question-mark">?</span>;
+<a href=#106 id=106 data-nosnippet>106</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(secret.map(|secret| <span class="macro">vec!</span>[<span class="self">self</span>.vault.store(secret)]));
+<a href=#107 id=107 data-nosnippet>107</a>        }
+<a href=#108 id=108 data-nosnippet>108</a>        <span class="comment">// A flag has nothing to edit, so one that slipped past the derive asks as a flag.
+<a href=#109 id=109 data-nosnippet>109</a>        </span><span class="attr">#[cfg(feature = <span class="string">"interactive-editor"</span>)]
+<a href=#110 id=110 data-nosnippet>110</a>        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(editor) = prompted_arg
+<a href=#111 id=111 data-nosnippet>111</a>            .attr
+<a href=#112 id=112 data-nosnippet>112</a>            .editor
+<a href=#113 id=113 data-nosnippet>113</a>            .as_ref()
+<a href=#114 id=114 data-nosnippet>114</a>            .filter(|<span class="kw">_</span>| arg.get_action().takes_values() &amp;&amp; !takes_many(arg))
+<a href=#115 id=115 data-nosnippet>115</a>        {
+<a href=#116 id=116 data-nosnippet>116</a>            <span class="kw">let </span>asked = Asked {
+<a href=#117 id=117 data-nosnippet>117</a>                arg,
+<a href=#118 id=118 data-nosnippet>118</a>                current: current.first().map(String::as_str),
+<a href=#119 id=119 data-nosnippet>119</a>                optional,
+<a href=#120 id=120 data-nosnippet>120</a>                prompted_arg,
+<a href=#121 id=121 data-nosnippet>121</a>                question: <span class="kw-2">&amp;</span>question,
+<a href=#122 id=122 data-nosnippet>122</a>            };
+<a href=#123 id=123 data-nosnippet>123</a>            <span class="kw">return </span><span class="self">self</span>.in_editor(<span class="kw-2">&amp;</span>asked, editor, answers);
+<a href=#124 id=124 data-nosnippet>124</a>        }
+<a href=#125 id=125 data-nosnippet>125</a>        <span class="kw">let </span>options: Vec&lt;PossibleValue&gt; =
+<a href=#126 id=126 data-nosnippet>126</a>            arg.get_possible_values().into_iter().filter(|value| !value.is_hide_set()).collect();
+<a href=#127 id=127 data-nosnippet>127</a>        <span class="kw">if </span>!takes_many(arg) {
+<a href=#128 id=128 data-nosnippet>128</a>            <span class="kw">return </span><span class="self">self</span>.until_accepted(answers, prompted_arg, || {
+<a href=#129 id=129 data-nosnippet>129</a>                <span class="kw">let </span>value = <span class="self">self</span>.ask(arg, <span class="kw-2">&amp;</span>question, <span class="kw-2">&amp;</span>options, current.first(), optional)<span class="question-mark">?</span>;
+<a href=#130 id=130 data-nosnippet>130</a>                <span class="prelude-val">Ok</span>(value.map(|value| <span class="macro">vec!</span>[value]))
+<a href=#131 id=131 data-nosnippet>131</a>            });
+<a href=#132 id=132 data-nosnippet>132</a>        }
+<a href=#133 id=133 data-nosnippet>133</a>        <span class="kw">if </span>options.is_empty() {
+<a href=#134 id=134 data-nosnippet>134</a>            <span class="kw">return </span><span class="self">self</span>.each_value(<span class="kw-2">&amp;</span>question, prompted_arg, current, answers, optional).map(<span class="prelude-val">Some</span>);
+<a href=#135 id=135 data-nosnippet>135</a>        }
+<a href=#136 id=136 data-nosnippet>136</a>        <span class="self">self</span>.until_accepted(answers, prompted_arg, || {
+<a href=#137 id=137 data-nosnippet>137</a>            <span class="self">self</span>.backend
+<a href=#138 id=138 data-nosnippet>138</a>                .multi_select(<span class="kw-2">&amp;</span>MultiSelectPrompt {
+<a href=#139 id=139 data-nosnippet>139</a>                    defaults: current,
+<a href=#140 id=140 data-nosnippet>140</a>                    optional,
+<a href=#141 id=141 data-nosnippet>141</a>                    options: <span class="kw-2">&amp;</span>options,
+<a href=#142 id=142 data-nosnippet>142</a>                    question: <span class="kw-2">&amp;</span>question,
+<a href=#143 id=143 data-nosnippet>143</a>                    selection_required: <span class="kw-2">&amp;</span><span class="self">self</span>.messages.selection_required.get(),
+<a href=#144 id=144 data-nosnippet>144</a>                    styles: CommandStyles(<span class="self">self</span>.cmd.get_styles()),
+<a href=#145 id=145 data-nosnippet>145</a>                })
+<a href=#146 id=146 data-nosnippet>146</a>                .map(<span class="prelude-val">Some</span>)
+<a href=#147 id=147 data-nosnippet>147</a>        })
+<a href=#148 id=148 data-nosnippet>148</a>    }
+<a href=#149 id=149 data-nosnippet>149</a>
+<a href=#150 id=150 data-nosnippet>150</a>    <span class="kw">fn </span>ask(
+<a href=#151 id=151 data-nosnippet>151</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#152 id=152 data-nosnippet>152</a>        arg: <span class="kw-2">&amp;</span>Arg,
+<a href=#153 id=153 data-nosnippet>153</a>        question: <span class="kw-2">&amp;</span>str,
+<a href=#154 id=154 data-nosnippet>154</a>        options: <span class="kw-2">&amp;</span>[PossibleValue],
+<a href=#155 id=155 data-nosnippet>155</a>        current: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>String&gt;,
+<a href=#156 id=156 data-nosnippet>156</a>        optional: bool,
+<a href=#157 id=157 data-nosnippet>157</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;String&gt;, PromptError&gt; {
+<a href=#158 id=158 data-nosnippet>158</a>        <span class="kw">let </span>styles = CommandStyles(<span class="self">self</span>.cmd.get_styles());
+<a href=#159 id=159 data-nosnippet>159</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(negate) = flag_negation(arg.get_action()) {
+<a href=#160 id=160 data-nosnippet>160</a>            <span class="kw">let </span>set = <span class="self">self</span>.backend.confirm(<span class="kw-2">&amp;</span>ConfirmPrompt { default: <span class="bool-val">false</span>, question, styles })<span class="question-mark">?</span>;
+<a href=#161 id=161 data-nosnippet>161</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>((set != negate).to_string()));
+<a href=#162 id=162 data-nosnippet>162</a>        }
+<a href=#163 id=163 data-nosnippet>163</a>        <span class="kw">if </span>options.is_empty() {
+<a href=#164 id=164 data-nosnippet>164</a>            <span class="kw">return </span><span class="self">self</span>.backend.text(<span class="kw-2">&amp;</span>TextPrompt {
+<a href=#165 id=165 data-nosnippet>165</a>                default: current.map(String::as_str),
+<a href=#166 id=166 data-nosnippet>166</a>                hint: <span class="prelude-val">None</span>,
+<a href=#167 id=167 data-nosnippet>167</a>                initial: <span class="prelude-val">None</span>,
+<a href=#168 id=168 data-nosnippet>168</a>                optional,
+<a href=#169 id=169 data-nosnippet>169</a>                question,
+<a href=#170 id=170 data-nosnippet>170</a>                styles,
+<a href=#171 id=171 data-nosnippet>171</a>            });
+<a href=#172 id=172 data-nosnippet>172</a>        }
+<a href=#173 id=173 data-nosnippet>173</a>        <span class="self">self</span>.backend.select(<span class="kw-2">&amp;</span>SelectPrompt {
+<a href=#174 id=174 data-nosnippet>174</a>            default: current.map(String::as_str),
+<a href=#175 id=175 data-nosnippet>175</a>            none_option: <span class="kw-2">&amp;</span><span class="self">self</span>.messages.none.get(),
+<a href=#176 id=176 data-nosnippet>176</a>            optional,
+<a href=#177 id=177 data-nosnippet>177</a>            options,
+<a href=#178 id=178 data-nosnippet>178</a>            question,
+<a href=#179 id=179 data-nosnippet>179</a>            styles,
+<a href=#180 id=180 data-nosnippet>180</a>        })
+<a href=#181 id=181 data-nosnippet>181</a>    }
+<a href=#182 id=182 data-nosnippet>182</a>
+<a href=#183 id=183 data-nosnippet>183</a>    <span class="doccomment">/// Ask in the user's editor, starting from the rejected answer if there is one. An empty
+<a href=#184 id=184 data-nosnippet>184</a>    /// answer to a required arg aborts, as git aborts on an empty commit message, and so does one
+<a href=#185 id=185 data-nosnippet>185</a>    /// to an arg with a default, which an empty answer would quietly bring back.
+<a href=#186 id=186 data-nosnippet>186</a>    </span><span class="attr">#[cfg(feature = <span class="string">"interactive-editor"</span>)]
+<a href=#187 id=187 data-nosnippet>187</a>    </span><span class="kw">fn </span>ask_in_editor(
+<a href=#188 id=188 data-nosnippet>188</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#189 id=189 data-nosnippet>189</a>        asked: <span class="kw-2">&amp;</span>Asked&lt;<span class="lifetime">'_</span>&gt;,
+<a href=#190 id=190 data-nosnippet>190</a>        editor: <span class="kw-2">&amp;</span>EditorAttr,
+<a href=#191 id=191 data-nosnippet>191</a>        rejected: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Rejected&gt;,
+<a href=#192 id=192 data-nosnippet>192</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;String&gt;, PromptError&gt; {
+<a href=#193 id=193 data-nosnippet>193</a>        <span class="kw">let </span>Asked { arg, current, optional: <span class="kw">_</span>, prompted_arg, question } = <span class="kw-2">*</span>asked;
+<a href=#194 id=194 data-nosnippet>194</a>        <span class="kw">let </span>styles = CommandStyles(<span class="self">self</span>.cmd.get_styles());
+<a href=#195 id=195 data-nosnippet>195</a>        <span class="kw">let </span>optional = asked.optional &amp;&amp; arg.get_default_values().is_empty();
+<a href=#196 id=196 data-nosnippet>196</a>        <span class="kw">let </span>instructions = <span class="kw">if </span>optional {
+<a href=#197 id=197 data-nosnippet>197</a>            <span class="self">self</span>.messages.editor_instructions_optional.get()
+<a href=#198 id=198 data-nosnippet>198</a>        } <span class="kw">else </span>{
+<a href=#199 id=199 data-nosnippet>199</a>            <span class="self">self</span>.messages.editor_instructions.get()
+<a href=#200 id=200 data-nosnippet>200</a>        };
+<a href=#201 id=201 data-nosnippet>201</a>        <span class="kw">let </span>answer = <span class="self">self</span>.backend.editor(<span class="kw-2">&amp;</span>EditorPrompt {
+<a href=#202 id=202 data-nosnippet>202</a>            default: rejected.map_or(current, |rejected| <span class="prelude-val">Some</span>(rejected.value.as_str())),
+<a href=#203 id=203 data-nosnippet>203</a>            error: rejected.map(|rejected| rejected.error.as_str()),
+<a href=#204 id=204 data-nosnippet>204</a>            extension: editor.extension,
+<a href=#205 id=205 data-nosnippet>205</a>            file_stem: <span class="kw-2">&amp;</span>iter::once(<span class="self">self</span>.cmd.get_name())
+<a href=#206 id=206 data-nosnippet>206</a>                .chain(prompted_arg.subcommand_path.iter().copied())
+<a href=#207 id=207 data-nosnippet>207</a>                .chain(iter::once(prompted_arg.attr.arg_id))
+<a href=#208 id=208 data-nosnippet>208</a>                .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()
+<a href=#209 id=209 data-nosnippet>209</a>                .join(<span class="string">"-"</span>),
+<a href=#210 id=210 data-nosnippet>210</a>            instructions: <span class="kw-2">&amp;</span>instructions,
+<a href=#211 id=211 data-nosnippet>211</a>            not_utf8: <span class="kw-2">&amp;</span><span class="self">self</span>.messages.editor_not_utf8.get(),
+<a href=#212 id=212 data-nosnippet>212</a>            optional,
+<a href=#213 id=213 data-nosnippet>213</a>            question,
+<a href=#214 id=214 data-nosnippet>214</a>            returned_early: <span class="kw-2">&amp;</span><span class="self">self</span>.messages.editor_returned_early.get(),
+<a href=#215 id=215 data-nosnippet>215</a>            styles,
+<a href=#216 id=216 data-nosnippet>216</a>            waiting: <span class="kw-2">&amp;</span><span class="self">self</span>.messages.editor_waiting.get(),
+<a href=#217 id=217 data-nosnippet>217</a>        })<span class="question-mark">?</span>;
+<a href=#218 id=218 data-nosnippet>218</a>        <span class="kw">if </span>answer.is_none() &amp;&amp; !optional {
+<a href=#219 id=219 data-nosnippet>219</a>            <span class="self">self</span>.backend.report(<span class="kw-2">&amp;</span><span class="self">self</span>.messages.editor_empty.get(), styles)<span class="question-mark">?</span>;
+<a href=#220 id=220 data-nosnippet>220</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(PromptError::Cancelled);
+<a href=#221 id=221 data-nosnippet>221</a>        }
+<a href=#222 id=222 data-nosnippet>222</a>        <span class="prelude-val">Ok</span>(answer)
+<a href=#223 id=223 data-nosnippet>223</a>    }
+<a href=#224 id=224 data-nosnippet>224</a>
+<a href=#225 id=225 data-nosnippet>225</a>    <span class="doccomment">/// Ask whether to go ahead, with each `{id}` in the question filled in from the args as
+<a href=#226 id=226 data-nosnippet>226</a>    /// passed and answered so far.
+<a href=#227 id=227 data-nosnippet>227</a>    </span><span class="kw">fn </span>confirm(
+<a href=#228 id=228 data-nosnippet>228</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#229 id=229 data-nosnippet>229</a>        prompted_arg: <span class="kw-2">&amp;</span>PromptedArg,
+<a href=#230 id=230 data-nosnippet>230</a>        answers: <span class="kw-2">&amp;</span>[Answer&lt;<span class="lifetime">'_</span>&gt;],
+<a href=#231 id=231 data-nosnippet>231</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;bool, PromptError&gt; {
+<a href=#232 id=232 data-nosnippet>232</a>        <span class="kw">let </span>question = <span class="self">self</span>.question(prompted_arg);
+<a href=#233 id=233 data-nosnippet>233</a>        <span class="kw">let </span>answered = inject(
+<a href=#234 id=234 data-nosnippet>234</a>            relax(<span class="self">self</span>.cmd.clone(), <span class="self">self</span>.prompted_args),
+<a href=#235 id=235 data-nosnippet>235</a>            answers.iter().map(|answer| (answer.prompted_arg, answer.injected_values.as_slice())),
+<a href=#236 id=236 data-nosnippet>236</a>        )
+<a href=#237 id=237 data-nosnippet>237</a>        .try_get_matches_from(<span class="self">self</span>.argv);
+<a href=#238 id=238 data-nosnippet>238</a>        <span class="kw">let </span>question = <span class="kw">match </span>answered
+<a href=#239 id=239 data-nosnippet>239</a>            .as_ref()
+<a href=#240 id=240 data-nosnippet>240</a>            .ok()
+<a href=#241 id=241 data-nosnippet>241</a>            .and_then(|answered| matches_at(answered, <span class="kw-2">&amp;</span>prompted_arg.subcommand_path))
+<a href=#242 id=242 data-nosnippet>242</a>        {
+<a href=#243 id=243 data-nosnippet>243</a>            <span class="prelude-val">Some</span>(level) =&gt; interpolate(<span class="kw-2">&amp;</span>question, level),
+<a href=#244 id=244 data-nosnippet>244</a>            <span class="prelude-val">None </span>=&gt; question,
+<a href=#245 id=245 data-nosnippet>245</a>        };
+<a href=#246 id=246 data-nosnippet>246</a>        <span class="self">self</span>.backend.confirm(<span class="kw-2">&amp;</span>ConfirmPrompt {
+<a href=#247 id=247 data-nosnippet>247</a>            default: <span class="bool-val">false</span>,
+<a href=#248 id=248 data-nosnippet>248</a>            question: <span class="kw-2">&amp;</span>question,
+<a href=#249 id=249 data-nosnippet>249</a>            styles: CommandStyles(<span class="self">self</span>.cmd.get_styles()),
+<a href=#250 id=250 data-nosnippet>250</a>        })
+<a href=#251 id=251 data-nosnippet>251</a>    }
+<a href=#252 id=252 data-nosnippet>252</a>
+<a href=#253 id=253 data-nosnippet>253</a>    <span class="doccomment">/// Ask for one value at a time until an empty answer, each starting out as the default's
+<a href=#254 id=254 data-nosnippet>254</a>    /// value at its position. Only a required arg's first value may not be empty.
+<a href=#255 id=255 data-nosnippet>255</a>    ///
+<a href=#256 id=256 data-nosnippet>256</a>    /// The default goes in as initial text rather than as the answer Enter accepts, so clearing it
+<a href=#257 id=257 data-nosnippet>257</a>    /// still finishes the list.
+<a href=#258 id=258 data-nosnippet>258</a>    </span><span class="kw">fn </span>each_value(
+<a href=#259 id=259 data-nosnippet>259</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#260 id=260 data-nosnippet>260</a>        question: <span class="kw-2">&amp;</span>str,
+<a href=#261 id=261 data-nosnippet>261</a>        prompted_arg: <span class="kw-2">&amp;</span>PromptedArg,
+<a href=#262 id=262 data-nosnippet>262</a>        current: <span class="kw-2">&amp;</span>[String],
+<a href=#263 id=263 data-nosnippet>263</a>        answers: <span class="kw-2">&amp;</span>[Answer&lt;<span class="lifetime">'_</span>&gt;],
+<a href=#264 id=264 data-nosnippet>264</a>        optional: bool,
+<a href=#265 id=265 data-nosnippet>265</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;String&gt;, PromptError&gt; {
+<a href=#266 id=266 data-nosnippet>266</a>        <span class="kw">let </span>finish_hint = <span class="self">self</span>.messages.finish_hint.get();
+<a href=#267 id=267 data-nosnippet>267</a>        <span class="kw">let </span><span class="kw-2">mut </span>values = Vec::new();
+<a href=#268 id=268 data-nosnippet>268</a>        <span class="kw">loop </span>{
+<a href=#269 id=269 data-nosnippet>269</a>            <span class="kw">let </span>optional = !values.is_empty() || optional;
+<a href=#270 id=270 data-nosnippet>270</a>            <span class="kw">let </span><span class="prelude-val">Some</span>(value) = <span class="self">self</span>.backend.text(<span class="kw-2">&amp;</span>TextPrompt {
+<a href=#271 id=271 data-nosnippet>271</a>                default: <span class="prelude-val">None</span>,
+<a href=#272 id=272 data-nosnippet>272</a>                hint: optional.then_some(<span class="kw-2">&amp;*</span>finish_hint),
+<a href=#273 id=273 data-nosnippet>273</a>                initial: current.get(values.len()).map(String::as_str),
+<a href=#274 id=274 data-nosnippet>274</a>                optional,
+<a href=#275 id=275 data-nosnippet>275</a>                question,
+<a href=#276 id=276 data-nosnippet>276</a>                styles: CommandStyles(<span class="self">self</span>.cmd.get_styles()),
+<a href=#277 id=277 data-nosnippet>277</a>            })<span class="question-mark">?
+<a href=#278 id=278 data-nosnippet>278</a>            </span><span class="kw">else </span>{
+<a href=#279 id=279 data-nosnippet>279</a>                <span class="kw">return </span><span class="prelude-val">Ok</span>(values);
 <a href=#280 id=280 data-nosnippet>280</a>            };
-<a href=#281 id=281 data-nosnippet>281</a>            <span class="kw">let </span>values = <span class="macro">vec!</span>[value];
-<a href=#282 id=282 data-nosnippet>282</a>            <span class="kw">match </span><span class="self">self</span>.trial(answers, asked.prompted_arg, <span class="kw-2">&amp;</span>values) {
-<a href=#283 id=283 data-nosnippet>283</a>                <span class="prelude-val">Ok</span>(()) =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(values)),
-<a href=#284 id=284 data-nosnippet>284</a>                <span class="prelude-val">Err</span>(err) =&gt; {
-<a href=#285 id=285 data-nosnippet>285</a>                    <span class="kw">let </span>error = summary(<span class="kw-2">&amp;</span>err, <span class="kw-2">&amp;</span>values);
-<a href=#286 id=286 data-nosnippet>286</a>                    <span class="self">self</span>.backend.report(<span class="kw-2">&amp;</span>error, CommandStyles(<span class="self">self</span>.cmd.get_styles()))<span class="question-mark">?</span>;
-<a href=#287 id=287 data-nosnippet>287</a>                    rejected = values.into_iter().next().map(|value| Rejected { error, value });
-<a href=#288 id=288 data-nosnippet>288</a>                }
-<a href=#289 id=289 data-nosnippet>289</a>            }
-<a href=#290 id=290 data-nosnippet>290</a>        }
-<a href=#291 id=291 data-nosnippet>291</a>    }
-<a href=#292 id=292 data-nosnippet>292</a>
-<a href=#293 id=293 data-nosnippet>293</a>    <span class="doccomment">/// The `= ...` override, else the arg's help text, else its id.
-<a href=#294 id=294 data-nosnippet>294</a>    </span><span class="kw">fn </span>question(<span class="kw-2">&amp;</span><span class="self">self</span>, prompted_arg: <span class="kw-2">&amp;</span>PromptedArg) -&gt; String {
-<a href=#295 id=295 data-nosnippet>295</a>        prompted_arg.attr.question.as_ref().map_or_else(
-<a href=#296 id=296 data-nosnippet>296</a>            || {
-<a href=#297 id=297 data-nosnippet>297</a>                arg_at(<span class="self">self</span>.cmd, <span class="kw-2">&amp;</span>prompted_arg.subcommand_path, prompted_arg.attr.arg_id)
-<a href=#298 id=298 data-nosnippet>298</a>                    .and_then(Arg::get_help)
-<a href=#299 id=299 data-nosnippet>299</a>                    .map_or_else(|| prompted_arg.attr.arg_id.to_owned(), ToString::to_string)
-<a href=#300 id=300 data-nosnippet>300</a>            },
-<a href=#301 id=301 data-nosnippet>301</a>            |question| question.get().into_owned(),
-<a href=#302 id=302 data-nosnippet>302</a>        )
-<a href=#303 id=303 data-nosnippet>303</a>    }
-<a href=#304 id=304 data-nosnippet>304</a>
-<a href=#305 id=305 data-nosnippet>305</a>    <span class="doccomment">/// Check whether leaving the arg being asked unset fails the parse: it is `required`, or
-<a href=#306 id=306 data-nosnippet>306</a>    /// required through `required_unless_present` or a required group. The accepted answers go
-<a href=#307 id=307 data-nosnippet>307</a>    /// in, and only the args still to be asked, `later`, stay relaxed, so a group another of them
-<a href=#308 id=308 data-nosnippet>308</a>    /// can still satisfy doesn't make this one required.
-<a href=#309 id=309 data-nosnippet>309</a>    </span><span class="kw">fn </span>required(<span class="kw-2">&amp;</span><span class="self">self</span>, answers: <span class="kw-2">&amp;</span>[Answer&lt;<span class="lifetime">'_</span>&gt;], later: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>PromptedArg]) -&gt; bool {
-<a href=#310 id=310 data-nosnippet>310</a>        <span class="kw">let </span>accepted = answers.iter().map(|answer| (answer.prompted_arg, answer.values.as_slice()));
-<a href=#311 id=311 data-nosnippet>311</a>        <span class="kw">let </span>cmd = inject(relax(<span class="self">self</span>.cmd.clone(), later.iter().copied()), accepted);
-<a href=#312 id=312 data-nosnippet>312</a>        cmd.try_get_matches_from(<span class="self">self</span>.argv)
-<a href=#313 id=313 data-nosnippet>313</a>            .is_err_and(|err| err.kind() == ErrorKind::MissingRequiredArgument)
-<a href=#314 id=314 data-nosnippet>314</a>    }
-<a href=#315 id=315 data-nosnippet>315</a>
-<a href=#316 id=316 data-nosnippet>316</a>    <span class="doccomment">/// Parse with `candidate` as `prompted_arg`'s answer on top of the accepted ones.
-<a href=#317 id=317 data-nosnippet>317</a>    </span><span class="kw">fn </span>trial(
-<a href=#318 id=318 data-nosnippet>318</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
-<a href=#319 id=319 data-nosnippet>319</a>        answers: <span class="kw-2">&amp;</span>[Answer&lt;<span class="lifetime">'_</span>&gt;],
-<a href=#320 id=320 data-nosnippet>320</a>        prompted_arg: <span class="kw-2">&amp;</span>PromptedArg,
-<a href=#321 id=321 data-nosnippet>321</a>        candidate: <span class="kw-2">&amp;</span>[String],
-<a href=#322 id=322 data-nosnippet>322</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), clap::Error&gt; {
-<a href=#323 id=323 data-nosnippet>323</a>        <span class="kw">let </span>accepted = answers.iter().map(|answer| (answer.prompted_arg, answer.values.as_slice()));
-<a href=#324 id=324 data-nosnippet>324</a>        <span class="kw">let </span>cmd = inject(
-<a href=#325 id=325 data-nosnippet>325</a>            relax(<span class="self">self</span>.cmd.clone(), <span class="self">self</span>.prompted_args.iter()),
-<a href=#326 id=326 data-nosnippet>326</a>            accepted.chain(iter::once((prompted_arg, candidate))),
-<a href=#327 id=327 data-nosnippet>327</a>        );
-<a href=#328 id=328 data-nosnippet>328</a>        cmd.try_get_matches_from(<span class="self">self</span>.argv).map(drop)
-<a href=#329 id=329 data-nosnippet>329</a>    }
-<a href=#330 id=330 data-nosnippet>330</a>
-<a href=#331 id=331 data-nosnippet>331</a>    <span class="doccomment">/// Call `ask` until clap accepts its answer, showing clap's complaint before each retry.
-<a href=#332 id=332 data-nosnippet>332</a>    </span><span class="kw">fn </span>until_accepted(
-<a href=#333 id=333 data-nosnippet>333</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
-<a href=#334 id=334 data-nosnippet>334</a>        answers: <span class="kw-2">&amp;</span>[Answer&lt;<span class="lifetime">'_</span>&gt;],
-<a href=#335 id=335 data-nosnippet>335</a>        prompted_arg: <span class="kw-2">&amp;</span>PromptedArg,
-<a href=#336 id=336 data-nosnippet>336</a>        <span class="kw-2">mut </span>ask: <span class="kw">impl </span>FnMut() -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;Vec&lt;String&gt;&gt;, PromptError&gt;,
-<a href=#337 id=337 data-nosnippet>337</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;Vec&lt;String&gt;&gt;, PromptError&gt; {
-<a href=#338 id=338 data-nosnippet>338</a>        <span class="kw">loop </span>{
-<a href=#339 id=339 data-nosnippet>339</a>            <span class="kw">let </span><span class="prelude-val">Some</span>(values) = ask()<span class="question-mark">? </span><span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) };
-<a href=#340 id=340 data-nosnippet>340</a>            <span class="kw">match </span><span class="self">self</span>.trial(answers, prompted_arg, <span class="kw-2">&amp;</span>values) {
-<a href=#341 id=341 data-nosnippet>341</a>                <span class="prelude-val">Ok</span>(()) =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(values)),
-<a href=#342 id=342 data-nosnippet>342</a>                <span class="prelude-val">Err</span>(err) =&gt; {
-<a href=#343 id=343 data-nosnippet>343</a>                    <span class="kw">let </span>error = summary(<span class="kw-2">&amp;</span>err, <span class="kw-2">&amp;</span>values);
-<a href=#344 id=344 data-nosnippet>344</a>                    <span class="self">self</span>.backend.report(<span class="kw-2">&amp;</span>error, CommandStyles(<span class="self">self</span>.cmd.get_styles()))<span class="question-mark">?</span>;
-<a href=#345 id=345 data-nosnippet>345</a>                }
-<a href=#346 id=346 data-nosnippet>346</a>            }
-<a href=#347 id=347 data-nosnippet>347</a>        }
-<a href=#348 id=348 data-nosnippet>348</a>    }
-<a href=#349 id=349 data-nosnippet>349</a>}
-<a href=#350 id=350 data-nosnippet>350</a>
-<a href=#351 id=351 data-nosnippet>351</a><span class="doccomment">/// Parse `argv` against `cmd`, asking `backend` for the prompted args in `prompted_arg_tree` that
-<a href=#352 id=352 data-nosnippet>352</a>/// got no value.
-<a href=#353 id=353 data-nosnippet>353</a></span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>parse&lt;T&gt;(
-<a href=#354 id=354 data-nosnippet>354</a>    cmd: Command,
-<a href=#355 id=355 data-nosnippet>355</a>    prompted_arg_tree: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>PromptedArgTree,
-<a href=#356 id=356 data-nosnippet>356</a>    messages: <span class="kw-2">&amp;</span>Messages,
-<a href=#357 id=357 data-nosnippet>357</a>    argv: <span class="kw-2">&amp;</span>[OsString],
-<a href=#358 id=358 data-nosnippet>358</a>    backend: <span class="kw-2">&amp;</span><span class="kw">dyn </span>Backend,
-<a href=#359 id=359 data-nosnippet>359</a>) -&gt; <span class="prelude-ty">Result</span>&lt;T, Failure&gt;
-<a href=#360 id=360 data-nosnippet>360</a><span class="kw">where
-<a href=#361 id=361 data-nosnippet>361</a>    </span>T: FromArgMatches,
-<a href=#362 id=362 data-nosnippet>362</a>{
-<a href=#363 id=363 data-nosnippet>363</a>    <span class="kw">let </span>prompted_args = prompted_arg_tree.prompted_args();
-<a href=#364 id=364 data-nosnippet>364</a>    <span class="kw">if </span>prompted_args.is_empty() || !backend.is_available() {
-<a href=#365 id=365 data-nosnippet>365</a>        <span class="kw">return </span>parse_unprompted(cmd, <span class="kw-2">&amp;</span>prompted_args, argv);
-<a href=#366 id=366 data-nosnippet>366</a>    }
-<a href=#367 id=367 data-nosnippet>367</a>    <span class="comment">// Help, usage and errors come from the command the user sees, not the relaxed one.
-<a href=#368 id=368 data-nosnippet>368</a>    </span><span class="kw">let </span><span class="prelude-val">Ok</span>(matches) = relax(cmd.clone(), prompted_args.iter()).try_get_matches_from(argv) <span class="kw">else </span>{
-<a href=#369 id=369 data-nosnippet>369</a>        <span class="kw">return </span><span class="kw">super</span>::parse(cmd, argv);
-<a href=#370 id=370 data-nosnippet>370</a>    };
-<a href=#371 id=371 data-nosnippet>371</a>
-<a href=#372 id=372 data-nosnippet>372</a>    <span class="kw">let </span>session = Session { argv, backend, cmd: <span class="kw-2">&amp;</span>cmd, messages, prompted_args: <span class="kw-2">&amp;</span>prompted_args };
-<a href=#373 id=373 data-nosnippet>373</a>    <span class="kw">let </span><span class="kw-2">mut </span>answers = Vec::new();
-<a href=#374 id=374 data-nosnippet>374</a>    <span class="kw">let </span><span class="kw-2">mut </span>unanswered = pending(<span class="kw-2">&amp;</span>cmd, <span class="kw-2">&amp;</span>matches, <span class="kw-2">&amp;</span>prompted_args);
-<a href=#375 id=375 data-nosnippet>375</a>    <span class="comment">// Stable, so values and confirmations each keep declaration order.
-<a href=#376 id=376 data-nosnippet>376</a>    </span>unanswered
-<a href=#377 id=377 data-nosnippet>377</a>        .sort_by_key(|(prompted_arg, <span class="kw">_</span>)| prompted_arg.attr.purpose == PromptPurpose::Confirmation);
-<a href=#378 id=378 data-nosnippet>378</a>    <span class="kw">for </span>(index, (prompted_arg, current)) <span class="kw">in </span>unanswered.iter().enumerate() {
-<a href=#379 id=379 data-nosnippet>379</a>        <span class="kw">if </span>blocked(<span class="kw-2">&amp;</span>cmd, <span class="kw-2">&amp;</span>matches, prompted_arg, <span class="kw-2">&amp;</span>answers) {
-<a href=#380 id=380 data-nosnippet>380</a>            <span class="kw">continue</span>;
-<a href=#381 id=381 data-nosnippet>381</a>        }
-<a href=#382 id=382 data-nosnippet>382</a>        <span class="kw">let </span>later: Vec&lt;<span class="kw-2">&amp;</span>PromptedArg&gt; =
-<a href=#383 id=383 data-nosnippet>383</a>            unanswered.iter().skip(index.saturating_add(<span class="number">1</span>)).map(|(later, <span class="kw">_</span>)| <span class="kw-2">*</span>later).collect();
-<a href=#384 id=384 data-nosnippet>384</a>        <span class="kw">let </span>answer = <span class="kw">match </span>prompted_arg.attr.purpose {
-<a href=#385 id=385 data-nosnippet>385</a>            PromptPurpose::Confirmation =&gt; <span class="kw">match </span>session.confirm(prompted_arg, <span class="kw-2">&amp;</span>answers) {
-<a href=#386 id=386 data-nosnippet>386</a>                <span class="prelude-val">Ok</span>(<span class="bool-val">false</span>) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(Failure::Declined),
-<a href=#387 id=387 data-nosnippet>387</a>                confirmed =&gt; confirmed.map(|<span class="kw">_</span>| <span class="prelude-val">Some</span>(Vec::from([<span class="string">"true"</span>.to_owned()]))),
-<a href=#388 id=388 data-nosnippet>388</a>            },
-<a href=#389 id=389 data-nosnippet>389</a>            PromptPurpose::Value =&gt; session.answer(prompted_arg, current, <span class="kw-2">&amp;</span>answers, <span class="kw-2">&amp;</span>later),
-<a href=#390 id=390 data-nosnippet>390</a>        };
-<a href=#391 id=391 data-nosnippet>391</a>        <span class="kw">match </span>answer {
-<a href=#392 id=392 data-nosnippet>392</a>            <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(values)) =&gt; answers.push(Answer { prompted_arg, values }),
-<a href=#393 id=393 data-nosnippet>393</a>            <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) =&gt; {}
-<a href=#394 id=394 data-nosnippet>394</a>            <span class="comment">// Backing out counts as Ctrl-C.
-<a href=#395 id=395 data-nosnippet>395</a>            </span><span class="prelude-val">Err</span>(PromptError::Cancelled) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(Failure::Cancelled(Signal::Interrupt)),
-<a href=#396 id=396 data-nosnippet>396</a>            <span class="prelude-val">Err</span>(PromptError::Signalled(signal)) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(Failure::Cancelled(signal)),
-<a href=#397 id=397 data-nosnippet>397</a>            <span class="prelude-val">Err</span>(PromptError::Io(err)) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(Failure::Io(err)),
-<a href=#398 id=398 data-nosnippet>398</a>            <span class="prelude-val">Err</span>(PromptError::NotATerminal) =&gt; <span class="kw">return </span>parse_unprompted(cmd, <span class="kw-2">&amp;</span>prompted_args, argv),
-<a href=#399 id=399 data-nosnippet>399</a>        }
-<a href=#400 id=400 data-nosnippet>400</a>    }
-<a href=#401 id=401 data-nosnippet>401</a>    <span class="kw">let </span>cmd_with_answers =
-<a href=#402 id=402 data-nosnippet>402</a>        inject(cmd, answers.iter().map(|answer| (answer.prompted_arg, answer.values.as_slice())));
-<a href=#403 id=403 data-nosnippet>403</a>    <span class="kw">super</span>::parse(cmd_with_answers, argv)
-<a href=#404 id=404 data-nosnippet>404</a>}
-<a href=#405 id=405 data-nosnippet>405</a>
-<a href=#406 id=406 data-nosnippet>406</a><span class="doccomment">/// Parse as clap would, without asking. A confirmation left unanswered fails the parse with
-<a href=#407 id=407 data-nosnippet>407</a>/// clap's error for a missing required arg, so only passing its flag gets past it.
-<a href=#408 id=408 data-nosnippet>408</a></span><span class="kw">fn </span>parse_unprompted&lt;T&gt;(
-<a href=#409 id=409 data-nosnippet>409</a>    <span class="kw-2">mut </span>cmd: Command,
-<a href=#410 id=410 data-nosnippet>410</a>    prompted_args: <span class="kw-2">&amp;</span>[PromptedArg],
-<a href=#411 id=411 data-nosnippet>411</a>    argv: <span class="kw-2">&amp;</span>[OsString],
-<a href=#412 id=412 data-nosnippet>412</a>) -&gt; <span class="prelude-ty">Result</span>&lt;T, Failure&gt;
-<a href=#413 id=413 data-nosnippet>413</a><span class="kw">where
-<a href=#414 id=414 data-nosnippet>414</a>    </span>T: FromArgMatches,
-<a href=#415 id=415 data-nosnippet>415</a>{
-<a href=#416 id=416 data-nosnippet>416</a>    <span class="kw">let </span>confirmations: Vec&lt;<span class="kw">_</span>&gt; = prompted_args
-<a href=#417 id=417 data-nosnippet>417</a>        .iter()
-<a href=#418 id=418 data-nosnippet>418</a>        .filter(|prompted_arg| prompted_arg.attr.purpose == PromptPurpose::Confirmation)
-<a href=#419 id=419 data-nosnippet>419</a>        .collect();
-<a href=#420 id=420 data-nosnippet>420</a>    <span class="kw">if </span>confirmations.is_empty() {
-<a href=#421 id=421 data-nosnippet>421</a>        <span class="kw">return </span><span class="kw">super</span>::parse(cmd, argv);
-<a href=#422 id=422 data-nosnippet>422</a>    }
-<a href=#423 id=423 data-nosnippet>423</a>    <span class="comment">// Kept unbuilt: requiring an arg on the built command makes clap show help instead.
-<a href=#424 id=424 data-nosnippet>424</a>    </span><span class="kw">let </span>declared = cmd.clone();
-<a href=#425 id=425 data-nosnippet>425</a>    <span class="kw">let </span><span class="kw-2">mut </span>matches = cmd.try_get_matches_from_mut(argv).map_err(Failure::Clap)<span class="question-mark">?</span>;
-<a href=#426 id=426 data-nosnippet>426</a>    <span class="kw">let </span>unconfirmed = confirmations.iter().any(|confirmation| {
-<a href=#427 id=427 data-nosnippet>427</a>        <span class="kw">let </span>id = confirmation.attr.arg_id;
-<a href=#428 id=428 data-nosnippet>428</a>        <span class="kw">let </span>passed = matches_at(<span class="kw-2">&amp;</span>matches, <span class="kw-2">&amp;</span>confirmation.subcommand_path)
-<a href=#429 id=429 data-nosnippet>429</a>            .is_none_or(|level| explicit(level, <span class="kw-2">&amp;</span>Id::from(id)));
-<a href=#430 id=430 data-nosnippet>430</a>        !passed &amp;&amp; !blocked(<span class="kw-2">&amp;</span>cmd, <span class="kw-2">&amp;</span>matches, confirmation, <span class="kw-2">&amp;</span>[])
-<a href=#431 id=431 data-nosnippet>431</a>    });
-<a href=#432 id=432 data-nosnippet>432</a>    <span class="kw">if </span>unconfirmed {
-<a href=#433 id=433 data-nosnippet>433</a>        <span class="comment">// Parsed again only to fail: clap words the error, and the help stays as declared.
-<a href=#434 id=434 data-nosnippet>434</a>        </span><span class="kw">let </span>required = confirmations.iter().fold(declared, |cmd, confirmation| {
-<a href=#435 id=435 data-nosnippet>435</a>            with_arg_at(cmd, <span class="kw-2">&amp;</span>confirmation.subcommand_path, confirmation.attr.arg_id, |arg| {
-<a href=#436 id=436 data-nosnippet>436</a>                arg.required(<span class="bool-val">true</span>)
-<a href=#437 id=437 data-nosnippet>437</a>            })
-<a href=#438 id=438 data-nosnippet>438</a>        });
-<a href=#439 id=439 data-nosnippet>439</a>        <span class="kw">return </span><span class="kw">super</span>::parse(required, argv);
-<a href=#440 id=440 data-nosnippet>440</a>    }
-<a href=#441 id=441 data-nosnippet>441</a>    T::from_arg_matches_mut(<span class="kw-2">&amp;mut </span>matches).map_err(|err| Failure::Clap(err.format(<span class="kw-2">&amp;mut </span>cmd)))
-<a href=#442 id=442 data-nosnippet>442</a>}
-<a href=#443 id=443 data-nosnippet>443</a>
-<a href=#444 id=444 data-nosnippet>444</a><span class="kw">fn </span>arg_at&lt;<span class="lifetime">'cmd</span>&gt;(cmd: <span class="kw-2">&amp;</span><span class="lifetime">'cmd </span>Command, path: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str], id: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'cmd </span>Arg&gt; {
-<a href=#445 id=445 data-nosnippet>445</a>    command_at(cmd, path)<span class="question-mark">?</span>.get_arguments().find(|arg| arg.get_id() == id)
-<a href=#446 id=446 data-nosnippet>446</a>}
-<a href=#447 id=447 data-nosnippet>447</a>
-<a href=#448 id=448 data-nosnippet>448</a><span class="doccomment">/// Check whether `prompted_arg` conflicts with an arg the user passed or an earlier answer.
-<a href=#449 id=449 data-nosnippet>449</a>///
-<a href=#450 id=450 data-nosnippet>450</a>/// Answers go in as default values, which clap never checks for conflicts, so asking here
-<a href=#451 id=451 data-nosnippet>451</a>/// would let the parse land in a state clap rejects when typed.
-<a href=#452 id=452 data-nosnippet>452</a></span><span class="kw">fn </span>blocked(
-<a href=#453 id=453 data-nosnippet>453</a>    cmd: <span class="kw-2">&amp;</span>Command,
-<a href=#454 id=454 data-nosnippet>454</a>    matches: <span class="kw-2">&amp;</span>ArgMatches,
-<a href=#455 id=455 data-nosnippet>455</a>    prompted_arg: <span class="kw-2">&amp;</span>PromptedArg,
-<a href=#456 id=456 data-nosnippet>456</a>    answers: <span class="kw-2">&amp;</span>[Answer&lt;<span class="lifetime">'_</span>&gt;],
-<a href=#457 id=457 data-nosnippet>457</a>) -&gt; bool {
-<a href=#458 id=458 data-nosnippet>458</a>    <span class="kw">let </span>(<span class="prelude-val">Some</span>(level), <span class="prelude-val">Some</span>(level_matches)) = (
-<a href=#459 id=459 data-nosnippet>459</a>        command_at(cmd, <span class="kw-2">&amp;</span>prompted_arg.subcommand_path),
-<a href=#460 id=460 data-nosnippet>460</a>        matches_at(matches, <span class="kw-2">&amp;</span>prompted_arg.subcommand_path),
-<a href=#461 id=461 data-nosnippet>461</a>    ) <span class="kw">else </span>{
-<a href=#462 id=462 data-nosnippet>462</a>        <span class="kw">return </span><span class="bool-val">false</span>;
-<a href=#463 id=463 data-nosnippet>463</a>    };
-<a href=#464 id=464 data-nosnippet>464</a>    <span class="kw">let </span><span class="prelude-val">Some</span>(arg) = level.get_arguments().find(|arg| arg.get_id() == prompted_arg.attr.arg_id)
-<a href=#465 id=465 data-nosnippet>465</a>    <span class="kw">else </span>{
-<a href=#466 id=466 data-nosnippet>466</a>        <span class="kw">return </span><span class="bool-val">false</span>;
-<a href=#467 id=467 data-nosnippet>467</a>    };
-<a href=#468 id=468 data-nosnippet>468</a>    <span class="kw">let </span>answered = |id: <span class="kw-2">&amp;</span>Id| {
-<a href=#469 id=469 data-nosnippet>469</a>        answers.iter().any(|answer| {
-<a href=#470 id=470 data-nosnippet>470</a>            answer.prompted_arg.subcommand_path == prompted_arg.subcommand_path
-<a href=#471 id=471 data-nosnippet>471</a>                &amp;&amp; answer.prompted_arg.attr.arg_id == id
-<a href=#472 id=472 data-nosnippet>472</a>        })
-<a href=#473 id=473 data-nosnippet>473</a>    };
-<a href=#474 id=474 data-nosnippet>474</a>    <span class="kw">let </span>conflicts = level.get_arg_conflicts_with(arg);
-<a href=#475 id=475 data-nosnippet>475</a>    level
-<a href=#476 id=476 data-nosnippet>476</a>        .get_arguments()
-<a href=#477 id=477 data-nosnippet>477</a>        .filter(|other| other.get_id() != arg.get_id())
-<a href=#478 id=478 data-nosnippet>478</a>        .filter(|other| answered(other.get_id()) || explicit(level_matches, other.get_id()))
-<a href=#479 id=479 data-nosnippet>479</a>        .any(|other| {
-<a href=#480 id=480 data-nosnippet>480</a>            other.is_exclusive_set()
-<a href=#481 id=481 data-nosnippet>481</a>                || conflicts.iter().any(|conflict| conflict.get_id() == other.get_id())
-<a href=#482 id=482 data-nosnippet>482</a>                || level.get_arg_conflicts_with(other).iter().any(|c| c.get_id() == arg.get_id())
-<a href=#483 id=483 data-nosnippet>483</a>                || group_mates(level, arg).any(|mate| mate == other.get_id())
-<a href=#484 id=484 data-nosnippet>484</a>        })
-<a href=#485 id=485 data-nosnippet>485</a>}
-<a href=#486 id=486 data-nosnippet>486</a>
-<a href=#487 id=487 data-nosnippet>487</a><span class="doccomment">/// `arg`'s declared default values, split at its value delimiter.
-<a href=#488 id=488 data-nosnippet>488</a>/// Without a delimiter, each default is one value. Defaults are set from strings, so any that
-<a href=#489 id=489 data-nosnippet>489</a>/// is not UTF-8 is skipped.
-<a href=#490 id=490 data-nosnippet>490</a></span><span class="kw">fn </span>default_values(arg: <span class="kw-2">&amp;</span>Arg) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span>str&gt; {
-<a href=#491 id=491 data-nosnippet>491</a>    <span class="kw">let </span>delimiter = arg.get_value_delimiter();
-<a href=#492 id=492 data-nosnippet>492</a>    arg.get_default_values()
-<a href=#493 id=493 data-nosnippet>493</a>        .iter()
-<a href=#494 id=494 data-nosnippet>494</a>        .filter_map(|value| value.to_str())
-<a href=#495 id=495 data-nosnippet>495</a>        .flat_map(<span class="kw">move </span>|value| value.split(<span class="kw">move </span>|char| <span class="prelude-val">Some</span>(char) == delimiter))
-<a href=#496 id=496 data-nosnippet>496</a>}
-<a href=#497 id=497 data-nosnippet>497</a>
-<a href=#498 id=498 data-nosnippet>498</a><span class="doccomment">/// The command at `path` passed through `edit`; unchanged when the path is missing.
-<a href=#499 id=499 data-nosnippet>499</a></span><span class="kw">fn </span>with_command_at&lt;F&gt;(cmd: Command, path: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str], edit: F) -&gt; Command
-<a href=#500 id=500 data-nosnippet>500</a><span class="kw">where
-<a href=#501 id=501 data-nosnippet>501</a>    </span>F: FnOnce(Command) -&gt; Command,
-<a href=#502 id=502 data-nosnippet>502</a>{
-<a href=#503 id=503 data-nosnippet>503</a>    <span class="kw">match </span>path.split_first() {
-<a href=#504 id=504 data-nosnippet>504</a>        <span class="prelude-val">None </span>=&gt; edit(cmd),
-<a href=#505 id=505 data-nosnippet>505</a>        <span class="prelude-val">Some</span>((name, rest)) <span class="kw">if </span>cmd.find_subcommand(name).is_some() =&gt; {
-<a href=#506 id=506 data-nosnippet>506</a>            cmd.mut_subcommand(name, |sub| with_command_at(sub, rest, edit))
-<a href=#507 id=507 data-nosnippet>507</a>        }
-<a href=#508 id=508 data-nosnippet>508</a>        <span class="prelude-val">Some</span>(<span class="kw">_</span>) =&gt; cmd,
-<a href=#509 id=509 data-nosnippet>509</a>    }
-<a href=#510 id=510 data-nosnippet>510</a>}
-<a href=#511 id=511 data-nosnippet>511</a>
-<a href=#512 id=512 data-nosnippet>512</a><span class="kw">fn </span>command_at&lt;<span class="lifetime">'cmd</span>&gt;(cmd: <span class="kw-2">&amp;</span><span class="lifetime">'cmd </span>Command, path: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str]) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'cmd </span>Command&gt; {
-<a href=#513 id=513 data-nosnippet>513</a>    path.iter().try_fold(cmd, |level, name| level.find_subcommand(name))
-<a href=#514 id=514 data-nosnippet>514</a>}
-<a href=#515 id=515 data-nosnippet>515</a>
-<a href=#516 id=516 data-nosnippet>516</a><span class="doccomment">/// Check whether the user passed `id`, on the command line or through its env var.
-<a href=#517 id=517 data-nosnippet>517</a></span><span class="kw">fn </span>explicit(matches: <span class="kw-2">&amp;</span>ArgMatches, id: <span class="kw-2">&amp;</span>Id) -&gt; bool {
-<a href=#518 id=518 data-nosnippet>518</a>    <span class="macro">matches!</span>(
-<a href=#519 id=519 data-nosnippet>519</a>        matches.value_source(id.as_str()),
-<a href=#520 id=520 data-nosnippet>520</a>        <span class="prelude-val">Some</span>(ValueSource::CommandLine | ValueSource::EnvVariable)
-<a href=#521 id=521 data-nosnippet>521</a>    )
-<a href=#522 id=522 data-nosnippet>522</a>}
-<a href=#523 id=523 data-nosnippet>523</a>
-<a href=#524 id=524 data-nosnippet>524</a><span class="doccomment">/// The args sharing an exclusive `ArgGroup` with `arg`.
-<a href=#525 id=525 data-nosnippet>525</a></span><span class="kw">fn </span>group_mates&lt;<span class="lifetime">'cmd</span>&gt;(level: <span class="kw-2">&amp;</span><span class="lifetime">'cmd </span>Command, arg: <span class="kw-2">&amp;</span>Arg) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'cmd </span>Id&gt; {
-<a href=#526 id=526 data-nosnippet>526</a>    level
-<a href=#527 id=527 data-nosnippet>527</a>        .get_groups()
-<a href=#528 id=528 data-nosnippet>528</a>        .filter(|group| {
-<a href=#529 id=529 data-nosnippet>529</a>            !ArgGroup::clone(group).is_multiple() &amp;&amp; group.get_args().any(|id| id == arg.get_id())
-<a href=#530 id=530 data-nosnippet>530</a>        })
-<a href=#531 id=531 data-nosnippet>531</a>        .flat_map(ArgGroup::get_args)
+<a href=#281 id=281 data-nosnippet>281</a>            values.push(value);
+<a href=#282 id=282 data-nosnippet>282</a>            <span class="kw">if let </span><span class="prelude-val">Err</span>(err) = <span class="self">self</span>.trial(answers, prompted_arg, <span class="kw-2">&amp;</span>values) {
+<a href=#283 id=283 data-nosnippet>283</a>                <span class="self">self</span>.backend
+<a href=#284 id=284 data-nosnippet>284</a>                    .report(<span class="kw-2">&amp;</span>summary(<span class="kw-2">&amp;</span>err, <span class="kw-2">&amp;</span>values), CommandStyles(<span class="self">self</span>.cmd.get_styles()))<span class="question-mark">?</span>;
+<a href=#285 id=285 data-nosnippet>285</a>                values.pop();
+<a href=#286 id=286 data-nosnippet>286</a>            }
+<a href=#287 id=287 data-nosnippet>287</a>        }
+<a href=#288 id=288 data-nosnippet>288</a>    }
+<a href=#289 id=289 data-nosnippet>289</a>
+<a href=#290 id=290 data-nosnippet>290</a>    <span class="doccomment">/// Ask in the editor until clap accepts the answer, reopening with the rejected one.
+<a href=#291 id=291 data-nosnippet>291</a>    </span><span class="attr">#[cfg(feature = <span class="string">"interactive-editor"</span>)]
+<a href=#292 id=292 data-nosnippet>292</a>    </span><span class="kw">fn </span>in_editor(
+<a href=#293 id=293 data-nosnippet>293</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#294 id=294 data-nosnippet>294</a>        asked: <span class="kw-2">&amp;</span>Asked&lt;<span class="lifetime">'_</span>&gt;,
+<a href=#295 id=295 data-nosnippet>295</a>        editor: <span class="kw-2">&amp;</span>EditorAttr,
+<a href=#296 id=296 data-nosnippet>296</a>        answers: <span class="kw-2">&amp;</span>[Answer&lt;<span class="lifetime">'_</span>&gt;],
+<a href=#297 id=297 data-nosnippet>297</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;Vec&lt;String&gt;&gt;, PromptError&gt; {
+<a href=#298 id=298 data-nosnippet>298</a>        <span class="kw">let </span><span class="kw-2">mut </span>rejected = <span class="prelude-val">None</span>;
+<a href=#299 id=299 data-nosnippet>299</a>        <span class="kw">loop </span>{
+<a href=#300 id=300 data-nosnippet>300</a>            <span class="kw">let </span><span class="prelude-val">Some</span>(value) = <span class="self">self</span>.ask_in_editor(asked, editor, rejected.as_ref())<span class="question-mark">? </span><span class="kw">else </span>{
+<a href=#301 id=301 data-nosnippet>301</a>                <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>);
+<a href=#302 id=302 data-nosnippet>302</a>            };
+<a href=#303 id=303 data-nosnippet>303</a>            <span class="kw">let </span>values = <span class="macro">vec!</span>[value];
+<a href=#304 id=304 data-nosnippet>304</a>            <span class="kw">match </span><span class="self">self</span>.trial(answers, asked.prompted_arg, <span class="kw-2">&amp;</span>values) {
+<a href=#305 id=305 data-nosnippet>305</a>                <span class="prelude-val">Ok</span>(()) =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(values)),
+<a href=#306 id=306 data-nosnippet>306</a>                <span class="prelude-val">Err</span>(err) =&gt; {
+<a href=#307 id=307 data-nosnippet>307</a>                    <span class="kw">let </span>error = summary(<span class="kw-2">&amp;</span>err, <span class="kw-2">&amp;</span>values);
+<a href=#308 id=308 data-nosnippet>308</a>                    <span class="self">self</span>.backend.report(<span class="kw-2">&amp;</span>error, CommandStyles(<span class="self">self</span>.cmd.get_styles()))<span class="question-mark">?</span>;
+<a href=#309 id=309 data-nosnippet>309</a>                    rejected = values.into_iter().next().map(|value| Rejected { error, value });
+<a href=#310 id=310 data-nosnippet>310</a>                }
+<a href=#311 id=311 data-nosnippet>311</a>            }
+<a href=#312 id=312 data-nosnippet>312</a>        }
+<a href=#313 id=313 data-nosnippet>313</a>    }
+<a href=#314 id=314 data-nosnippet>314</a>
+<a href=#315 id=315 data-nosnippet>315</a>    <span class="doccomment">/// The `= ...` override, else the arg's help text, else its id.
+<a href=#316 id=316 data-nosnippet>316</a>    </span><span class="kw">fn </span>question(<span class="kw-2">&amp;</span><span class="self">self</span>, prompted_arg: <span class="kw-2">&amp;</span>PromptedArg) -&gt; String {
+<a href=#317 id=317 data-nosnippet>317</a>        prompted_arg.attr.question.as_ref().map_or_else(
+<a href=#318 id=318 data-nosnippet>318</a>            || {
+<a href=#319 id=319 data-nosnippet>319</a>                arg_at(<span class="self">self</span>.cmd, <span class="kw-2">&amp;</span>prompted_arg.subcommand_path, prompted_arg.attr.arg_id)
+<a href=#320 id=320 data-nosnippet>320</a>                    .and_then(Arg::get_help)
+<a href=#321 id=321 data-nosnippet>321</a>                    .map_or_else(|| prompted_arg.attr.arg_id.to_owned(), ToString::to_string)
+<a href=#322 id=322 data-nosnippet>322</a>            },
+<a href=#323 id=323 data-nosnippet>323</a>            |question| question.get().into_owned(),
+<a href=#324 id=324 data-nosnippet>324</a>        )
+<a href=#325 id=325 data-nosnippet>325</a>    }
+<a href=#326 id=326 data-nosnippet>326</a>
+<a href=#327 id=327 data-nosnippet>327</a>    <span class="doccomment">/// Check whether leaving the arg being asked unset fails the parse: it is `required`, or
+<a href=#328 id=328 data-nosnippet>328</a>    /// required through `required_unless_present` or a required group. The accepted answers go
+<a href=#329 id=329 data-nosnippet>329</a>    /// in, and only the args still to be asked, `later`, stay relaxed, so a group another of them
+<a href=#330 id=330 data-nosnippet>330</a>    /// can still satisfy doesn't make this one required.
+<a href=#331 id=331 data-nosnippet>331</a>    </span><span class="kw">fn </span>required(<span class="kw-2">&amp;</span><span class="self">self</span>, answers: <span class="kw-2">&amp;</span>[Answer&lt;<span class="lifetime">'_</span>&gt;], later: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>PromptedArg]) -&gt; bool {
+<a href=#332 id=332 data-nosnippet>332</a>        <span class="kw">let </span>accepted =
+<a href=#333 id=333 data-nosnippet>333</a>            answers.iter().map(|answer| (answer.prompted_arg, answer.injected_values.as_slice()));
+<a href=#334 id=334 data-nosnippet>334</a>        <span class="kw">let </span>cmd = inject(relax(<span class="self">self</span>.cmd.clone(), later.iter().copied()), accepted);
+<a href=#335 id=335 data-nosnippet>335</a>        cmd.try_get_matches_from(<span class="self">self</span>.argv)
+<a href=#336 id=336 data-nosnippet>336</a>            .is_err_and(|err| err.kind() == ErrorKind::MissingRequiredArgument)
+<a href=#337 id=337 data-nosnippet>337</a>    }
+<a href=#338 id=338 data-nosnippet>338</a>
+<a href=#339 id=339 data-nosnippet>339</a>    <span class="doccomment">/// Parse with `candidate` as `prompted_arg`'s answer on top of the accepted ones.
+<a href=#340 id=340 data-nosnippet>340</a>    </span><span class="kw">fn </span>trial(
+<a href=#341 id=341 data-nosnippet>341</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#342 id=342 data-nosnippet>342</a>        answers: <span class="kw-2">&amp;</span>[Answer&lt;<span class="lifetime">'_</span>&gt;],
+<a href=#343 id=343 data-nosnippet>343</a>        prompted_arg: <span class="kw-2">&amp;</span>PromptedArg,
+<a href=#344 id=344 data-nosnippet>344</a>        candidate: <span class="kw-2">&amp;</span>[String],
+<a href=#345 id=345 data-nosnippet>345</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), clap::Error&gt; {
+<a href=#346 id=346 data-nosnippet>346</a>        <span class="kw">let </span>accepted =
+<a href=#347 id=347 data-nosnippet>347</a>            answers.iter().map(|answer| (answer.prompted_arg, answer.injected_values.as_slice()));
+<a href=#348 id=348 data-nosnippet>348</a>        <span class="kw">let </span>cmd = inject(
+<a href=#349 id=349 data-nosnippet>349</a>            relax(<span class="self">self</span>.cmd.clone(), <span class="self">self</span>.prompted_args.iter()),
+<a href=#350 id=350 data-nosnippet>350</a>            accepted.chain(iter::once((prompted_arg, candidate))),
+<a href=#351 id=351 data-nosnippet>351</a>        );
+<a href=#352 id=352 data-nosnippet>352</a>        cmd.try_get_matches_from(<span class="self">self</span>.argv).map(drop)
+<a href=#353 id=353 data-nosnippet>353</a>    }
+<a href=#354 id=354 data-nosnippet>354</a>
+<a href=#355 id=355 data-nosnippet>355</a>    <span class="doccomment">/// Call `ask` until clap accepts its answer, showing clap's complaint before each retry.
+<a href=#356 id=356 data-nosnippet>356</a>    </span><span class="kw">fn </span>until_accepted(
+<a href=#357 id=357 data-nosnippet>357</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#358 id=358 data-nosnippet>358</a>        answers: <span class="kw-2">&amp;</span>[Answer&lt;<span class="lifetime">'_</span>&gt;],
+<a href=#359 id=359 data-nosnippet>359</a>        prompted_arg: <span class="kw-2">&amp;</span>PromptedArg,
+<a href=#360 id=360 data-nosnippet>360</a>        <span class="kw-2">mut </span>ask: <span class="kw">impl </span>FnMut() -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;Vec&lt;String&gt;&gt;, PromptError&gt;,
+<a href=#361 id=361 data-nosnippet>361</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;Vec&lt;String&gt;&gt;, PromptError&gt; {
+<a href=#362 id=362 data-nosnippet>362</a>        <span class="kw">loop </span>{
+<a href=#363 id=363 data-nosnippet>363</a>            <span class="kw">let </span><span class="prelude-val">Some</span>(values) = ask()<span class="question-mark">? </span><span class="kw">else </span>{ <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) };
+<a href=#364 id=364 data-nosnippet>364</a>            <span class="kw">match </span><span class="self">self</span>.trial(answers, prompted_arg, <span class="kw-2">&amp;</span>values) {
+<a href=#365 id=365 data-nosnippet>365</a>                <span class="prelude-val">Ok</span>(()) =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(values)),
+<a href=#366 id=366 data-nosnippet>366</a>                <span class="prelude-val">Err</span>(err) =&gt; {
+<a href=#367 id=367 data-nosnippet>367</a>                    <span class="kw">let </span>error = summary(<span class="kw-2">&amp;</span>err, <span class="kw-2">&amp;</span>values);
+<a href=#368 id=368 data-nosnippet>368</a>                    <span class="self">self</span>.backend.report(<span class="kw-2">&amp;</span>error, CommandStyles(<span class="self">self</span>.cmd.get_styles()))<span class="question-mark">?</span>;
+<a href=#369 id=369 data-nosnippet>369</a>                }
+<a href=#370 id=370 data-nosnippet>370</a>            }
+<a href=#371 id=371 data-nosnippet>371</a>        }
+<a href=#372 id=372 data-nosnippet>372</a>    }
+<a href=#373 id=373 data-nosnippet>373</a>}
+<a href=#374 id=374 data-nosnippet>374</a>
+<a href=#375 id=375 data-nosnippet>375</a><span class="doccomment">/// Parse `argv` against `cmd`, asking `backend` for the prompted args in `prompted_arg_tree` that
+<a href=#376 id=376 data-nosnippet>376</a>/// got no value.
+<a href=#377 id=377 data-nosnippet>377</a></span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>parse&lt;T&gt;(
+<a href=#378 id=378 data-nosnippet>378</a>    cmd: Command,
+<a href=#379 id=379 data-nosnippet>379</a>    prompted_arg_tree: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>PromptedArgTree,
+<a href=#380 id=380 data-nosnippet>380</a>    messages: <span class="kw-2">&amp;</span>Messages,
+<a href=#381 id=381 data-nosnippet>381</a>    argv: <span class="kw-2">&amp;</span>[OsString],
+<a href=#382 id=382 data-nosnippet>382</a>    backend: <span class="kw-2">&amp;</span><span class="kw">dyn </span>Backend,
+<a href=#383 id=383 data-nosnippet>383</a>) -&gt; <span class="prelude-ty">Result</span>&lt;T, Failure&gt;
+<a href=#384 id=384 data-nosnippet>384</a><span class="kw">where
+<a href=#385 id=385 data-nosnippet>385</a>    </span>T: FromArgMatches,
+<a href=#386 id=386 data-nosnippet>386</a>{
+<a href=#387 id=387 data-nosnippet>387</a>    <span class="kw">let </span>prompted_args = prompted_arg_tree.prompted_args();
+<a href=#388 id=388 data-nosnippet>388</a>    <span class="kw">if </span>prompted_args.is_empty() || !backend.is_available() {
+<a href=#389 id=389 data-nosnippet>389</a>        <span class="kw">return </span>parse_unprompted(cmd, <span class="kw-2">&amp;</span>prompted_args, argv);
+<a href=#390 id=390 data-nosnippet>390</a>    }
+<a href=#391 id=391 data-nosnippet>391</a>    <span class="comment">// Re-guarded with the vault this parse's answers go into; trial and final parses share it.
+<a href=#392 id=392 data-nosnippet>392</a>    </span><span class="kw">let </span>vault = Vault::default();
+<a href=#393 id=393 data-nosnippet>393</a>    <span class="kw">let </span>cmd = secrets::guard(cmd, <span class="kw-2">&amp;</span>prompted_args, <span class="kw-2">&amp;</span>vault, <span class="kw-2">&amp;</span>messages.environment.get());
+<a href=#394 id=394 data-nosnippet>394</a>    <span class="comment">// Help, usage and errors come from the command the user sees, not the relaxed one.
+<a href=#395 id=395 data-nosnippet>395</a>    </span><span class="kw">let </span><span class="prelude-val">Ok</span>(matches) = relax(cmd.clone(), prompted_args.iter()).try_get_matches_from(argv) <span class="kw">else </span>{
+<a href=#396 id=396 data-nosnippet>396</a>        <span class="kw">return </span><span class="kw">super</span>::parse(cmd, argv);
+<a href=#397 id=397 data-nosnippet>397</a>    };
+<a href=#398 id=398 data-nosnippet>398</a>
+<a href=#399 id=399 data-nosnippet>399</a>    <span class="kw">let </span>session = Session {
+<a href=#400 id=400 data-nosnippet>400</a>        argv,
+<a href=#401 id=401 data-nosnippet>401</a>        backend,
+<a href=#402 id=402 data-nosnippet>402</a>        cmd: <span class="kw-2">&amp;</span>cmd,
+<a href=#403 id=403 data-nosnippet>403</a>        messages,
+<a href=#404 id=404 data-nosnippet>404</a>        prompted_args: <span class="kw-2">&amp;</span>prompted_args,
+<a href=#405 id=405 data-nosnippet>405</a>        vault: <span class="kw-2">&amp;</span>vault,
+<a href=#406 id=406 data-nosnippet>406</a>    };
+<a href=#407 id=407 data-nosnippet>407</a>    <span class="kw">let </span><span class="kw-2">mut </span>answers = Vec::new();
+<a href=#408 id=408 data-nosnippet>408</a>    <span class="kw">let </span><span class="kw-2">mut </span>unanswered = pending(<span class="kw-2">&amp;</span>cmd, <span class="kw-2">&amp;</span>matches, <span class="kw-2">&amp;</span>prompted_args);
+<a href=#409 id=409 data-nosnippet>409</a>    <span class="comment">// Stable, so values and confirmations each keep declaration order.
+<a href=#410 id=410 data-nosnippet>410</a>    </span>unanswered
+<a href=#411 id=411 data-nosnippet>411</a>        .sort_by_key(|(prompted_arg, <span class="kw">_</span>)| prompted_arg.attr.purpose == PromptPurpose::Confirmation);
+<a href=#412 id=412 data-nosnippet>412</a>    <span class="kw">for </span>(index, (prompted_arg, current)) <span class="kw">in </span>unanswered.iter().enumerate() {
+<a href=#413 id=413 data-nosnippet>413</a>        <span class="kw">if </span>blocked(<span class="kw-2">&amp;</span>cmd, <span class="kw-2">&amp;</span>matches, prompted_arg, <span class="kw-2">&amp;</span>answers) {
+<a href=#414 id=414 data-nosnippet>414</a>            <span class="kw">continue</span>;
+<a href=#415 id=415 data-nosnippet>415</a>        }
+<a href=#416 id=416 data-nosnippet>416</a>        <span class="kw">let </span>later: Vec&lt;<span class="kw-2">&amp;</span>PromptedArg&gt; =
+<a href=#417 id=417 data-nosnippet>417</a>            unanswered.iter().skip(index.saturating_add(<span class="number">1</span>)).map(|(later, <span class="kw">_</span>)| <span class="kw-2">*</span>later).collect();
+<a href=#418 id=418 data-nosnippet>418</a>        <span class="kw">let </span>answer = <span class="kw">match </span>prompted_arg.attr.purpose {
+<a href=#419 id=419 data-nosnippet>419</a>            PromptPurpose::Confirmation =&gt; <span class="kw">match </span>session.confirm(prompted_arg, <span class="kw-2">&amp;</span>answers) {
+<a href=#420 id=420 data-nosnippet>420</a>                <span class="prelude-val">Ok</span>(<span class="bool-val">false</span>) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(Failure::Declined),
+<a href=#421 id=421 data-nosnippet>421</a>                confirmed =&gt; confirmed.map(|<span class="kw">_</span>| <span class="prelude-val">Some</span>(Vec::from([<span class="string">"true"</span>.to_owned()]))),
+<a href=#422 id=422 data-nosnippet>422</a>            },
+<a href=#423 id=423 data-nosnippet>423</a>            PromptPurpose::Value =&gt; session.answer(prompted_arg, current, <span class="kw-2">&amp;</span>answers, <span class="kw-2">&amp;</span>later),
+<a href=#424 id=424 data-nosnippet>424</a>        };
+<a href=#425 id=425 data-nosnippet>425</a>        <span class="kw">match </span>answer {
+<a href=#426 id=426 data-nosnippet>426</a>            <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(injected_values)) =&gt; answers.push(Answer { injected_values, prompted_arg }),
+<a href=#427 id=427 data-nosnippet>427</a>            <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) =&gt; {}
+<a href=#428 id=428 data-nosnippet>428</a>            <span class="comment">// Backing out counts as Ctrl-C.
+<a href=#429 id=429 data-nosnippet>429</a>            </span><span class="prelude-val">Err</span>(PromptError::Cancelled) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(Failure::Cancelled(Signal::Interrupt)),
+<a href=#430 id=430 data-nosnippet>430</a>            <span class="prelude-val">Err</span>(PromptError::Signalled(signal)) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(Failure::Cancelled(signal)),
+<a href=#431 id=431 data-nosnippet>431</a>            <span class="prelude-val">Err</span>(PromptError::Io(err)) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(Failure::Io(err)),
+<a href=#432 id=432 data-nosnippet>432</a>            <span class="prelude-val">Err</span>(PromptError::NotATerminal) =&gt; <span class="kw">return </span>parse_unprompted(cmd, <span class="kw-2">&amp;</span>prompted_args, argv),
+<a href=#433 id=433 data-nosnippet>433</a>        }
+<a href=#434 id=434 data-nosnippet>434</a>    }
+<a href=#435 id=435 data-nosnippet>435</a>    <span class="kw">let </span>cmd_with_answers = inject(
+<a href=#436 id=436 data-nosnippet>436</a>        cmd,
+<a href=#437 id=437 data-nosnippet>437</a>        answers.iter().map(|answer| (answer.prompted_arg, answer.injected_values.as_slice())),
+<a href=#438 id=438 data-nosnippet>438</a>    );
+<a href=#439 id=439 data-nosnippet>439</a>    <span class="kw">super</span>::parse(cmd_with_answers, argv)
+<a href=#440 id=440 data-nosnippet>440</a>}
+<a href=#441 id=441 data-nosnippet>441</a>
+<a href=#442 id=442 data-nosnippet>442</a><span class="doccomment">/// Parse as clap would, without asking. A confirmation left unanswered fails the parse with
+<a href=#443 id=443 data-nosnippet>443</a>/// clap's error for a missing required arg, so only passing its flag gets past it.
+<a href=#444 id=444 data-nosnippet>444</a></span><span class="kw">fn </span>parse_unprompted&lt;T&gt;(
+<a href=#445 id=445 data-nosnippet>445</a>    <span class="kw-2">mut </span>cmd: Command,
+<a href=#446 id=446 data-nosnippet>446</a>    prompted_args: <span class="kw-2">&amp;</span>[PromptedArg],
+<a href=#447 id=447 data-nosnippet>447</a>    argv: <span class="kw-2">&amp;</span>[OsString],
+<a href=#448 id=448 data-nosnippet>448</a>) -&gt; <span class="prelude-ty">Result</span>&lt;T, Failure&gt;
+<a href=#449 id=449 data-nosnippet>449</a><span class="kw">where
+<a href=#450 id=450 data-nosnippet>450</a>    </span>T: FromArgMatches,
+<a href=#451 id=451 data-nosnippet>451</a>{
+<a href=#452 id=452 data-nosnippet>452</a>    <span class="kw">let </span>confirmations: Vec&lt;<span class="kw">_</span>&gt; = prompted_args
+<a href=#453 id=453 data-nosnippet>453</a>        .iter()
+<a href=#454 id=454 data-nosnippet>454</a>        .filter(|prompted_arg| prompted_arg.attr.purpose == PromptPurpose::Confirmation)
+<a href=#455 id=455 data-nosnippet>455</a>        .collect();
+<a href=#456 id=456 data-nosnippet>456</a>    <span class="kw">if </span>confirmations.is_empty() {
+<a href=#457 id=457 data-nosnippet>457</a>        <span class="kw">return </span><span class="kw">super</span>::parse(cmd, argv);
+<a href=#458 id=458 data-nosnippet>458</a>    }
+<a href=#459 id=459 data-nosnippet>459</a>    <span class="comment">// Kept unbuilt: requiring an arg on the built command makes clap show help instead.
+<a href=#460 id=460 data-nosnippet>460</a>    </span><span class="kw">let </span>declared = cmd.clone();
+<a href=#461 id=461 data-nosnippet>461</a>    <span class="kw">let </span><span class="kw-2">mut </span>matches = cmd.try_get_matches_from_mut(argv).map_err(Failure::Clap)<span class="question-mark">?</span>;
+<a href=#462 id=462 data-nosnippet>462</a>    <span class="kw">let </span>unconfirmed = confirmations.iter().any(|confirmation| {
+<a href=#463 id=463 data-nosnippet>463</a>        <span class="kw">let </span>id = confirmation.attr.arg_id;
+<a href=#464 id=464 data-nosnippet>464</a>        <span class="kw">let </span>passed = matches_at(<span class="kw-2">&amp;</span>matches, <span class="kw-2">&amp;</span>confirmation.subcommand_path)
+<a href=#465 id=465 data-nosnippet>465</a>            .is_none_or(|level| explicit(level, <span class="kw-2">&amp;</span>Id::from(id)));
+<a href=#466 id=466 data-nosnippet>466</a>        !passed &amp;&amp; !blocked(<span class="kw-2">&amp;</span>cmd, <span class="kw-2">&amp;</span>matches, confirmation, <span class="kw-2">&amp;</span>[])
+<a href=#467 id=467 data-nosnippet>467</a>    });
+<a href=#468 id=468 data-nosnippet>468</a>    <span class="kw">if </span>unconfirmed {
+<a href=#469 id=469 data-nosnippet>469</a>        <span class="comment">// Parsed again only to fail: clap words the error, and the help stays as declared.
+<a href=#470 id=470 data-nosnippet>470</a>        </span><span class="kw">let </span>required = confirmations.iter().fold(declared, |cmd, confirmation| {
+<a href=#471 id=471 data-nosnippet>471</a>            with_arg_at(cmd, <span class="kw-2">&amp;</span>confirmation.subcommand_path, confirmation.attr.arg_id, |arg| {
+<a href=#472 id=472 data-nosnippet>472</a>                arg.required(<span class="bool-val">true</span>)
+<a href=#473 id=473 data-nosnippet>473</a>            })
+<a href=#474 id=474 data-nosnippet>474</a>        });
+<a href=#475 id=475 data-nosnippet>475</a>        <span class="kw">return </span><span class="kw">super</span>::parse(required, argv);
+<a href=#476 id=476 data-nosnippet>476</a>    }
+<a href=#477 id=477 data-nosnippet>477</a>    T::from_arg_matches_mut(<span class="kw-2">&amp;mut </span>matches).map_err(|err| Failure::Clap(err.format(<span class="kw-2">&amp;mut </span>cmd)))
+<a href=#478 id=478 data-nosnippet>478</a>}
+<a href=#479 id=479 data-nosnippet>479</a>
+<a href=#480 id=480 data-nosnippet>480</a><span class="kw">fn </span>arg_at&lt;<span class="lifetime">'cmd</span>&gt;(cmd: <span class="kw-2">&amp;</span><span class="lifetime">'cmd </span>Command, path: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str], id: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'cmd </span>Arg&gt; {
+<a href=#481 id=481 data-nosnippet>481</a>    command_at(cmd, path)<span class="question-mark">?</span>.get_arguments().find(|arg| arg.get_id() == id)
+<a href=#482 id=482 data-nosnippet>482</a>}
+<a href=#483 id=483 data-nosnippet>483</a>
+<a href=#484 id=484 data-nosnippet>484</a><span class="doccomment">/// Check whether `prompted_arg` conflicts with an arg the user passed or an earlier answer.
+<a href=#485 id=485 data-nosnippet>485</a>///
+<a href=#486 id=486 data-nosnippet>486</a>/// Answers go in as default values, which clap never checks for conflicts, so asking here
+<a href=#487 id=487 data-nosnippet>487</a>/// would let the parse land in a state clap rejects when typed.
+<a href=#488 id=488 data-nosnippet>488</a></span><span class="kw">fn </span>blocked(
+<a href=#489 id=489 data-nosnippet>489</a>    cmd: <span class="kw-2">&amp;</span>Command,
+<a href=#490 id=490 data-nosnippet>490</a>    matches: <span class="kw-2">&amp;</span>ArgMatches,
+<a href=#491 id=491 data-nosnippet>491</a>    prompted_arg: <span class="kw-2">&amp;</span>PromptedArg,
+<a href=#492 id=492 data-nosnippet>492</a>    answers: <span class="kw-2">&amp;</span>[Answer&lt;<span class="lifetime">'_</span>&gt;],
+<a href=#493 id=493 data-nosnippet>493</a>) -&gt; bool {
+<a href=#494 id=494 data-nosnippet>494</a>    <span class="kw">let </span>(<span class="prelude-val">Some</span>(level), <span class="prelude-val">Some</span>(level_matches)) = (
+<a href=#495 id=495 data-nosnippet>495</a>        command_at(cmd, <span class="kw-2">&amp;</span>prompted_arg.subcommand_path),
+<a href=#496 id=496 data-nosnippet>496</a>        matches_at(matches, <span class="kw-2">&amp;</span>prompted_arg.subcommand_path),
+<a href=#497 id=497 data-nosnippet>497</a>    ) <span class="kw">else </span>{
+<a href=#498 id=498 data-nosnippet>498</a>        <span class="kw">return </span><span class="bool-val">false</span>;
+<a href=#499 id=499 data-nosnippet>499</a>    };
+<a href=#500 id=500 data-nosnippet>500</a>    <span class="kw">let </span><span class="prelude-val">Some</span>(arg) = level.get_arguments().find(|arg| arg.get_id() == prompted_arg.attr.arg_id)
+<a href=#501 id=501 data-nosnippet>501</a>    <span class="kw">else </span>{
+<a href=#502 id=502 data-nosnippet>502</a>        <span class="kw">return </span><span class="bool-val">false</span>;
+<a href=#503 id=503 data-nosnippet>503</a>    };
+<a href=#504 id=504 data-nosnippet>504</a>    <span class="kw">let </span>answered = |id: <span class="kw-2">&amp;</span>Id| {
+<a href=#505 id=505 data-nosnippet>505</a>        answers.iter().any(|answer| {
+<a href=#506 id=506 data-nosnippet>506</a>            answer.prompted_arg.subcommand_path == prompted_arg.subcommand_path
+<a href=#507 id=507 data-nosnippet>507</a>                &amp;&amp; answer.prompted_arg.attr.arg_id == id
+<a href=#508 id=508 data-nosnippet>508</a>        })
+<a href=#509 id=509 data-nosnippet>509</a>    };
+<a href=#510 id=510 data-nosnippet>510</a>    <span class="kw">let </span>conflicts = level.get_arg_conflicts_with(arg);
+<a href=#511 id=511 data-nosnippet>511</a>    level
+<a href=#512 id=512 data-nosnippet>512</a>        .get_arguments()
+<a href=#513 id=513 data-nosnippet>513</a>        .filter(|other| other.get_id() != arg.get_id())
+<a href=#514 id=514 data-nosnippet>514</a>        .filter(|other| answered(other.get_id()) || explicit(level_matches, other.get_id()))
+<a href=#515 id=515 data-nosnippet>515</a>        .any(|other| {
+<a href=#516 id=516 data-nosnippet>516</a>            other.is_exclusive_set()
+<a href=#517 id=517 data-nosnippet>517</a>                || conflicts.iter().any(|conflict| conflict.get_id() == other.get_id())
+<a href=#518 id=518 data-nosnippet>518</a>                || level.get_arg_conflicts_with(other).iter().any(|c| c.get_id() == arg.get_id())
+<a href=#519 id=519 data-nosnippet>519</a>                || group_mates(level, arg).any(|mate| mate == other.get_id())
+<a href=#520 id=520 data-nosnippet>520</a>        })
+<a href=#521 id=521 data-nosnippet>521</a>}
+<a href=#522 id=522 data-nosnippet>522</a>
+<a href=#523 id=523 data-nosnippet>523</a><span class="doccomment">/// `arg`'s declared default values, split at its value delimiter.
+<a href=#524 id=524 data-nosnippet>524</a>/// Without a delimiter, each default is one value. Defaults are set from strings, so any that
+<a href=#525 id=525 data-nosnippet>525</a>/// is not UTF-8 is skipped.
+<a href=#526 id=526 data-nosnippet>526</a></span><span class="kw">fn </span>default_values(arg: <span class="kw-2">&amp;</span>Arg) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span>str&gt; {
+<a href=#527 id=527 data-nosnippet>527</a>    <span class="kw">let </span>delimiter = arg.get_value_delimiter();
+<a href=#528 id=528 data-nosnippet>528</a>    arg.get_default_values()
+<a href=#529 id=529 data-nosnippet>529</a>        .iter()
+<a href=#530 id=530 data-nosnippet>530</a>        .filter_map(|value| value.to_str())
+<a href=#531 id=531 data-nosnippet>531</a>        .flat_map(<span class="kw">move </span>|value| value.split(<span class="kw">move </span>|char| <span class="prelude-val">Some</span>(char) == delimiter))
 <a href=#532 id=532 data-nosnippet>532</a>}
 <a href=#533 id=533 data-nosnippet>533</a>
-<a href=#534 id=534 data-nosnippet>534</a><span class="doccomment">/// For a flag, whether a "yes" stores `false`; `None` for an arg that takes a value.
-<a href=#535 id=535 data-nosnippet>535</a></span><span class="attr">#[expect(
-<a href=#536 id=536 data-nosnippet>536</a>    clippy::wildcard_enum_match_arm,
-<a href=#537 id=537 data-nosnippet>537</a>    reason = <span class="string">"`ArgAction` is #[non_exhaustive]; every action but the two flags takes a value"
-<a href=#538 id=538 data-nosnippet>538</a></span>)]
-<a href=#539 id=539 data-nosnippet>539</a></span><span class="kw">const fn </span>flag_negation(action: <span class="kw-2">&amp;</span>ArgAction) -&gt; <span class="prelude-ty">Option</span>&lt;bool&gt; {
-<a href=#540 id=540 data-nosnippet>540</a>    <span class="kw">match </span>action {
-<a href=#541 id=541 data-nosnippet>541</a>        ArgAction::SetTrue =&gt; <span class="prelude-val">Some</span>(<span class="bool-val">false</span>),
-<a href=#542 id=542 data-nosnippet>542</a>        ArgAction::SetFalse =&gt; <span class="prelude-val">Some</span>(<span class="bool-val">true</span>),
-<a href=#543 id=543 data-nosnippet>543</a>        <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
-<a href=#544 id=544 data-nosnippet>544</a>    }
-<a href=#545 id=545 data-nosnippet>545</a>}
-<a href=#546 id=546 data-nosnippet>546</a>
-<a href=#547 id=547 data-nosnippet>547</a><span class="doccomment">/// Set each answer as its arg's default values. No values leave the arg with no default, so
-<a href=#548 id=548 data-nosnippet>548</a>/// an emptied list drops the declared default.
-<a href=#549 id=549 data-nosnippet>549</a></span><span class="kw">fn </span>inject&lt;<span class="lifetime">'prompted_arg</span>&gt;(
-<a href=#550 id=550 data-nosnippet>550</a>    cmd: Command,
-<a href=#551 id=551 data-nosnippet>551</a>    answers: <span class="kw">impl </span>IntoIterator&lt;Item = (<span class="kw-2">&amp;</span><span class="lifetime">'prompted_arg </span>PromptedArg, <span class="kw-2">&amp;</span><span class="lifetime">'prompted_arg </span>[String])&gt;,
-<a href=#552 id=552 data-nosnippet>552</a>) -&gt; Command {
-<a href=#553 id=553 data-nosnippet>553</a>    answers.into_iter().fold(cmd, |cmd, (prompted_arg, values)| {
-<a href=#554 id=554 data-nosnippet>554</a>        <span class="comment">// A default value is no explicit value to clap, so the rules that require the arg would
-<a href=#555 id=555 data-nosnippet>555</a>        // still miss it.
-<a href=#556 id=556 data-nosnippet>556</a>        </span>with_arg_at(
-<a href=#557 id=557 data-nosnippet>557</a>            unrequire(cmd, prompted_arg),
-<a href=#558 id=558 data-nosnippet>558</a>            <span class="kw-2">&amp;</span>prompted_arg.subcommand_path,
-<a href=#559 id=559 data-nosnippet>559</a>            prompted_arg.attr.arg_id,
-<a href=#560 id=560 data-nosnippet>560</a>            |arg| arg.default_values(values.iter().cloned()),
-<a href=#561 id=561 data-nosnippet>561</a>        )
-<a href=#562 id=562 data-nosnippet>562</a>    })
-<a href=#563 id=563 data-nosnippet>563</a>}
-<a href=#564 id=564 data-nosnippet>564</a>
-<a href=#565 id=565 data-nosnippet>565</a><span class="doccomment">/// `question` with each `{id}` replaced by arg `id`'s values in `matches`, joined with `, `, and
-<a href=#566 id=566 data-nosnippet>566</a>/// `{{` and `}}` by single braces. A `{id}` naming no arg stays as written.
-<a href=#567 id=567 data-nosnippet>567</a></span><span class="kw">fn </span>interpolate(question: <span class="kw-2">&amp;</span>str, matches: <span class="kw-2">&amp;</span>ArgMatches) -&gt; String {
-<a href=#568 id=568 data-nosnippet>568</a>    <span class="kw">let </span><span class="kw-2">mut </span>interpolated = String::with_capacity(question.len());
-<a href=#569 id=569 data-nosnippet>569</a>    <span class="kw">let </span><span class="kw-2">mut </span>rest = question;
-<a href=#570 id=570 data-nosnippet>570</a>    <span class="kw">while let </span><span class="prelude-val">Some</span>(brace) = rest.find([<span class="string">'{'</span>, <span class="string">'}'</span>]) {
-<a href=#571 id=571 data-nosnippet>571</a>        <span class="kw">let </span>(text, tail) = rest.split_at(brace);
-<a href=#572 id=572 data-nosnippet>572</a>        interpolated.push_str(text);
-<a href=#573 id=573 data-nosnippet>573</a>        <span class="kw">let </span>escaped = tail.strip_prefix(<span class="string">"{{"</span>).map(|after| (<span class="string">'{'</span>, after));
-<a href=#574 id=574 data-nosnippet>574</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>((brace, after)) =
-<a href=#575 id=575 data-nosnippet>575</a>            escaped.or_else(|| tail.strip_prefix(<span class="string">"}}"</span>).map(|after| (<span class="string">'}'</span>, after)))
-<a href=#576 id=576 data-nosnippet>576</a>        {
-<a href=#577 id=577 data-nosnippet>577</a>            interpolated.push(brace);
-<a href=#578 id=578 data-nosnippet>578</a>            rest = after;
-<a href=#579 id=579 data-nosnippet>579</a>            <span class="kw">continue</span>;
-<a href=#580 id=580 data-nosnippet>580</a>        }
-<a href=#581 id=581 data-nosnippet>581</a>        <span class="kw">let </span>placeholder = tail.strip_prefix(<span class="string">'{'</span>).and_then(|inner| inner.split_once(<span class="string">'}'</span>));
-<a href=#582 id=582 data-nosnippet>582</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>((values, after)) = placeholder
-<a href=#583 id=583 data-nosnippet>583</a>            .and_then(|(id, after)| matches.try_get_raw(id).ok().map(|values| (values, after)))
-<a href=#584 id=584 data-nosnippet>584</a>        {
-<a href=#585 id=585 data-nosnippet>585</a>            <span class="kw">let </span>values: Vec&lt;<span class="kw">_</span>&gt; =
-<a href=#586 id=586 data-nosnippet>586</a>                values.into_iter().flatten().map(|v| v.to_string_lossy()).collect();
-<a href=#587 id=587 data-nosnippet>587</a>            interpolated.push_str(<span class="kw-2">&amp;</span>values.join(<span class="string">", "</span>));
-<a href=#588 id=588 data-nosnippet>588</a>            rest = after;
-<a href=#589 id=589 data-nosnippet>589</a>            <span class="kw">continue</span>;
-<a href=#590 id=590 data-nosnippet>590</a>        }
-<a href=#591 id=591 data-nosnippet>591</a>        <span class="comment">// A lone brace, or a `{id}` naming no arg: keep the brace as written.
-<a href=#592 id=592 data-nosnippet>592</a>        </span><span class="kw">let </span>(brace, after) = tail.split_at(<span class="number">1</span>);
-<a href=#593 id=593 data-nosnippet>593</a>        interpolated.push_str(brace);
-<a href=#594 id=594 data-nosnippet>594</a>        rest = after;
-<a href=#595 id=595 data-nosnippet>595</a>    }
-<a href=#596 id=596 data-nosnippet>596</a>    interpolated.push_str(rest);
-<a href=#597 id=597 data-nosnippet>597</a>    interpolated
-<a href=#598 id=598 data-nosnippet>598</a>}
-<a href=#599 id=599 data-nosnippet>599</a>
-<a href=#600 id=600 data-nosnippet>600</a><span class="kw">fn </span>matches_at&lt;<span class="lifetime">'matches</span>&gt;(
-<a href=#601 id=601 data-nosnippet>601</a>    matches: <span class="kw-2">&amp;</span><span class="lifetime">'matches </span>ArgMatches,
-<a href=#602 id=602 data-nosnippet>602</a>    path: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str],
-<a href=#603 id=603 data-nosnippet>603</a>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'matches </span>ArgMatches&gt; {
-<a href=#604 id=604 data-nosnippet>604</a>    path.iter().try_fold(matches, |level, name| {
-<a href=#605 id=605 data-nosnippet>605</a>        level.subcommand().filter(|(taken, <span class="kw">_</span>)| taken == name).map(|(<span class="kw">_</span>, sub)| sub)
-<a href=#606 id=606 data-nosnippet>606</a>    })
-<a href=#607 id=607 data-nosnippet>607</a>}
-<a href=#608 id=608 data-nosnippet>608</a>
-<a href=#609 id=609 data-nosnippet>609</a><span class="doccomment">/// The prompted args on the path the user took that got no value or only their default, with
-<a href=#610 id=610 data-nosnippet>610</a>/// the default's values, split at the arg's value delimiter as clap splits them. One whose
-<a href=#611 id=611 data-nosnippet>611</a>/// `default_value_if` fired is left to the arg that fired it: the conditional default beats an
-<a href=#612 id=612 data-nosnippet>612</a>/// injected answer, so asking would drop the answer.
-<a href=#613 id=613 data-nosnippet>613</a></span><span class="kw">fn </span>pending&lt;<span class="lifetime">'prompted_arg</span>&gt;(
-<a href=#614 id=614 data-nosnippet>614</a>    cmd: <span class="kw-2">&amp;</span>Command,
-<a href=#615 id=615 data-nosnippet>615</a>    matches: <span class="kw-2">&amp;</span>ArgMatches,
-<a href=#616 id=616 data-nosnippet>616</a>    prompted_args: <span class="kw-2">&amp;</span><span class="lifetime">'prompted_arg </span>[PromptedArg],
-<a href=#617 id=617 data-nosnippet>617</a>) -&gt; Vec&lt;(<span class="kw-2">&amp;</span><span class="lifetime">'prompted_arg </span>PromptedArg, Vec&lt;String&gt;)&gt; {
-<a href=#618 id=618 data-nosnippet>618</a>    <span class="comment">// Built, so a flag's action has filled in its implicit default (`false` for `SetTrue`).
-<a href=#619 id=619 data-nosnippet>619</a>    </span><span class="kw">let </span><span class="kw-2">mut </span>built = cmd.clone();
-<a href=#620 id=620 data-nosnippet>620</a>    built.build();
-<a href=#621 id=621 data-nosnippet>621</a>    prompted_args
-<a href=#622 id=622 data-nosnippet>622</a>        .iter()
-<a href=#623 id=623 data-nosnippet>623</a>        .filter_map(|prompted_arg| {
-<a href=#624 id=624 data-nosnippet>624</a>            <span class="kw">let </span>arg = arg_at(<span class="kw-2">&amp;</span>built, <span class="kw-2">&amp;</span>prompted_arg.subcommand_path, prompted_arg.attr.arg_id)<span class="question-mark">?</span>;
-<a href=#625 id=625 data-nosnippet>625</a>            <span class="kw">let </span>level = matches_at(matches, <span class="kw-2">&amp;</span>prompted_arg.subcommand_path)<span class="question-mark">?</span>;
-<a href=#626 id=626 data-nosnippet>626</a>            <span class="kw">let </span>id = prompted_arg.attr.arg_id;
-<a href=#627 id=627 data-nosnippet>627</a>            <span class="kw">match </span>level.value_source(id) {
-<a href=#628 id=628 data-nosnippet>628</a>                <span class="prelude-val">None </span><span class="kw">if </span>default_values(arg).next().is_none() =&gt; <span class="prelude-val">Some</span>((prompted_arg, Vec::new())),
-<a href=#629 id=629 data-nosnippet>629</a>                <span class="prelude-val">Some</span>(ValueSource::DefaultValue) =&gt; {
-<a href=#630 id=630 data-nosnippet>630</a>                    <span class="kw">let </span>current = raw_values(level, id);
-<a href=#631 id=631 data-nosnippet>631</a>                    current
-<a href=#632 id=632 data-nosnippet>632</a>                        .iter()
-<a href=#633 id=633 data-nosnippet>633</a>                        .map(String::as_str)
-<a href=#634 id=634 data-nosnippet>634</a>                        .eq(default_values(arg))
-<a href=#635 id=635 data-nosnippet>635</a>                        .then_some((prompted_arg, current))
-<a href=#636 id=636 data-nosnippet>636</a>                }
-<a href=#637 id=637 data-nosnippet>637</a>                <span class="prelude-val">None </span>| <span class="prelude-val">Some</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
-<a href=#638 id=638 data-nosnippet>638</a>            }
-<a href=#639 id=639 data-nosnippet>639</a>        })
-<a href=#640 id=640 data-nosnippet>640</a>        .collect()
-<a href=#641 id=641 data-nosnippet>641</a>}
-<a href=#642 id=642 data-nosnippet>642</a>
-<a href=#643 id=643 data-nosnippet>643</a><span class="kw">fn </span>raw_values(matches: <span class="kw-2">&amp;</span>ArgMatches, id: <span class="kw-2">&amp;</span>str) -&gt; Vec&lt;String&gt; {
-<a href=#644 id=644 data-nosnippet>644</a>    matches
-<a href=#645 id=645 data-nosnippet>645</a>        .try_get_raw(id)
-<a href=#646 id=646 data-nosnippet>646</a>        .ok()
-<a href=#647 id=647 data-nosnippet>647</a>        .flatten()
-<a href=#648 id=648 data-nosnippet>648</a>        .into_iter()
-<a href=#649 id=649 data-nosnippet>649</a>        .flatten()
-<a href=#650 id=650 data-nosnippet>650</a>        .map(|value| value.to_string_lossy().into_owned())
-<a href=#651 id=651 data-nosnippet>651</a>        .collect()
-<a href=#652 id=652 data-nosnippet>652</a>}
-<a href=#653 id=653 data-nosnippet>653</a>
-<a href=#654 id=654 data-nosnippet>654</a><span class="doccomment">/// Check whether `arg` takes many values, as a `Vec&lt;T&gt;` field does.
-<a href=#655 id=655 data-nosnippet>655</a></span><span class="kw">fn </span>takes_many(arg: <span class="kw-2">&amp;</span>Arg) -&gt; bool {
-<a href=#656 id=656 data-nosnippet>656</a>    <span class="macro">matches!</span>(arg.get_action(), ArgAction::Append)
-<a href=#657 id=657 data-nosnippet>657</a>        || arg.get_num_args().is_some_and(|range| range.max_values() &gt; <span class="number">1</span>)
-<a href=#658 id=658 data-nosnippet>658</a>}
-<a href=#659 id=659 data-nosnippet>659</a>
-<a href=#660 id=660 data-nosnippet>660</a><span class="doccomment">/// Make each of `prompted_args` optional, so a missing one does not stop a parse.
-<a href=#661 id=661 data-nosnippet>661</a></span><span class="kw">fn </span>relax&lt;<span class="lifetime">'prompted_arg</span>&gt;(
-<a href=#662 id=662 data-nosnippet>662</a>    cmd: Command,
-<a href=#663 id=663 data-nosnippet>663</a>    prompted_args: <span class="kw">impl </span>IntoIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'prompted_arg </span>PromptedArg&gt;,
-<a href=#664 id=664 data-nosnippet>664</a>) -&gt; Command {
-<a href=#665 id=665 data-nosnippet>665</a>    prompted_args.into_iter().fold(cmd, unrequire)
-<a href=#666 id=666 data-nosnippet>666</a>}
-<a href=#667 id=667 data-nosnippet>667</a>
-<a href=#668 id=668 data-nosnippet>668</a><span class="doccomment">/// The first line of clap's message, without its `error: ` prefix. clap quotes the rejected
-<a href=#669 id=669 data-nosnippet>669</a>/// `values`, so a multi-line one is shortened to its first line first, keeping the reason after it.
-<a href=#670 id=670 data-nosnippet>670</a></span><span class="kw">fn </span>summary(err: <span class="kw-2">&amp;</span>clap::Error, values: <span class="kw-2">&amp;</span>[String]) -&gt; String {
-<a href=#671 id=671 data-nosnippet>671</a>    <span class="kw">let </span><span class="kw-2">mut </span>rendered = err.render().to_string();
-<a href=#672 id=672 data-nosnippet>672</a>    <span class="kw">for </span>value <span class="kw">in </span>values {
-<a href=#673 id=673 data-nosnippet>673</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>((first_line, <span class="kw">_</span>)) = value.split_once(<span class="string">'\n'</span>) {
-<a href=#674 id=674 data-nosnippet>674</a>            rendered = rendered.replace(value.as_str(), <span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"{first_line}\u{2026}"</span>));
-<a href=#675 id=675 data-nosnippet>675</a>        }
-<a href=#676 id=676 data-nosnippet>676</a>    }
-<a href=#677 id=677 data-nosnippet>677</a>    <span class="kw">let </span>line = rendered.lines().next().unwrap_or_default();
-<a href=#678 id=678 data-nosnippet>678</a>    line.strip_prefix(<span class="string">"error: "</span>).unwrap_or(line).to_owned()
-<a href=#679 id=679 data-nosnippet>679</a>}
-<a href=#680 id=680 data-nosnippet>680</a>
-<a href=#681 id=681 data-nosnippet>681</a><span class="doccomment">/// Drop the rules that make `prompted_arg` required: its `required`, its
-<a href=#682 id=682 data-nosnippet>682</a>/// `required_unless_present`, and the `required` of the groups it belongs to. clap can't clear
-<a href=#683 id=683 data-nosnippet>683</a>/// `required_unless_present_all` or `required_if_eq`, so those stay.
-<a href=#684 id=684 data-nosnippet>684</a></span><span class="kw">fn </span>unrequire(cmd: Command, prompted_arg: <span class="kw-2">&amp;</span>PromptedArg) -&gt; Command {
-<a href=#685 id=685 data-nosnippet>685</a>    <span class="kw">let </span>id = prompted_arg.attr.arg_id;
-<a href=#686 id=686 data-nosnippet>686</a>    with_command_at(cmd, <span class="kw-2">&amp;</span>prompted_arg.subcommand_path, |level| {
-<a href=#687 id=687 data-nosnippet>687</a>        <span class="kw">if </span>!level.get_arguments().any(|arg| arg.get_id() == id) {
-<a href=#688 id=688 data-nosnippet>688</a>            <span class="kw">return </span>level;
-<a href=#689 id=689 data-nosnippet>689</a>        }
-<a href=#690 id=690 data-nosnippet>690</a>        <span class="kw">let </span>groups: Vec&lt;Id&gt; = level
-<a href=#691 id=691 data-nosnippet>691</a>            .get_groups()
-<a href=#692 id=692 data-nosnippet>692</a>            .filter(|group| group.is_required_set() &amp;&amp; group.get_args().any(|arg| arg == id))
-<a href=#693 id=693 data-nosnippet>693</a>            .map(|group| group.get_id().clone())
-<a href=#694 id=694 data-nosnippet>694</a>            .collect();
-<a href=#695 id=695 data-nosnippet>695</a>        <span class="kw">let </span>level =
-<a href=#696 id=696 data-nosnippet>696</a>            level.mut_arg(id, |arg| arg.required(<span class="bool-val">false</span>).required_unless_present(Resettable::Reset));
-<a href=#697 id=697 data-nosnippet>697</a>        groups
-<a href=#698 id=698 data-nosnippet>698</a>            .iter()
-<a href=#699 id=699 data-nosnippet>699</a>            .fold(level, |level, group| level.mut_group(group, |group| group.required(<span class="bool-val">false</span>)))
-<a href=#700 id=700 data-nosnippet>700</a>    })
-<a href=#701 id=701 data-nosnippet>701</a>}
-<a href=#702 id=702 data-nosnippet>702</a>
-<a href=#703 id=703 data-nosnippet>703</a><span class="doccomment">/// Apply `edit` to the arg `id` of the command at `path`; unchanged when either is missing.
-<a href=#704 id=704 data-nosnippet>704</a></span><span class="kw">fn </span>with_arg_at&lt;F&gt;(cmd: Command, path: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str], id: <span class="kw-2">&amp;</span>str, edit: F) -&gt; Command
-<a href=#705 id=705 data-nosnippet>705</a><span class="kw">where
-<a href=#706 id=706 data-nosnippet>706</a>    </span>F: FnOnce(Arg) -&gt; Arg,
-<a href=#707 id=707 data-nosnippet>707</a>{
-<a href=#708 id=708 data-nosnippet>708</a>    with_command_at(cmd, path, |level| {
-<a href=#709 id=709 data-nosnippet>709</a>        <span class="kw">if </span>level.get_arguments().any(|arg| arg.get_id() == id) {
-<a href=#710 id=710 data-nosnippet>710</a>            level.mut_arg(id, edit)
-<a href=#711 id=711 data-nosnippet>711</a>        } <span class="kw">else </span>{
-<a href=#712 id=712 data-nosnippet>712</a>            level
-<a href=#713 id=713 data-nosnippet>713</a>        }
-<a href=#714 id=714 data-nosnippet>714</a>    })
+<a href=#534 id=534 data-nosnippet>534</a><span class="doccomment">/// The command at `path` passed through `edit`; unchanged when the path is missing.
+<a href=#535 id=535 data-nosnippet>535</a></span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>with_command_at&lt;F&gt;(cmd: Command, path: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str], edit: F) -&gt; Command
+<a href=#536 id=536 data-nosnippet>536</a><span class="kw">where
+<a href=#537 id=537 data-nosnippet>537</a>    </span>F: FnOnce(Command) -&gt; Command,
+<a href=#538 id=538 data-nosnippet>538</a>{
+<a href=#539 id=539 data-nosnippet>539</a>    <span class="kw">match </span>path.split_first() {
+<a href=#540 id=540 data-nosnippet>540</a>        <span class="prelude-val">None </span>=&gt; edit(cmd),
+<a href=#541 id=541 data-nosnippet>541</a>        <span class="prelude-val">Some</span>((name, rest)) <span class="kw">if </span>cmd.find_subcommand(name).is_some() =&gt; {
+<a href=#542 id=542 data-nosnippet>542</a>            cmd.mut_subcommand(name, |sub| with_command_at(sub, rest, edit))
+<a href=#543 id=543 data-nosnippet>543</a>        }
+<a href=#544 id=544 data-nosnippet>544</a>        <span class="prelude-val">Some</span>(<span class="kw">_</span>) =&gt; cmd,
+<a href=#545 id=545 data-nosnippet>545</a>    }
+<a href=#546 id=546 data-nosnippet>546</a>}
+<a href=#547 id=547 data-nosnippet>547</a>
+<a href=#548 id=548 data-nosnippet>548</a><span class="kw">fn </span>command_at&lt;<span class="lifetime">'cmd</span>&gt;(cmd: <span class="kw-2">&amp;</span><span class="lifetime">'cmd </span>Command, path: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str]) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'cmd </span>Command&gt; {
+<a href=#549 id=549 data-nosnippet>549</a>    path.iter().try_fold(cmd, |level, name| level.find_subcommand(name))
+<a href=#550 id=550 data-nosnippet>550</a>}
+<a href=#551 id=551 data-nosnippet>551</a>
+<a href=#552 id=552 data-nosnippet>552</a><span class="doccomment">/// Check whether the user passed `id`, on the command line or through its env var.
+<a href=#553 id=553 data-nosnippet>553</a></span><span class="kw">fn </span>explicit(matches: <span class="kw-2">&amp;</span>ArgMatches, id: <span class="kw-2">&amp;</span>Id) -&gt; bool {
+<a href=#554 id=554 data-nosnippet>554</a>    <span class="macro">matches!</span>(
+<a href=#555 id=555 data-nosnippet>555</a>        matches.value_source(id.as_str()),
+<a href=#556 id=556 data-nosnippet>556</a>        <span class="prelude-val">Some</span>(ValueSource::CommandLine | ValueSource::EnvVariable)
+<a href=#557 id=557 data-nosnippet>557</a>    )
+<a href=#558 id=558 data-nosnippet>558</a>}
+<a href=#559 id=559 data-nosnippet>559</a>
+<a href=#560 id=560 data-nosnippet>560</a><span class="doccomment">/// The args sharing an exclusive `ArgGroup` with `arg`.
+<a href=#561 id=561 data-nosnippet>561</a></span><span class="kw">fn </span>group_mates&lt;<span class="lifetime">'cmd</span>&gt;(level: <span class="kw-2">&amp;</span><span class="lifetime">'cmd </span>Command, arg: <span class="kw-2">&amp;</span>Arg) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'cmd </span>Id&gt; {
+<a href=#562 id=562 data-nosnippet>562</a>    level
+<a href=#563 id=563 data-nosnippet>563</a>        .get_groups()
+<a href=#564 id=564 data-nosnippet>564</a>        .filter(|group| {
+<a href=#565 id=565 data-nosnippet>565</a>            !ArgGroup::clone(group).is_multiple() &amp;&amp; group.get_args().any(|id| id == arg.get_id())
+<a href=#566 id=566 data-nosnippet>566</a>        })
+<a href=#567 id=567 data-nosnippet>567</a>        .flat_map(ArgGroup::get_args)
+<a href=#568 id=568 data-nosnippet>568</a>}
+<a href=#569 id=569 data-nosnippet>569</a>
+<a href=#570 id=570 data-nosnippet>570</a><span class="doccomment">/// For a flag, whether a "yes" stores `false`; `None` for an arg that takes a value.
+<a href=#571 id=571 data-nosnippet>571</a></span><span class="attr">#[expect(
+<a href=#572 id=572 data-nosnippet>572</a>    clippy::wildcard_enum_match_arm,
+<a href=#573 id=573 data-nosnippet>573</a>    reason = <span class="string">"`ArgAction` is #[non_exhaustive]; every action but the two flags takes a value"
+<a href=#574 id=574 data-nosnippet>574</a></span>)]
+<a href=#575 id=575 data-nosnippet>575</a></span><span class="kw">const fn </span>flag_negation(action: <span class="kw-2">&amp;</span>ArgAction) -&gt; <span class="prelude-ty">Option</span>&lt;bool&gt; {
+<a href=#576 id=576 data-nosnippet>576</a>    <span class="kw">match </span>action {
+<a href=#577 id=577 data-nosnippet>577</a>        ArgAction::SetTrue =&gt; <span class="prelude-val">Some</span>(<span class="bool-val">false</span>),
+<a href=#578 id=578 data-nosnippet>578</a>        ArgAction::SetFalse =&gt; <span class="prelude-val">Some</span>(<span class="bool-val">true</span>),
+<a href=#579 id=579 data-nosnippet>579</a>        <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+<a href=#580 id=580 data-nosnippet>580</a>    }
+<a href=#581 id=581 data-nosnippet>581</a>}
+<a href=#582 id=582 data-nosnippet>582</a>
+<a href=#583 id=583 data-nosnippet>583</a><span class="doccomment">/// Set each answer as its arg's default values. No values leave the arg with no default, so
+<a href=#584 id=584 data-nosnippet>584</a>/// an emptied list drops the declared default.
+<a href=#585 id=585 data-nosnippet>585</a></span><span class="kw">fn </span>inject&lt;<span class="lifetime">'prompted_arg</span>&gt;(
+<a href=#586 id=586 data-nosnippet>586</a>    cmd: Command,
+<a href=#587 id=587 data-nosnippet>587</a>    answers: <span class="kw">impl </span>IntoIterator&lt;Item = (<span class="kw-2">&amp;</span><span class="lifetime">'prompted_arg </span>PromptedArg, <span class="kw-2">&amp;</span><span class="lifetime">'prompted_arg </span>[String])&gt;,
+<a href=#588 id=588 data-nosnippet>588</a>) -&gt; Command {
+<a href=#589 id=589 data-nosnippet>589</a>    answers.into_iter().fold(cmd, |cmd, (prompted_arg, values)| {
+<a href=#590 id=590 data-nosnippet>590</a>        <span class="comment">// A default value is no explicit value to clap, so the rules that require the arg would
+<a href=#591 id=591 data-nosnippet>591</a>        // still miss it.
+<a href=#592 id=592 data-nosnippet>592</a>        </span>with_arg_at(
+<a href=#593 id=593 data-nosnippet>593</a>            unrequire(cmd, prompted_arg),
+<a href=#594 id=594 data-nosnippet>594</a>            <span class="kw-2">&amp;</span>prompted_arg.subcommand_path,
+<a href=#595 id=595 data-nosnippet>595</a>            prompted_arg.attr.arg_id,
+<a href=#596 id=596 data-nosnippet>596</a>            |arg| arg.default_values(values.iter().cloned()),
+<a href=#597 id=597 data-nosnippet>597</a>        )
+<a href=#598 id=598 data-nosnippet>598</a>    })
+<a href=#599 id=599 data-nosnippet>599</a>}
+<a href=#600 id=600 data-nosnippet>600</a>
+<a href=#601 id=601 data-nosnippet>601</a><span class="doccomment">/// `question` with each `{id}` replaced by arg `id`'s values in `matches`, joined with `, `, and
+<a href=#602 id=602 data-nosnippet>602</a>/// `{{` and `}}` by single braces. A `{id}` naming no arg stays as written.
+<a href=#603 id=603 data-nosnippet>603</a></span><span class="kw">fn </span>interpolate(question: <span class="kw-2">&amp;</span>str, matches: <span class="kw-2">&amp;</span>ArgMatches) -&gt; String {
+<a href=#604 id=604 data-nosnippet>604</a>    <span class="kw">let </span><span class="kw-2">mut </span>interpolated = String::with_capacity(question.len());
+<a href=#605 id=605 data-nosnippet>605</a>    <span class="kw">let </span><span class="kw-2">mut </span>rest = question;
+<a href=#606 id=606 data-nosnippet>606</a>    <span class="kw">while let </span><span class="prelude-val">Some</span>(brace) = rest.find([<span class="string">'{'</span>, <span class="string">'}'</span>]) {
+<a href=#607 id=607 data-nosnippet>607</a>        <span class="kw">let </span>(text, tail) = rest.split_at(brace);
+<a href=#608 id=608 data-nosnippet>608</a>        interpolated.push_str(text);
+<a href=#609 id=609 data-nosnippet>609</a>        <span class="kw">let </span>escaped = tail.strip_prefix(<span class="string">"{{"</span>).map(|after| (<span class="string">'{'</span>, after));
+<a href=#610 id=610 data-nosnippet>610</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>((brace, after)) =
+<a href=#611 id=611 data-nosnippet>611</a>            escaped.or_else(|| tail.strip_prefix(<span class="string">"}}"</span>).map(|after| (<span class="string">'}'</span>, after)))
+<a href=#612 id=612 data-nosnippet>612</a>        {
+<a href=#613 id=613 data-nosnippet>613</a>            interpolated.push(brace);
+<a href=#614 id=614 data-nosnippet>614</a>            rest = after;
+<a href=#615 id=615 data-nosnippet>615</a>            <span class="kw">continue</span>;
+<a href=#616 id=616 data-nosnippet>616</a>        }
+<a href=#617 id=617 data-nosnippet>617</a>        <span class="kw">let </span>placeholder = tail.strip_prefix(<span class="string">'{'</span>).and_then(|inner| inner.split_once(<span class="string">'}'</span>));
+<a href=#618 id=618 data-nosnippet>618</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>((values, after)) = placeholder
+<a href=#619 id=619 data-nosnippet>619</a>            .and_then(|(id, after)| matches.try_get_raw(id).ok().map(|values| (values, after)))
+<a href=#620 id=620 data-nosnippet>620</a>        {
+<a href=#621 id=621 data-nosnippet>621</a>            <span class="kw">let </span>values: Vec&lt;<span class="kw">_</span>&gt; =
+<a href=#622 id=622 data-nosnippet>622</a>                values.into_iter().flatten().map(|v| v.to_string_lossy()).collect();
+<a href=#623 id=623 data-nosnippet>623</a>            interpolated.push_str(<span class="kw-2">&amp;</span>values.join(<span class="string">", "</span>));
+<a href=#624 id=624 data-nosnippet>624</a>            rest = after;
+<a href=#625 id=625 data-nosnippet>625</a>            <span class="kw">continue</span>;
+<a href=#626 id=626 data-nosnippet>626</a>        }
+<a href=#627 id=627 data-nosnippet>627</a>        <span class="comment">// A lone brace, or a `{id}` naming no arg: keep the brace as written.
+<a href=#628 id=628 data-nosnippet>628</a>        </span><span class="kw">let </span>(brace, after) = tail.split_at(<span class="number">1</span>);
+<a href=#629 id=629 data-nosnippet>629</a>        interpolated.push_str(brace);
+<a href=#630 id=630 data-nosnippet>630</a>        rest = after;
+<a href=#631 id=631 data-nosnippet>631</a>    }
+<a href=#632 id=632 data-nosnippet>632</a>    interpolated.push_str(rest);
+<a href=#633 id=633 data-nosnippet>633</a>    interpolated
+<a href=#634 id=634 data-nosnippet>634</a>}
+<a href=#635 id=635 data-nosnippet>635</a>
+<a href=#636 id=636 data-nosnippet>636</a><span class="kw">fn </span>matches_at&lt;<span class="lifetime">'matches</span>&gt;(
+<a href=#637 id=637 data-nosnippet>637</a>    matches: <span class="kw-2">&amp;</span><span class="lifetime">'matches </span>ArgMatches,
+<a href=#638 id=638 data-nosnippet>638</a>    path: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str],
+<a href=#639 id=639 data-nosnippet>639</a>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'matches </span>ArgMatches&gt; {
+<a href=#640 id=640 data-nosnippet>640</a>    path.iter().try_fold(matches, |level, name| {
+<a href=#641 id=641 data-nosnippet>641</a>        level.subcommand().filter(|(taken, <span class="kw">_</span>)| taken == name).map(|(<span class="kw">_</span>, sub)| sub)
+<a href=#642 id=642 data-nosnippet>642</a>    })
+<a href=#643 id=643 data-nosnippet>643</a>}
+<a href=#644 id=644 data-nosnippet>644</a>
+<a href=#645 id=645 data-nosnippet>645</a><span class="doccomment">/// The prompted args on the path the user took that got no value or only their default, with
+<a href=#646 id=646 data-nosnippet>646</a>/// the default's values, split at the arg's value delimiter as clap splits them. One whose
+<a href=#647 id=647 data-nosnippet>647</a>/// `default_value_if` fired is left to the arg that fired it: the conditional default beats an
+<a href=#648 id=648 data-nosnippet>648</a>/// injected answer, so asking would drop the answer.
+<a href=#649 id=649 data-nosnippet>649</a></span><span class="kw">fn </span>pending&lt;<span class="lifetime">'prompted_arg</span>&gt;(
+<a href=#650 id=650 data-nosnippet>650</a>    cmd: <span class="kw-2">&amp;</span>Command,
+<a href=#651 id=651 data-nosnippet>651</a>    matches: <span class="kw-2">&amp;</span>ArgMatches,
+<a href=#652 id=652 data-nosnippet>652</a>    prompted_args: <span class="kw-2">&amp;</span><span class="lifetime">'prompted_arg </span>[PromptedArg],
+<a href=#653 id=653 data-nosnippet>653</a>) -&gt; Vec&lt;(<span class="kw-2">&amp;</span><span class="lifetime">'prompted_arg </span>PromptedArg, Vec&lt;String&gt;)&gt; {
+<a href=#654 id=654 data-nosnippet>654</a>    <span class="comment">// Built, so a flag's action has filled in its implicit default (`false` for `SetTrue`).
+<a href=#655 id=655 data-nosnippet>655</a>    </span><span class="kw">let </span><span class="kw-2">mut </span>built = cmd.clone();
+<a href=#656 id=656 data-nosnippet>656</a>    built.build();
+<a href=#657 id=657 data-nosnippet>657</a>    prompted_args
+<a href=#658 id=658 data-nosnippet>658</a>        .iter()
+<a href=#659 id=659 data-nosnippet>659</a>        .filter_map(|prompted_arg| {
+<a href=#660 id=660 data-nosnippet>660</a>            <span class="kw">let </span>arg = arg_at(<span class="kw-2">&amp;</span>built, <span class="kw-2">&amp;</span>prompted_arg.subcommand_path, prompted_arg.attr.arg_id)<span class="question-mark">?</span>;
+<a href=#661 id=661 data-nosnippet>661</a>            <span class="kw">let </span>level = matches_at(matches, <span class="kw-2">&amp;</span>prompted_arg.subcommand_path)<span class="question-mark">?</span>;
+<a href=#662 id=662 data-nosnippet>662</a>            <span class="kw">let </span>id = prompted_arg.attr.arg_id;
+<a href=#663 id=663 data-nosnippet>663</a>            <span class="kw">match </span>level.value_source(id) {
+<a href=#664 id=664 data-nosnippet>664</a>                <span class="prelude-val">None </span><span class="kw">if </span>default_values(arg).next().is_none() =&gt; <span class="prelude-val">Some</span>((prompted_arg, Vec::new())),
+<a href=#665 id=665 data-nosnippet>665</a>                <span class="prelude-val">Some</span>(ValueSource::DefaultValue) =&gt; {
+<a href=#666 id=666 data-nosnippet>666</a>                    <span class="kw">let </span>current = raw_values(level, id);
+<a href=#667 id=667 data-nosnippet>667</a>                    current
+<a href=#668 id=668 data-nosnippet>668</a>                        .iter()
+<a href=#669 id=669 data-nosnippet>669</a>                        .map(String::as_str)
+<a href=#670 id=670 data-nosnippet>670</a>                        .eq(default_values(arg))
+<a href=#671 id=671 data-nosnippet>671</a>                        .then_some((prompted_arg, current))
+<a href=#672 id=672 data-nosnippet>672</a>                }
+<a href=#673 id=673 data-nosnippet>673</a>                <span class="prelude-val">None </span>| <span class="prelude-val">Some</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
+<a href=#674 id=674 data-nosnippet>674</a>            }
+<a href=#675 id=675 data-nosnippet>675</a>        })
+<a href=#676 id=676 data-nosnippet>676</a>        .collect()
+<a href=#677 id=677 data-nosnippet>677</a>}
+<a href=#678 id=678 data-nosnippet>678</a>
+<a href=#679 id=679 data-nosnippet>679</a><span class="kw">fn </span>raw_values(matches: <span class="kw-2">&amp;</span>ArgMatches, id: <span class="kw-2">&amp;</span>str) -&gt; Vec&lt;String&gt; {
+<a href=#680 id=680 data-nosnippet>680</a>    matches
+<a href=#681 id=681 data-nosnippet>681</a>        .try_get_raw(id)
+<a href=#682 id=682 data-nosnippet>682</a>        .ok()
+<a href=#683 id=683 data-nosnippet>683</a>        .flatten()
+<a href=#684 id=684 data-nosnippet>684</a>        .into_iter()
+<a href=#685 id=685 data-nosnippet>685</a>        .flatten()
+<a href=#686 id=686 data-nosnippet>686</a>        .map(|value| value.to_string_lossy().into_owned())
+<a href=#687 id=687 data-nosnippet>687</a>        .collect()
+<a href=#688 id=688 data-nosnippet>688</a>}
+<a href=#689 id=689 data-nosnippet>689</a>
+<a href=#690 id=690 data-nosnippet>690</a><span class="doccomment">/// Check whether `arg` takes many values, as a `Vec&lt;T&gt;` field does.
+<a href=#691 id=691 data-nosnippet>691</a></span><span class="kw">fn </span>takes_many(arg: <span class="kw-2">&amp;</span>Arg) -&gt; bool {
+<a href=#692 id=692 data-nosnippet>692</a>    <span class="macro">matches!</span>(arg.get_action(), ArgAction::Append)
+<a href=#693 id=693 data-nosnippet>693</a>        || arg.get_num_args().is_some_and(|range| range.max_values() &gt; <span class="number">1</span>)
+<a href=#694 id=694 data-nosnippet>694</a>}
+<a href=#695 id=695 data-nosnippet>695</a>
+<a href=#696 id=696 data-nosnippet>696</a><span class="doccomment">/// Make each of `prompted_args` optional, so a missing one does not stop a parse.
+<a href=#697 id=697 data-nosnippet>697</a></span><span class="kw">fn </span>relax&lt;<span class="lifetime">'prompted_arg</span>&gt;(
+<a href=#698 id=698 data-nosnippet>698</a>    cmd: Command,
+<a href=#699 id=699 data-nosnippet>699</a>    prompted_args: <span class="kw">impl </span>IntoIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'prompted_arg </span>PromptedArg&gt;,
+<a href=#700 id=700 data-nosnippet>700</a>) -&gt; Command {
+<a href=#701 id=701 data-nosnippet>701</a>    prompted_args.into_iter().fold(cmd, unrequire)
+<a href=#702 id=702 data-nosnippet>702</a>}
+<a href=#703 id=703 data-nosnippet>703</a>
+<a href=#704 id=704 data-nosnippet>704</a><span class="doccomment">/// The first line of clap's message, without its `error: ` prefix. clap quotes the rejected
+<a href=#705 id=705 data-nosnippet>705</a>/// `values`, so a multi-line one is shortened to its first line first, keeping the reason after it.
+<a href=#706 id=706 data-nosnippet>706</a></span><span class="kw">fn </span>summary(err: <span class="kw-2">&amp;</span>clap::Error, values: <span class="kw-2">&amp;</span>[String]) -&gt; String {
+<a href=#707 id=707 data-nosnippet>707</a>    <span class="kw">let </span><span class="kw-2">mut </span>rendered = err.render().to_string();
+<a href=#708 id=708 data-nosnippet>708</a>    <span class="kw">for </span>value <span class="kw">in </span>values {
+<a href=#709 id=709 data-nosnippet>709</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>((first_line, <span class="kw">_</span>)) = value.split_once(<span class="string">'\n'</span>) {
+<a href=#710 id=710 data-nosnippet>710</a>            rendered = rendered.replace(value.as_str(), <span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"{first_line}\u{2026}"</span>));
+<a href=#711 id=711 data-nosnippet>711</a>        }
+<a href=#712 id=712 data-nosnippet>712</a>    }
+<a href=#713 id=713 data-nosnippet>713</a>    <span class="kw">let </span>line = rendered.lines().next().unwrap_or_default();
+<a href=#714 id=714 data-nosnippet>714</a>    line.strip_prefix(<span class="string">"error: "</span>).unwrap_or(line).to_owned()
 <a href=#715 id=715 data-nosnippet>715</a>}
+<a href=#716 id=716 data-nosnippet>716</a>
+<a href=#717 id=717 data-nosnippet>717</a><span class="doccomment">/// Drop the rules that make `prompted_arg` required: its `required`, its
+<a href=#718 id=718 data-nosnippet>718</a>/// `required_unless_present`, and the `required` of the groups it belongs to. clap can't clear
+<a href=#719 id=719 data-nosnippet>719</a>/// `required_unless_present_all` or `required_if_eq`, so those stay.
+<a href=#720 id=720 data-nosnippet>720</a></span><span class="kw">fn </span>unrequire(cmd: Command, prompted_arg: <span class="kw-2">&amp;</span>PromptedArg) -&gt; Command {
+<a href=#721 id=721 data-nosnippet>721</a>    <span class="kw">let </span>id = prompted_arg.attr.arg_id;
+<a href=#722 id=722 data-nosnippet>722</a>    with_command_at(cmd, <span class="kw-2">&amp;</span>prompted_arg.subcommand_path, |level| {
+<a href=#723 id=723 data-nosnippet>723</a>        <span class="kw">if </span>!level.get_arguments().any(|arg| arg.get_id() == id) {
+<a href=#724 id=724 data-nosnippet>724</a>            <span class="kw">return </span>level;
+<a href=#725 id=725 data-nosnippet>725</a>        }
+<a href=#726 id=726 data-nosnippet>726</a>        <span class="kw">let </span>groups: Vec&lt;Id&gt; = level
+<a href=#727 id=727 data-nosnippet>727</a>            .get_groups()
+<a href=#728 id=728 data-nosnippet>728</a>            .filter(|group| group.is_required_set() &amp;&amp; group.get_args().any(|arg| arg == id))
+<a href=#729 id=729 data-nosnippet>729</a>            .map(|group| group.get_id().clone())
+<a href=#730 id=730 data-nosnippet>730</a>            .collect();
+<a href=#731 id=731 data-nosnippet>731</a>        <span class="kw">let </span>level =
+<a href=#732 id=732 data-nosnippet>732</a>            level.mut_arg(id, |arg| arg.required(<span class="bool-val">false</span>).required_unless_present(Resettable::Reset));
+<a href=#733 id=733 data-nosnippet>733</a>        groups
+<a href=#734 id=734 data-nosnippet>734</a>            .iter()
+<a href=#735 id=735 data-nosnippet>735</a>            .fold(level, |level, group| level.mut_group(group, |group| group.required(<span class="bool-val">false</span>)))
+<a href=#736 id=736 data-nosnippet>736</a>    })
+<a href=#737 id=737 data-nosnippet>737</a>}
+<a href=#738 id=738 data-nosnippet>738</a>
+<a href=#739 id=739 data-nosnippet>739</a><span class="doccomment">/// Apply `edit` to the arg `id` of the command at `path`; unchanged when either is missing.
+<a href=#740 id=740 data-nosnippet>740</a></span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>with_arg_at&lt;F&gt;(cmd: Command, path: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str], id: <span class="kw-2">&amp;</span>str, edit: F) -&gt; Command
+<a href=#741 id=741 data-nosnippet>741</a><span class="kw">where
+<a href=#742 id=742 data-nosnippet>742</a>    </span>F: FnOnce(Arg) -&gt; Arg,
+<a href=#743 id=743 data-nosnippet>743</a>{
+<a href=#744 id=744 data-nosnippet>744</a>    with_command_at(cmd, path, |level| {
+<a href=#745 id=745 data-nosnippet>745</a>        <span class="kw">if </span>level.get_arguments().any(|arg| arg.get_id() == id) {
+<a href=#746 id=746 data-nosnippet>746</a>            level.mut_arg(id, edit)
+<a href=#747 id=747 data-nosnippet>747</a>        } <span class="kw">else </span>{
+<a href=#748 id=748 data-nosnippet>748</a>            level
+<a href=#749 id=749 data-nosnippet>749</a>        }
+<a href=#750 id=750 data-nosnippet>750</a>    })
+<a href=#751 id=751 data-nosnippet>751</a>}
 </code></pre></div></section></main></body></html>

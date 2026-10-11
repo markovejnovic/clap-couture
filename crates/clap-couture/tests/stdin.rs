@@ -68,6 +68,20 @@ enum CodecCmd {
     Version,
 }
 
+#[derive(Parser, Couture, Debug)]
+struct Note {
+    #[arg(long)]
+    #[couture(accept_stdin(dash))]
+    body: Option<String>,
+}
+
+#[derive(Parser, Couture)]
+struct DockerLogin {
+    #[arg(long)]
+    #[couture(prompt, secret, accept_stdin(dash))]
+    password: SecretString,
+}
+
 #[derive(Parser, Couture)]
 struct Login {
     /// Password.
@@ -110,6 +124,10 @@ fn child() {
                 CodecCmd::Version => "version".to_owned(),
             })
         }
+        "note" => Note::couture_try_parse_from_with(&NonInteractive, argv)
+            .map(|note| format!("body={:?}", note.body)),
+        "docker-login" => DockerLogin::couture_try_parse_from_with(&NonInteractive, argv)
+            .map(|login| format!("password={}", login.password.expose_secret())),
         "login" => {
             // Available with stdin piped: the user is asked, the piped password is not.
             let backend = ScriptedBackend::new([Reply::Text(Some("ada"))]);
@@ -250,4 +268,26 @@ fn a_piped_secret_is_not_asked_while_the_rest_is() {
         run("login", &[], Stdin::Piped(b"hunter2\n")).as_deref(),
         Ok("user=ada password=hunter2")
     );
+}
+
+#[rstest]
+#[case::piped(&["--body", "-"], Stdin::Piped(b"hello\n"), "body=Some(\"hello\")")]
+#[case::piped_with_equals(&["--body=-"], Stdin::Piped(b"hello\n"), "body=Some(\"hello\")")]
+#[case::from_a_file(&["--body", "-"], Stdin::File(b"hello\n"), "body=Some(\"hello\")")]
+#[case::from_the_null_device(&["--body", "-"], Stdin::Null, "body=Some(\"\")")]
+fn a_dash_reads_any_stdin(#[case] argv: &[&str], #[case] stdin: Stdin, #[case] parsed: &str) {
+    assert_eq!(run("note", argv, stdin).as_deref(), Ok(parsed));
+}
+
+#[rstest]
+#[case::left_out(&[], "body=None")]
+#[case::passed(&["--body", "typed"], "body=Some(\"typed\")")]
+fn without_a_dash_stdin_is_left_unread(#[case] argv: &[&str], #[case] parsed: &str) {
+    assert_eq!(run("note", argv, Stdin::PipedOpen).as_deref(), Ok(parsed));
+}
+
+#[test]
+fn a_dash_reads_a_secret_the_command_line_may_not_pass() {
+    let result = run("docker-login", &["--password", "-"], Stdin::Piped(b"hunter2\n"));
+    assert_eq!(result.as_deref(), Ok("password=hunter2"));
 }

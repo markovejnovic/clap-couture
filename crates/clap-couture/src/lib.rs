@@ -324,6 +324,20 @@
 //! Only one arg on a command may take stdin, as stdin can only be read once. See
 //! [the `interactive` module](interactive#reading-piped-stdin) for the details.
 //!
+//! ### Dash as a value
+//!
+//! `dash` gives `-` a meaning: `#[couture(prompt(dash))]` asks for an arg passed `-`, like `git
+//! commit -m -` opening the editor, and `#[couture(accept_stdin(dash))]` reads stdin into it,
+//! like `docker login --password-stdin`. Without `-`, neither asks nor reads.
+//!
+//! An example of this interaction is:
+//!
+//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/11-interactive-dash-dark.gif" alt="running orbit-release --title -, which asks for the title, then piping release notes into orbit-release --notes -, which reads them from stdin">
+//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/11-interactive-dash-light.gif" alt="running orbit-release --title -, which asks for the title, then piping release notes into orbit-release --notes -, which reads them from stdin">
+//!
+//! See [`examples/11-interactive-dash.rs`](https://github.com/markovejnovic/clap-couture/blob/main/crates/clap-couture/examples/11-interactive-dash.rs),
+//! and [the `interactive` module](interactive#dash-as-a-value) for the details.
+//!
 //! ### Custom interactive input
 //!
 //! Some questions only make sense after the parse. [`CoutureParser::prompter`] asks them in the

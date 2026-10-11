@@ -1,15 +1,23 @@
-//! Stdin, read only when something is piped into it.
+//! Stdin, read when something is piped into it or the user asked for it with `-`.
 
 use std::io::{self, Read as _};
 
-/// Everything piped into stdin; `None` when stdin is not a pipe, like a terminal, a file or
-/// `/dev/null`. A socket counts as a pipe: some runtimes, like Node's, pipe a child's stdin
-/// through one.
+/// Which stdin [`read`] reads.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ReadWhen {
+    /// Whatever stdin is, as `-` asks: a terminal is read until end of input.
+    Always,
+    /// Only a pipe; a terminal, a file or `/dev/null` is left alone. A socket counts as a pipe:
+    /// some runtimes, like Node's, pipe a child's stdin through one.
+    Piped,
+}
+
+/// Everything on stdin; `None` when `when` leaves it unread.
 ///
 /// # Errors
 /// Reading stdin failed.
-pub(crate) fn read_piped() -> io::Result<Option<Vec<u8>>> {
-    if !is_pipe() {
+pub(crate) fn read(when: ReadWhen) -> io::Result<Option<Vec<u8>>> {
+    if when == ReadWhen::Piped && !is_pipe() {
         return Ok(None);
     }
     let mut piped = Vec::new();

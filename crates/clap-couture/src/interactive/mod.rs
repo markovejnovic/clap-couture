@@ -231,6 +231,62 @@
 //!     tags: Vec<String>,
 //! }
 //! ```
+//! 
+//! # Dash as a value
+//!
+//! `dash` makes `-` as an arg's value stand for something, as in `git commit -F -`.
+//! `#[couture(prompt(dash))]` asks for the arg when its value is `-`, and only then: left out, it
+//! stays unset. `#[couture(accept_stdin(dash))]` reads all of stdin into the arg when its value is
+//! `-`, whatever stdin is, a pipe, a file or a terminal (read until end of input), and leaves
+//! stdin alone otherwise. Either works for a flag's value (`--message -`, `--message=-`, `-m-`,
+//! `-vm -`) or a positional, beside `secret` too: the `-` is no secret on the command line.
+//! `prompt(dash, question = "...")` asks its own question.
+//! ```
+//! use clap::Parser;
+//! use clap_couture::{Couture, CoutureParser as _, interactive::secrecy::SecretString};
+//!
+//! #[derive(Parser, Couture)]
+//! struct Cli {
+//!     /// Commit message; `-` asks for it.
+//!     #[arg(short, long)]
+//!     #[couture(prompt(dash), editor)]
+//!     message: Option<String>,
+//!
+//!     /// Password; `-` reads it from stdin.
+//!     #[arg(long)]
+//!     #[couture(prompt, secret, accept_stdin(dash))]
+//!     password: Option<SecretString>,
+//! }
+//!
+//! let cli = Cli::couture_parse_from(["commit", "-m", "Fix login"]);
+//! # assert_eq!(cli.message.as_deref(), Some("Fix login"));
+//! ```
+//! 
+//! With no terminal to ask on, a `-` that asks fails the parse. `-` means one thing per arg:
+//! ```compile_fail
+//! use clap::Parser;
+//! use clap_couture::Couture;
+//!
+//! #[derive(Parser, Couture)]
+//! struct Cli {
+//!     #[arg(long)]
+//!     #[couture(prompt(dash), accept_stdin(dash))]
+//!     message: Option<String>,
+//! }
+//! ```
+//! 
+//! and stands for its one value, so a flag or a `Vec` can't take it:
+//! ```compile_fail
+//! use clap::Parser;
+//! use clap_couture::Couture;
+//!
+//! #[derive(Parser, Couture)]
+//! struct Cli {
+//!     #[arg(long)]
+//!     #[couture(prompt(dash))]
+//!     tags: Vec<String>,
+//! }
+//! ```
 
 mod backend;
 mod prompted_args;
@@ -253,7 +309,7 @@ pub(crate) use prompted_args::StdinArg;
 #[doc(hidden)]
 pub use prompted_args::{
     EditorAttr, PromptAttr, PromptPurpose, PromptedArg, PromptedArgBranch, PromptedArgTree,
-    SecretAttr, SecretField,
+    SecretAttr, SecretField, StdinAttr,
 };
 pub use prompter::Prompter;
 /// The [`secrecy`](https://docs.rs/secrecy) crate couture's secret args are typed with, so the app

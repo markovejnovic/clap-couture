@@ -19,7 +19,7 @@ use secrecy::SecretString;
 use unicode_width::UnicodeWidthStr as _;
 
 use super::prompting::{with_arg_at, with_command_at};
-use crate::interactive::PromptedArg;
+use crate::interactive::{PromptedArg, StdinArg};
 
 /// What a prompted secret's placeholder starts with. Neither argv nor env vars can hold NUL, so no
 /// user input can forge one.
@@ -62,6 +62,9 @@ impl Vault {
 struct SecretValueParser {
     /// The command line may carry this secret: `secret(allow_argv)`.
     allow_argv: bool,
+    /// The command line may pass `-`, which the prompting parse takes out before it gets here:
+    /// `prompt(dash)` or `accept_stdin(dash)`.
+    dash: bool,
     vault: Vault,
 }
 
@@ -85,7 +88,7 @@ impl TypedValueParser for SecretValueParser {
         value: &OsStr,
         source: ValueSource,
     ) -> Result<SecretString, clap::Error> {
-        if source == ValueSource::CommandLine && !self.allow_argv {
+        if source == ValueSource::CommandLine && !self.allow_argv && !(self.dash && value == "-") {
             return Err(command_line_refusal(cmd, arg));
         }
         let value =
@@ -129,18 +132,27 @@ impl HiddenSecrets<'_> {
 }
 
 /// Give each secret arg in `prompted_args` a [`SecretValueParser`] on `vault`, and keep its env
-/// var's value and any placeholder default out of `--help`.
+/// var's value and any placeholder default out of `--help`. `stdin_args` tell which of them may
+/// be passed `-`.
 pub(crate) fn guard(
     cmd: Command,
     prompted_args: &[PromptedArg],
+    stdin_args: &[StdinArg],
     vault: &Vault,
     environment_heading: &str,
 ) -> Command {
     let cmd = prompted_args.iter().fold(cmd, |cmd, prompted_arg| {
         let Some(secret_attr) = &prompted_arg.attr.secret else { return cmd };
-        let parser =
-            SecretValueParser { allow_argv: secret_attr.allow_argv(), vault: vault.clone() };
-        with_arg_at(cmd, &prompted_arg.subcommand_path, prompted_arg.attr.arg_id, |arg| {
+        let (path, id) = (&prompted_arg.subcommand_path, prompted_arg.attr.arg_id);
+        let stdin_dash = stdin_args.iter().any(|stdin_arg| {
+            stdin_arg.attr.dash && stdin_arg.subcommand_path == *path && stdin_arg.attr.arg_id == id
+        });
+        let parser = SecretValueParser {
+            allow_argv: secret_attr.allow_argv(),
+            dash: prompted_arg.attr.dash || stdin_dash,
+            vault: vault.clone(),
+        };
+        with_arg_at(cmd, path, id, |arg| {
             arg.value_parser(parser).hide_default_value(true).hide_env_values(true)
         })
     });
@@ -225,6 +237,7 @@ mod tests {
 
     static TOKEN: PromptAttr = PromptAttr {
         arg_id: "token",
+        dash: false,
         editor: None,
         purpose: PromptPurpose::Value,
         question: None,
@@ -233,6 +246,7 @@ mod tests {
 
     static SCRIPTED_TOKEN: PromptAttr = PromptAttr {
         arg_id: "token",
+        dash: false,
         editor: None,
         purpose: PromptPurpose::Value,
         question: None,
@@ -241,7 +255,7 @@ mod tests {
 
     fn guarded(attr: &'static PromptAttr, vault: &Vault) -> Command {
         let cmd = Command::new("app").arg(Arg::new("token").long("token"));
-        guard(cmd, &[PromptedArg { attr, subcommand_path: Vec::new() }], vault, "Environment:")
+        guard(cmd, &[PromptedArg { attr, subcommand_path: Vec::new() }], &[], vault, "Environment:")
     }
 
     /// The rendered error of parsing `argv`, empty when the parse succeeds.
@@ -353,7 +367,7 @@ mod tests {
         };
         let prompted_args = [PromptedArg { attr, subcommand_path: Vec::new() }];
         let mut cmd = (0..times)
-            .fold(cmd, |cmd, _| guard(cmd, &prompted_args, &Vault::default(), "Environment:"));
+            .fold(cmd, |cmd, _| guard(cmd, &prompted_args, &[], &Vault::default(), "Environment:"));
         cmd.render_help().to_string()
     }
 

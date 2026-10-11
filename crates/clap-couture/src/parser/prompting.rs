@@ -13,8 +13,9 @@
 //! value parser swaps back. It skips the trial parse: that parser takes any string, so there is
 //! nothing to ask again.
 //!
-//! Before any of it, the `#[couture(accept_stdin)]` arg on the path the user took, if it got no
-//! value, takes what is piped into stdin, and is then no longer asked.
+//! Before any of it, each `-` passed to a `dash` arg comes out of argv, and the
+//! `#[couture(accept_stdin)]` arg on the path the user took takes stdin: all of it when passed
+//! `-`, else what is piped, if it got no value. It is then no longer asked.
 
 use core::iter;
 use std::{ffi::OsString, io};
@@ -27,7 +28,7 @@ use clap::{
 };
 
 use super::{
-    Failure,
+    Failure, dash,
     secrets::{self, Vault},
     stdin,
 };
@@ -37,7 +38,7 @@ use crate::{
         Backend, CommandStyles, ConfirmPrompt, MultiSelectPrompt, PromptError, PromptPurpose,
         PromptedArg, PromptedArgTree, SecretPrompt, SelectPrompt, TextPrompt,
     },
-    os::signal::Signal,
+    os::{signal::Signal, stdin::ReadWhen},
 };
 #[cfg(feature = "interactive-editor")]
 use crate::{
@@ -384,39 +385,56 @@ impl Session<'_> {
     }
 }
 
-/// Parse `argv` against `cmd`, filling the stdin arg in `prompted_arg_tree` from
-/// `read_piped_stdin` and asking `backend` for the prompted args that got no value.
+/// Parse `argv` against `cmd`, taking out each `-` a dash arg in `prompted_arg_tree` got, filling
+/// its stdin arg from `read_stdin` and asking `backend` for the prompted args that got no value.
 pub(super) fn parse<T>(
     cmd: Command,
     prompted_arg_tree: &'static PromptedArgTree,
     messages: &Messages,
     argv: &[OsString],
     backend: &dyn Backend,
-    read_piped_stdin: impl FnOnce() -> io::Result<Option<Vec<u8>>>,
+    read_stdin: impl FnOnce(ReadWhen) -> io::Result<Option<Vec<u8>>>,
 ) -> Result<T, Failure>
 where
     T: FromArgMatches,
 {
     let mut prompted_args = prompted_arg_tree.prompted_args();
     let stdin_args = prompted_arg_tree.stdin_args();
-    if stdin_args.is_empty() && (prompted_args.is_empty() || !backend.is_available()) {
+    let asked_by_dash = prompted_args.iter().any(|prompted_arg| prompted_arg.attr.dash);
+    if stdin_args.is_empty()
+        && !asked_by_dash
+        && (prompted_args.is_empty() || !backend.is_available())
+    {
         return parse_unprompted(cmd, &prompted_args, argv);
+    }
+    let (argv, dashed) = dash::take(&cmd, &prompted_args, &stdin_args, argv)?;
+    let argv = argv.as_slice();
+    // `-` is the only way to ask a `prompt(dash)` arg.
+    prompted_args.retain(|prompted_arg| {
+        !prompted_arg.attr.dash
+            || dashed.contains(&prompted_arg.subcommand_path, prompted_arg.attr.arg_id)
+    });
+    // A `-` asks over the arg's env var, as it does over its default.
+    let mut cmd = dashed.without_env(cmd);
+    if !backend.is_available()
+        && let Some(asked) = prompted_args.iter().find(|prompted_arg| prompted_arg.attr.dash)
+    {
+        return Err(dash::unaskable(&cmd, &asked.subcommand_path, asked.attr.arg_id));
     }
     // Re-guarded with the vault this parse's answers go into; trial and final parses share it.
     let vault = Vault::default();
-    let mut cmd = secrets::guard(cmd, &prompted_args, &vault, &messages.environment.get());
-    if let Some((stdin_arg, piped)) =
-        stdin::piped(&cmd, &prompted_args, &stdin_args, argv, read_piped_stdin)?
-    {
+    cmd = secrets::guard(cmd, &prompted_args, &stdin_args, &vault, &messages.environment.get());
+    let stdin = stdin::read(&cmd, &prompted_args, &stdin_args, &dashed, argv, read_stdin)?;
+    if let Some((stdin_arg, text)) = stdin {
         let is_stdin_arg = |prompted_arg: &PromptedArg| {
             prompted_arg.subcommand_path == stdin_arg.subcommand_path
-                && prompted_arg.attr.arg_id == stdin_arg.arg_id
+                && prompted_arg.attr.arg_id == stdin_arg.attr.arg_id
         };
         let secret = prompted_args
             .iter()
             .any(|prompted_arg| is_stdin_arg(prompted_arg) && prompted_arg.attr.secret.is_some());
-        let piped = if secret { vault.store(piped.into()) } else { piped };
-        cmd = inject_at(cmd, &stdin_arg.subcommand_path, stdin_arg.arg_id, &[piped]);
+        let text = if secret { vault.store(text.into()) } else { text };
+        cmd = inject_at(cmd, &stdin_arg.subcommand_path, stdin_arg.attr.arg_id, &[text]);
         prompted_args.retain(|prompted_arg| !is_stdin_arg(prompted_arg));
     }
     if prompted_args.is_empty() || !backend.is_available() {
@@ -461,7 +479,14 @@ where
             Err(PromptError::Cancelled) => return Err(Failure::Cancelled(Signal::Interrupt)),
             Err(PromptError::Signalled(signal)) => return Err(Failure::Cancelled(signal)),
             Err(PromptError::Io(err)) => return Err(Failure::Io(err)),
-            Err(PromptError::NotATerminal) => return parse_unprompted(cmd, &prompted_args, argv),
+            Err(PromptError::NotATerminal) => {
+                if let Some(asked) =
+                    prompted_args.iter().find(|prompted_arg| prompted_arg.attr.dash)
+                {
+                    return Err(dash::unaskable(&cmd, &asked.subcommand_path, asked.attr.arg_id));
+                }
+                return parse_unprompted(cmd, &prompted_args, argv);
+            }
         }
     }
     let cmd_with_answers = inject(
@@ -716,7 +741,7 @@ pub(super) fn unfilled(
     }
 }
 
-fn raw_values(matches: &ArgMatches, id: &str) -> Vec<String> {
+pub(super) fn raw_values(matches: &ArgMatches, id: &str) -> Vec<String> {
     matches
         .try_get_raw(id)
         .ok()

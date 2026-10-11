@@ -117,6 +117,10 @@ required-features = ["derive", "markdown", "interactive"]
 name = "10-interactive-stdin"
 required-features = ["interactive"]
 
+[[example]]
+name = "11-interactive-dash"
+required-features = ["interactive"]
+
 [dev-dependencies]
 clap = { workspace = true, features = ["derive", "env"] }
 rstest = { workspace = true }

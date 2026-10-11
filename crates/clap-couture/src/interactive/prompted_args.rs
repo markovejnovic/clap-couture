@@ -32,6 +32,8 @@ impl EditorAttr {
 pub struct PromptAttr {
     /// The clap id of the arg it is on.
     pub arg_id: &'static str,
+    /// `prompt(dash)`: asked only when `-` is its value.
+    pub dash: bool,
     /// `Some` for `#[couture(prompt, editor)]`; only set with the `interactive-editor` feature.
     pub editor: Option<EditorAttr>,
     /// What the answer is for.
@@ -79,15 +81,24 @@ pub struct PromptedArgTree {
     pub branches: &'static [PromptedArgBranch],
     /// The args prompted for at this level.
     pub own_args: &'static [PromptAttr],
-    /// The clap id of this level's `#[couture(accept_stdin)]` arg, if any.
-    pub stdin_arg: Option<&'static str>,
+    /// This level's `#[couture(accept_stdin)]` arg, if any.
+    pub stdin_arg: Option<StdinAttr>,
+}
+
+/// One `#[couture(accept_stdin)]`.
+#[derive(Debug)]
+pub struct StdinAttr {
+    /// The clap id of the arg it is on.
+    pub arg_id: &'static str,
+    /// `accept_stdin(dash)`: stdin is read only when `-` is its value.
+    pub dash: bool,
 }
 
 /// An arg marked `#[couture(accept_stdin)]`, and the subcommand path to the command that owns it.
 #[derive(Debug)]
 pub(crate) struct StdinArg {
-    /// The clap id of the arg.
-    pub(crate) arg_id: &'static str,
+    /// Its `#[couture(accept_stdin)]`.
+    pub(crate) attr: &'static StdinAttr,
     /// Subcommand names from the root, empty for a root arg.
     pub(crate) subcommand_path: Vec<&'static str>,
 }
@@ -168,7 +179,8 @@ impl PromptedArgTree {
         self.walk(&mut Vec::new(), &mut |tree, subcommand_path| {
             stdin_args.extend(
                 tree.stdin_arg
-                    .map(|arg_id| StdinArg { arg_id, subcommand_path: subcommand_path.to_vec() }),
+                    .as_ref()
+                    .map(|attr| StdinArg { attr, subcommand_path: subcommand_path.to_vec() }),
             );
         });
         stdin_args

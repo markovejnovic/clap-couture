@@ -182,6 +182,26 @@ message: String,
   <img src="assets/10-interactive-stdin-dark.gif" alt="piping release notes into orbit-release, which takes them without asking, then running orbit-release alone, which asks for the notes" width="623">
 </picture>
 
+### Dash as a value
+
+`dash` makes `-` mean something, and only `-`: `prompt(dash)` asks for the arg,
+`accept_stdin(dash)` reads stdin into it.
+
+```rust
+#[arg(short, long)]
+#[couture(prompt(dash), editor)] // `commit -m -` opens your $EDITOR
+message: Option<String>,
+
+#[arg(long)]
+#[couture(prompt, secret, accept_stdin(dash))] // `login --password -` reads stdin
+password: SecretString,
+```
+
+<picture>
+  <source media="(prefers-color-scheme: light)" srcset="assets/11-interactive-dash-light.gif">
+  <img src="assets/11-interactive-dash-dark.gif" alt="running orbit-release --title -, which asks for the title, then piping release notes into orbit-release --notes -, which reads them from stdin" width="640">
+</picture>
+
 ## Markdown
 
 With the `markdown` feature, doc comments and category descriptions render in

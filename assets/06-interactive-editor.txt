@@ -1,0 +1,227 @@
+>
+────────────────────────────────────────────────────────────────────────────────
+> deploy
+────────────────────────────────────────────────────────────────────────────────
+> deploy
+◆  Tail the logs afterwards
+│  ○ Yes  / ● No
+└
+────────────────────────────────────────────────────────────────────────────────
+> deploy
+◇  Tail the logs afterwards
+│  Yes
+│
+│  hint: Waiting for your editor to close the file...
+────────────────────────────────────────────────────────────────────────────────
+
+#| Release notes for this deploy
+#|
+#| These lines are removed. Leave the file empty to leave it unset.
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+</06-interactive-editor-uxPvgS/deploy-notes.md" 4L, 105B           1,0-1         All
+────────────────────────────────────────────────────────────────────────────────
+
+
+#| Release notes for this deploy
+#|
+#| These lines are removed. Leave the file empty to leave it unset.
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+-- INSERT --                                                       1,1           All
+────────────────────────────────────────────────────────────────────────────────
+Ships the new billing page.
+
+#| Release notes for this deploy
+#|
+#| These lines are removed. Leave the file empty to leave it unset.
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+-- INSERT --                                                       1,28          All
+────────────────────────────────────────────────────────────────────────────────
+Ships the new billing page.
+
+#| Release notes for this deploy
+#|
+#| These lines are removed. Leave the file empty to leave it unset.
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+                                                         ^[
+────────────────────────────────────────────────────────────────────────────────
+Ships the new billing page.
+
+#| Release notes for this deploy
+#|
+#| These lines are removed. Leave the file empty to leave it unset.
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+                                                                   1,27          All
+────────────────────────────────────────────────────────────────────────────────
+Ships the new billing page.
+
+#| Release notes for this deploy
+#|
+#| These lines are removed. Leave the file empty to leave it unset.
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+:wq
+────────────────────────────────────────────────────────────────────────────────
+> deploy
+◇  Tail the logs afterwards
+│  Yes
+│
+│  hint: Waiting for your editor to close the file...
+────────────────────────────────────────────────────────────────────────────────
+> deploy
+◇  Tail the logs afterwards
+│  Yes
+│
+◇  Release notes for this deploy
+│  Ships the new billing page.
+│
+◆  Region to deploy to
+│
+└
+────────────────────────────────────────────────────────────────────────────────
+> deploy
+◇  Tail the logs afterwards
+│  Yes
+│
+◇  Release notes for this deploy
+│  Ships the new billing page.
+│
+◆  Region to deploy to
+│  us-east
+└
+────────────────────────────────────────────────────────────────────────────────
+> deploy
+◇  Tail the logs afterwards
+│  Yes
+│
+◇  Release notes for this deploy
+│  Ships the new billing page.
+│
+◇  Region to deploy to
+│  us-east
+│
+◆  How to roll the release out
+│  ○ canary
+│  ● rolling (One instance at a time)
+│  ○ (none)
+└
+────────────────────────────────────────────────────────────────────────────────
+> deploy
+◇  Tail the logs afterwards
+│  Yes
+│
+◇  Release notes for this deploy
+│  Ships the new billing page.
+│
+◇  Region to deploy to
+│  us-east
+│
+◇  How to roll the release out
+│  rolling
+│
+deploying to us-east (rolling), following logs: true
+notes:
+Ships the new billing page.
+>
+────────────────────────────────────────────────────────────────────────────────

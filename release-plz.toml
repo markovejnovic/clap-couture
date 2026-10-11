@@ -1,0 +1,36 @@
+[workspace]
+# Publish only when the release PR is merged, not on every push to main.
+release_always = false
+git_tag_name = "v{{ version }}"
+
+[[package]]
+name = "clap-couture"
+version_group = "clap-couture"
+changelog_path = "./CHANGELOG.md"
+# Derive changes ship through this crate, so they're listed in its changelog.
+changelog_include = ["clap-couture-derive"]
+
+# Released in lockstep with `clap-couture`, under its tag and changelog.
+[[package]]
+name = "clap-couture-derive"
+version_group = "clap-couture"
+changelog_update = false
+git_tag_enable = false
+git_release_enable = false
+# Its API is the attributes `clap-couture` documents; cargo-semver-checks can't see those.
+semver_check = false
+
+[changelog]
+# A breaking commit is listed even when its type is skipped below.
+protect_breaking_commits = true
+commit_parsers = [
+  { message = "^feat", group = "added" },
+  { message = "^changed", group = "changed" },
+  { message = "^perf", group = "changed" },
+  { message = "^deprecated", group = "deprecated" },
+  { message = "^fix", group = "fixed" },
+  { message = "^security", group = "security" },
+  # Nothing users of the library see.
+  { message = "^(build|chore|ci|docs?|refactor|style|test)", skip = true },
+  { message = "^.*", group = "other" },
+]

@@ -82,51 +82,53 @@
 <a href=#76 id=76 data-nosnippet>76</a>    <span class="doccomment">/// Ask in the user's editor, returning `None` for an empty answer. Whether an empty answer is
 <a href=#77 id=77 data-nosnippet>77</a>    /// allowed is decided by the caller, from `prompt.optional`.
 <a href=#78 id=78 data-nosnippet>78</a>    ///
-<a href=#79 id=79 data-nosnippet>79</a>    /// The default opens the editor through [`edit`](crate::interactive::edit), asking with
-<a href=#80 id=80 data-nosnippet>80</a>    /// [`Backend::confirm`] whether the user is done when the editor returns right away. Override
-<a href=#81 id=81 data-nosnippet>81</a>    /// it to draw something around the editor, and call `edit` from the override.
-<a href=#82 id=82 data-nosnippet>82</a>    ///
-<a href=#83 id=83 data-nosnippet>83</a>    /// # Errors
-<a href=#84 id=84 data-nosnippet>84</a>    /// - [`PromptError::Signalled`] when the editor dies of Ctrl-C or of the terminal closing;
-<a href=#85 id=85 data-nosnippet>85</a>    ///   [`PromptError::Cancelled`] on Windows.
-<a href=#86 id=86 data-nosnippet>86</a>    /// - [`PromptError::Cancelled`] when the done-editing question is cancelled.
-<a href=#87 id=87 data-nosnippet>87</a>    /// - [`PromptError::Io`] when the editor cannot be found or started, or exits unsuccessfully.
-<a href=#88 id=88 data-nosnippet>88</a>    </span><span class="attr">#[cfg(feature = <span class="string">"interactive-editor"</span>)]
-<a href=#89 id=89 data-nosnippet>89</a>    </span><span class="kw">fn </span>editor(<span class="kw-2">&amp;</span><span class="self">self</span>, prompt: <span class="kw-2">&amp;</span>EditorPrompt&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;String&gt;, PromptError&gt; {
-<a href=#90 id=90 data-nosnippet>90</a>        EditorInteraction::start(<span class="self">self</span>, prompt)<span class="question-mark">?</span>.answer()
-<a href=#91 id=91 data-nosnippet>91</a>    }
-<a href=#92 id=92 data-nosnippet>92</a>
-<a href=#93 id=93 data-nosnippet>93</a>    <span class="doccomment">/// Check whether there is a terminal to ask on: stdin and stderr must both be one.
-<a href=#94 id=94 data-nosnippet>94</a>    </span><span class="kw">fn </span>is_available(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-<a href=#95 id=95 data-nosnippet>95</a>        io::stdin().is_terminal() &amp;&amp; io::stderr().is_terminal()
-<a href=#96 id=96 data-nosnippet>96</a>    }
-<a href=#97 id=97 data-nosnippet>97</a>
-<a href=#98 id=98 data-nosnippet>98</a>    <span class="doccomment">/// Ask to pick any number of `prompt.options`, returning the picked options' names in
-<a href=#99 id=99 data-nosnippet>99</a>    /// declared order. Unless `prompt.optional`, at least one must be picked.
-<a href=#100 id=100 data-nosnippet>100</a>    ///
-<a href=#101 id=101 data-nosnippet>101</a>    /// # Errors
-<a href=#102 id=102 data-nosnippet>102</a>    /// - [`PromptError::Cancelled`] when the user backs out.
-<a href=#103 id=103 data-nosnippet>103</a>    </span><span class="kw">fn </span>multi_select(<span class="kw-2">&amp;</span><span class="self">self</span>, prompt: <span class="kw-2">&amp;</span>MultiSelectPrompt&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;String&gt;, PromptError&gt;;
-<a href=#104 id=104 data-nosnippet>104</a>
-<a href=#105 id=105 data-nosnippet>105</a>    <span class="doccomment">/// Show clap's complaint about the previous answer, before asking again.
-<a href=#106 id=106 data-nosnippet>106</a>    ///
-<a href=#107 id=107 data-nosnippet>107</a>    /// # Errors
-<a href=#108 id=108 data-nosnippet>108</a>    /// - [`PromptError::Io`] when the message cannot be shown.
-<a href=#109 id=109 data-nosnippet>109</a>    </span><span class="kw">fn </span>report(<span class="kw-2">&amp;</span><span class="self">self</span>, error: <span class="kw-2">&amp;</span>str, _styles: CommandStyles&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), PromptError&gt; {
-<a href=#110 id=110 data-nosnippet>110</a>        <span class="macro">writeln!</span>(io::stderr(), <span class="string">"{error}"</span>).map_err(PromptError::Io)
-<a href=#111 id=111 data-nosnippet>111</a>    }
-<a href=#112 id=112 data-nosnippet>112</a>
-<a href=#113 id=113 data-nosnippet>113</a>    <span class="doccomment">/// Ask to pick one of `prompt.options`, returning the picked option's name, or `None` when an
-<a href=#114 id=114 data-nosnippet>114</a>    /// optional prompt is answered with none of them.
-<a href=#115 id=115 data-nosnippet>115</a>    ///
-<a href=#116 id=116 data-nosnippet>116</a>    /// # Errors
-<a href=#117 id=117 data-nosnippet>117</a>    /// - [`PromptError::Cancelled`] when the user backs out.
-<a href=#118 id=118 data-nosnippet>118</a>    </span><span class="kw">fn </span>select(<span class="kw-2">&amp;</span><span class="self">self</span>, prompt: <span class="kw-2">&amp;</span>SelectPrompt&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;String&gt;, PromptError&gt;;
-<a href=#119 id=119 data-nosnippet>119</a>
-<a href=#120 id=120 data-nosnippet>120</a>    <span class="doccomment">/// Ask for free text, returning `None` only for an empty answer to an optional prompt.
-<a href=#121 id=121 data-nosnippet>121</a>    ///
-<a href=#122 id=122 data-nosnippet>122</a>    /// # Errors
-<a href=#123 id=123 data-nosnippet>123</a>    /// - [`PromptError::Cancelled`] when the user backs out.
-<a href=#124 id=124 data-nosnippet>124</a>    </span><span class="kw">fn </span>text(<span class="kw-2">&amp;</span><span class="self">self</span>, prompt: <span class="kw-2">&amp;</span>TextPrompt&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;String&gt;, PromptError&gt;;
-<a href=#125 id=125 data-nosnippet>125</a>}
+<a href=#79 id=79 data-nosnippet>79</a>    /// The default opens the editor through
+<a href=#80 id=80 data-nosnippet>80</a>    /// [`EditorInteraction`](crate::interactive::EditorInteraction), asking with
+<a href=#81 id=81 data-nosnippet>81</a>    /// [`Backend::confirm`] whether the user is done when the editor returns right
+<a href=#82 id=82 data-nosnippet>82</a>    /// away. Override it to draw something around the editor, and use `EditorInteraction` from the
+<a href=#83 id=83 data-nosnippet>83</a>    /// override.
+<a href=#84 id=84 data-nosnippet>84</a>    ///
+<a href=#85 id=85 data-nosnippet>85</a>    /// # Errors
+<a href=#86 id=86 data-nosnippet>86</a>    /// - [`PromptError::Signalled`] when the editor dies of Ctrl-C or of the terminal closing;
+<a href=#87 id=87 data-nosnippet>87</a>    ///   [`PromptError::Cancelled`] on Windows.
+<a href=#88 id=88 data-nosnippet>88</a>    /// - [`PromptError::Cancelled`] when the done-editing question is cancelled.
+<a href=#89 id=89 data-nosnippet>89</a>    /// - [`PromptError::Io`] when the editor cannot be found or started, or exits unsuccessfully.
+<a href=#90 id=90 data-nosnippet>90</a>    </span><span class="attr">#[cfg(feature = <span class="string">"interactive-editor"</span>)]
+<a href=#91 id=91 data-nosnippet>91</a>    </span><span class="kw">fn </span>editor(<span class="kw-2">&amp;</span><span class="self">self</span>, prompt: <span class="kw-2">&amp;</span>EditorPrompt&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;String&gt;, PromptError&gt; {
+<a href=#92 id=92 data-nosnippet>92</a>        EditorInteraction::start(<span class="self">self</span>, prompt)<span class="question-mark">?</span>.answer()
+<a href=#93 id=93 data-nosnippet>93</a>    }
+<a href=#94 id=94 data-nosnippet>94</a>
+<a href=#95 id=95 data-nosnippet>95</a>    <span class="doccomment">/// Check whether there is a terminal to ask on: stdin and stderr must both be one.
+<a href=#96 id=96 data-nosnippet>96</a>    </span><span class="kw">fn </span>is_available(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+<a href=#97 id=97 data-nosnippet>97</a>        io::stdin().is_terminal() &amp;&amp; io::stderr().is_terminal()
+<a href=#98 id=98 data-nosnippet>98</a>    }
+<a href=#99 id=99 data-nosnippet>99</a>
+<a href=#100 id=100 data-nosnippet>100</a>    <span class="doccomment">/// Ask to pick any number of `prompt.options`, returning the picked options' names in
+<a href=#101 id=101 data-nosnippet>101</a>    /// declared order. Unless `prompt.optional`, at least one must be picked.
+<a href=#102 id=102 data-nosnippet>102</a>    ///
+<a href=#103 id=103 data-nosnippet>103</a>    /// # Errors
+<a href=#104 id=104 data-nosnippet>104</a>    /// - [`PromptError::Cancelled`] when the user backs out.
+<a href=#105 id=105 data-nosnippet>105</a>    </span><span class="kw">fn </span>multi_select(<span class="kw-2">&amp;</span><span class="self">self</span>, prompt: <span class="kw-2">&amp;</span>MultiSelectPrompt&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;String&gt;, PromptError&gt;;
+<a href=#106 id=106 data-nosnippet>106</a>
+<a href=#107 id=107 data-nosnippet>107</a>    <span class="doccomment">/// Show clap's complaint about the previous answer, before asking again.
+<a href=#108 id=108 data-nosnippet>108</a>    ///
+<a href=#109 id=109 data-nosnippet>109</a>    /// # Errors
+<a href=#110 id=110 data-nosnippet>110</a>    /// - [`PromptError::Io`] when the message cannot be shown.
+<a href=#111 id=111 data-nosnippet>111</a>    </span><span class="kw">fn </span>report(<span class="kw-2">&amp;</span><span class="self">self</span>, error: <span class="kw-2">&amp;</span>str, _styles: CommandStyles&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), PromptError&gt; {
+<a href=#112 id=112 data-nosnippet>112</a>        <span class="macro">writeln!</span>(io::stderr(), <span class="string">"{error}"</span>).map_err(PromptError::Io)
+<a href=#113 id=113 data-nosnippet>113</a>    }
+<a href=#114 id=114 data-nosnippet>114</a>
+<a href=#115 id=115 data-nosnippet>115</a>    <span class="doccomment">/// Ask to pick one of `prompt.options`, returning the picked option's name, or `None` when an
+<a href=#116 id=116 data-nosnippet>116</a>    /// optional prompt is answered with none of them.
+<a href=#117 id=117 data-nosnippet>117</a>    ///
+<a href=#118 id=118 data-nosnippet>118</a>    /// # Errors
+<a href=#119 id=119 data-nosnippet>119</a>    /// - [`PromptError::Cancelled`] when the user backs out.
+<a href=#120 id=120 data-nosnippet>120</a>    </span><span class="kw">fn </span>select(<span class="kw-2">&amp;</span><span class="self">self</span>, prompt: <span class="kw-2">&amp;</span>SelectPrompt&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;String&gt;, PromptError&gt;;
+<a href=#121 id=121 data-nosnippet>121</a>
+<a href=#122 id=122 data-nosnippet>122</a>    <span class="doccomment">/// Ask for free text, returning `None` only for an empty answer to an optional prompt.
+<a href=#123 id=123 data-nosnippet>123</a>    ///
+<a href=#124 id=124 data-nosnippet>124</a>    /// # Errors
+<a href=#125 id=125 data-nosnippet>125</a>    /// - [`PromptError::Cancelled`] when the user backs out.
+<a href=#126 id=126 data-nosnippet>126</a>    </span><span class="kw">fn </span>text(<span class="kw-2">&amp;</span><span class="self">self</span>, prompt: <span class="kw-2">&amp;</span>TextPrompt&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;String&gt;, PromptError&gt;;
+<a href=#127 id=127 data-nosnippet>127</a>}
 </code></pre></div></section></main></body></html>

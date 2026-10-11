@@ -12,8 +12,7 @@
 //! ```terminal
 //! Deploy and manage your apps from the terminal
 //!
-//! Usage:
-//!   09-interactive-custom-backend <COMMAND>
+//! Usage: 09-interactive-custom-backend <COMMAND>
 //!
 //!   status    Show recent activity
 //!
@@ -29,6 +28,8 @@
 //! Account & sync:
 //!   login     Sign in to your account
 //!   sync      Sync settings across machines
+//!
+//!   help      Print this message or the help of the given subcommand(s)
 //!
 //! Flags:
 //!   -h, --help  Print help

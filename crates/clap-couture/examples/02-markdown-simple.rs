@@ -12,11 +12,11 @@
 //! `cargo run -p clap-couture --features markdown --example 02-markdown-simple -- --help` outputs:
 //!
 //! ```terminal
-//! Usage:
-//!   02-markdown-simple <COMMAND>
+//! Usage: 02-markdown-simple <COMMAND>
 //!
 //!   deploy  Ship the current project
 //!   login   Sign in to your account
+//!   help    Print this message or the help of the given subcommand(s)
 //!
 //! Options:
 //!   -h, --help  Print help

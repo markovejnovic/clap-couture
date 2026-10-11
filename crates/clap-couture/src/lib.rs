@@ -963,7 +963,7 @@ impl CommandExt for Command {
         T: Couture,
     {
         // Built as clap builds it to parse, so each help lists what clap propagates down.
-        let mut built = self.clone().disable_help_subcommand(true);
+        let mut built = self.clone();
         built.build();
         T::HELP_TREE.install(self, &built, T::CATEGORIES, &T::MESSAGES)
     }

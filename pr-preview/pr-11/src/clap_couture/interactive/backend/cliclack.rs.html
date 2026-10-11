@@ -62,57 +62,62 @@
 <a href=#56 id=56 data-nosnippet>56</a>    <span class="kw">fn </span>text(<span class="kw-2">&amp;</span><span class="self">self</span>, prompt: <span class="kw-2">&amp;</span>TextPrompt&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;String&gt;, PromptError&gt; {
 <a href=#57 id=57 data-nosnippet>57</a>        <span class="kw">let </span>answer: String = Theme::from(prompt.styles).scoped(|| {
 <a href=#58 id=58 data-nosnippet>58</a>            <span class="kw">let </span>input = ::cliclack::input(prompt.question).required(!prompt.optional);
-<a href=#59 id=59 data-nosnippet>59</a>            <span class="comment">// TODO(markovejnovic): cliclack's `Input` cannot start out holding text, so `initial`
-<a href=#60 id=60 data-nosnippet>60</a>            // falls back to a default Enter accepts: the user can replace it but not clear it, so
-<a href=#61 id=61 data-nosnippet>61</a>            // a list with defaults cannot finish early. The hint is dropped with it, as an empty
-<a href=#62 id=62 data-nosnippet>62</a>            // answer no longer finishes, and cliclack shows a placeholder in place of the default.
-<a href=#63 id=63 data-nosnippet>63</a>            </span><span class="kw">let </span><span class="kw-2">mut </span>input = <span class="kw">match </span>(prompt.default.or(prompt.initial), prompt.hint) {
-<a href=#64 id=64 data-nosnippet>64</a>                (<span class="prelude-val">Some</span>(default), <span class="kw">_</span>) =&gt; input.default_input(default),
-<a href=#65 id=65 data-nosnippet>65</a>                (<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(hint)) =&gt; input.placeholder(hint),
-<a href=#66 id=66 data-nosnippet>66</a>                (<span class="prelude-val">None</span>, <span class="prelude-val">None</span>) =&gt; input,
-<a href=#67 id=67 data-nosnippet>67</a>            };
-<a href=#68 id=68 data-nosnippet>68</a>            input.interact()
-<a href=#69 id=69 data-nosnippet>69</a>        })<span class="question-mark">?</span>;
-<a href=#70 id=70 data-nosnippet>70</a>        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(answer).filter(|answer| !answer.is_empty()))
-<a href=#71 id=71 data-nosnippet>71</a>    }
-<a href=#72 id=72 data-nosnippet>72</a>}
-<a href=#73 id=73 data-nosnippet>73</a>
-<a href=#74 id=74 data-nosnippet>74</a><span class="doccomment">/// The command's styles on cliclack's input line.
-<a href=#75 id=75 data-nosnippet>75</a>///
-<a href=#76 id=76 data-nosnippet>76</a>/// By default, [`::cliclack`] uses global theming, which is somewhat inconvenient for the use-case
-<a href=#77 id=77 data-nosnippet>77</a>/// of following clap's theme. The [`Theme::scoped`] function allows you to run a function with a
-<a href=#78 id=78 data-nosnippet>78</a>/// temporarily globally set theme.
-<a href=#79 id=79 data-nosnippet>79</a></span><span class="kw">struct </span>Theme {
-<a href=#80 id=80 data-nosnippet>80</a>    input: console::Style,
-<a href=#81 id=81 data-nosnippet>81</a>    placeholder: console::Style,
-<a href=#82 id=82 data-nosnippet>82</a>}
-<a href=#83 id=83 data-nosnippet>83</a>
-<a href=#84 id=84 data-nosnippet>84</a><span class="kw">impl </span>Theme {
-<a href=#85 id=85 data-nosnippet>85</a>    <span class="doccomment">/// Run `interact` with this as cliclack's theme.
-<a href=#86 id=86 data-nosnippet>86</a>    </span><span class="kw">fn </span>scoped&lt;T&gt;(<span class="self">self</span>, interact: <span class="kw">impl </span>FnOnce() -&gt; io::Result&lt;T&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;T, PromptError&gt; {
-<a href=#87 id=87 data-nosnippet>87</a>        ::cliclack::set_theme(<span class="self">self</span>);
-<a href=#88 id=88 data-nosnippet>88</a>        <span class="kw">let </span>answer = interact();
-<a href=#89 id=89 data-nosnippet>89</a>        ::cliclack::reset_theme();
-<a href=#90 id=90 data-nosnippet>90</a>        answer.map_err(PromptError::from)
-<a href=#91 id=91 data-nosnippet>91</a>    }
-<a href=#92 id=92 data-nosnippet>92</a>}
-<a href=#93 id=93 data-nosnippet>93</a>
-<a href=#94 id=94 data-nosnippet>94</a><span class="kw">impl </span>From&lt;CommandStyles&lt;<span class="lifetime">'_</span>&gt;&gt; <span class="kw">for </span>Theme {
-<a href=#95 id=95 data-nosnippet>95</a>    <span class="kw">fn </span>from(CommandStyles(styles): CommandStyles&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="self">Self </span>{
-<a href=#96 id=96 data-nosnippet>96</a>        <span class="self">Self </span>{
-<a href=#97 id=97 data-nosnippet>97</a>            input: console::Style::from(ClapStyle(styles.get_literal())),
-<a href=#98 id=98 data-nosnippet>98</a>            placeholder: console::Style::from(ClapStyle(styles.get_placeholder())),
-<a href=#99 id=99 data-nosnippet>99</a>        }
-<a href=#100 id=100 data-nosnippet>100</a>    }
-<a href=#101 id=101 data-nosnippet>101</a>}
-<a href=#102 id=102 data-nosnippet>102</a>
-<a href=#103 id=103 data-nosnippet>103</a><span class="kw">impl </span>::cliclack::Theme <span class="kw">for </span>Theme {
-<a href=#104 id=104 data-nosnippet>104</a>    <span class="kw">fn </span>input_style(<span class="kw-2">&amp;</span><span class="self">self</span>, _state: <span class="kw-2">&amp;</span>::cliclack::ThemeState) -&gt; console::Style {
-<a href=#105 id=105 data-nosnippet>105</a>        <span class="self">self</span>.input.clone()
-<a href=#106 id=106 data-nosnippet>106</a>    }
+<a href=#59 id=59 data-nosnippet>59</a>            <span class="comment">// TODO(markovejnovic): cliclack's `Input` can't start out holding editable text (no
+<a href=#60 id=60 data-nosnippet>60</a>            // equivalent of inquire's `with_initial_value`), so `initial` is passed as a default
+<a href=#61 id=61 data-nosnippet>61</a>            // instead. The cost: a list prompt pre-filled from the arg's defaults can't be
+<a href=#62 id=62 data-nosnippet>62</a>            // finished early, as Enter on it keeps the default instead of ending the list. Once
+<a href=#63 id=63 data-nosnippet>63</a>            // cliclack supports starting text, pass `initial` that way and show the hint even
+<a href=#64 id=64 data-nosnippet>64</a>            // when there's a default.
+<a href=#65 id=65 data-nosnippet>65</a>            //
+<a href=#66 id=66 data-nosnippet>66</a>            // When there is a default, the hint is left off: cliclack shows the hint where it
+<a href=#67 id=67 data-nosnippet>67</a>            // would show "(default)", hiding it, and Enter wouldn't finish the list anyway.
+<a href=#68 id=68 data-nosnippet>68</a>            </span><span class="kw">let </span><span class="kw-2">mut </span>input = <span class="kw">match </span>(prompt.default.or(prompt.initial), prompt.hint) {
+<a href=#69 id=69 data-nosnippet>69</a>                (<span class="prelude-val">Some</span>(default), <span class="kw">_</span>) =&gt; input.default_input(default),
+<a href=#70 id=70 data-nosnippet>70</a>                (<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(hint)) =&gt; input.placeholder(hint),
+<a href=#71 id=71 data-nosnippet>71</a>                (<span class="prelude-val">None</span>, <span class="prelude-val">None</span>) =&gt; input,
+<a href=#72 id=72 data-nosnippet>72</a>            };
+<a href=#73 id=73 data-nosnippet>73</a>            input.interact()
+<a href=#74 id=74 data-nosnippet>74</a>        })<span class="question-mark">?</span>;
+<a href=#75 id=75 data-nosnippet>75</a>        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(answer).filter(|answer| !answer.is_empty()))
+<a href=#76 id=76 data-nosnippet>76</a>    }
+<a href=#77 id=77 data-nosnippet>77</a>}
+<a href=#78 id=78 data-nosnippet>78</a>
+<a href=#79 id=79 data-nosnippet>79</a><span class="doccomment">/// The command's styles on cliclack's input line.
+<a href=#80 id=80 data-nosnippet>80</a>///
+<a href=#81 id=81 data-nosnippet>81</a>/// By default, [`::cliclack`] uses global theming, which is somewhat inconvenient for the use-case
+<a href=#82 id=82 data-nosnippet>82</a>/// of following clap's theme. The [`Theme::scoped`] function allows you to run a function with a
+<a href=#83 id=83 data-nosnippet>83</a>/// temporarily globally set theme.
+<a href=#84 id=84 data-nosnippet>84</a></span><span class="kw">struct </span>Theme {
+<a href=#85 id=85 data-nosnippet>85</a>    input: console::Style,
+<a href=#86 id=86 data-nosnippet>86</a>    placeholder: console::Style,
+<a href=#87 id=87 data-nosnippet>87</a>}
+<a href=#88 id=88 data-nosnippet>88</a>
+<a href=#89 id=89 data-nosnippet>89</a><span class="kw">impl </span>Theme {
+<a href=#90 id=90 data-nosnippet>90</a>    <span class="doccomment">/// Run `interact` with this as cliclack's theme.
+<a href=#91 id=91 data-nosnippet>91</a>    </span><span class="kw">fn </span>scoped&lt;T&gt;(<span class="self">self</span>, interact: <span class="kw">impl </span>FnOnce() -&gt; io::Result&lt;T&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;T, PromptError&gt; {
+<a href=#92 id=92 data-nosnippet>92</a>        ::cliclack::set_theme(<span class="self">self</span>);
+<a href=#93 id=93 data-nosnippet>93</a>        <span class="kw">let </span>answer = interact();
+<a href=#94 id=94 data-nosnippet>94</a>        ::cliclack::reset_theme();
+<a href=#95 id=95 data-nosnippet>95</a>        answer.map_err(PromptError::from)
+<a href=#96 id=96 data-nosnippet>96</a>    }
+<a href=#97 id=97 data-nosnippet>97</a>}
+<a href=#98 id=98 data-nosnippet>98</a>
+<a href=#99 id=99 data-nosnippet>99</a><span class="kw">impl </span>From&lt;CommandStyles&lt;<span class="lifetime">'_</span>&gt;&gt; <span class="kw">for </span>Theme {
+<a href=#100 id=100 data-nosnippet>100</a>    <span class="kw">fn </span>from(CommandStyles(styles): CommandStyles&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="self">Self </span>{
+<a href=#101 id=101 data-nosnippet>101</a>        <span class="self">Self </span>{
+<a href=#102 id=102 data-nosnippet>102</a>            input: console::Style::from(ClapStyle(styles.get_literal())),
+<a href=#103 id=103 data-nosnippet>103</a>            placeholder: console::Style::from(ClapStyle(styles.get_placeholder())),
+<a href=#104 id=104 data-nosnippet>104</a>        }
+<a href=#105 id=105 data-nosnippet>105</a>    }
+<a href=#106 id=106 data-nosnippet>106</a>}
 <a href=#107 id=107 data-nosnippet>107</a>
-<a href=#108 id=108 data-nosnippet>108</a>    <span class="kw">fn </span>placeholder_style(<span class="kw-2">&amp;</span><span class="self">self</span>, _state: <span class="kw-2">&amp;</span>::cliclack::ThemeState) -&gt; console::Style {
-<a href=#109 id=109 data-nosnippet>109</a>        <span class="self">self</span>.placeholder.clone()
-<a href=#110 id=110 data-nosnippet>110</a>    }
-<a href=#111 id=111 data-nosnippet>111</a>}
+<a href=#108 id=108 data-nosnippet>108</a><span class="kw">impl </span>::cliclack::Theme <span class="kw">for </span>Theme {
+<a href=#109 id=109 data-nosnippet>109</a>    <span class="kw">fn </span>input_style(<span class="kw-2">&amp;</span><span class="self">self</span>, _state: <span class="kw-2">&amp;</span>::cliclack::ThemeState) -&gt; console::Style {
+<a href=#110 id=110 data-nosnippet>110</a>        <span class="self">self</span>.input.clone()
+<a href=#111 id=111 data-nosnippet>111</a>    }
+<a href=#112 id=112 data-nosnippet>112</a>
+<a href=#113 id=113 data-nosnippet>113</a>    <span class="kw">fn </span>placeholder_style(<span class="kw-2">&amp;</span><span class="self">self</span>, _state: <span class="kw-2">&amp;</span>::cliclack::ThemeState) -&gt; console::Style {
+<a href=#114 id=114 data-nosnippet>114</a>        <span class="self">self</span>.placeholder.clone()
+<a href=#115 id=115 data-nosnippet>115</a>    }
+<a href=#116 id=116 data-nosnippet>116</a>}
 </code></pre></div></section></main></body></html>

@@ -121,13 +121,6 @@ impl PromptAttr {
             )
             .with_span(&span));
         }
-        if field.ty.is_multi_value() {
-            return Err(Error::custom(
-                "`#[couture(prompt)]` does not support multi-value args yet; take a single value \
-                 or drop the prompt",
-            )
-            .with_span(&span));
-        }
         let Some(arg_id) = field.clap_arg_id() else {
             return Err(Error::custom("`#[couture(prompt)]` needs a named field").with_span(&span));
         };

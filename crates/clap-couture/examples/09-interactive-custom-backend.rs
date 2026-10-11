@@ -35,12 +35,15 @@
 
 #![expect(clippy::print_stdout, reason = "a runnable demo prints its result")]
 
+use core::fmt;
 use std::io::{self, Write as _};
 
 use clap::{Parser, Subcommand, ValueEnum, builder::PossibleValue};
 use clap_couture::{
     Couture, CoutureParser as _,
-    interactive::{Backend, ConfirmPrompt, PromptError, SelectPrompt, TextPrompt},
+    interactive::{
+        Backend, ConfirmPrompt, MultiSelectPrompt, PromptError, SelectPrompt, TextPrompt,
+    },
 };
 
 /// Deploy and manage your apps from the terminal.
@@ -136,6 +139,21 @@ enum Account {
 /// terminals that don't take well to cliclack's interactive widgets.
 struct Plain;
 
+/// The options' names, slash-separated: `eu/us`.
+struct Choices<'options>(&'options [PossibleValue]);
+
+impl fmt::Display for Choices<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (index, option) in self.0.iter().enumerate() {
+            if index > 0 {
+                f.write_str("/")?;
+            }
+            f.write_str(option.get_name())?;
+        }
+        Ok(())
+    }
+}
+
 impl Plain {
     /// Ask `question`, returning the line typed in answer, trimmed.
     fn ask(question: &str) -> Result<String, PromptError> {
@@ -172,15 +190,32 @@ impl Backend for Plain {
         })
     }
 
+    fn multi_select(&self, prompt: &MultiSelectPrompt<'_>) -> Result<Vec<String>, PromptError> {
+        let choices = Choices(prompt.options);
+        let answer = Self::ask(&format!("{} [{choices}, comma-separated]", prompt.question))?;
+        if answer.is_empty() {
+            if prompt.defaults.is_empty() && !prompt.optional {
+                writeln!(io::stderr(), "{}", prompt.selection_required)?;
+                return self.multi_select(prompt);
+            }
+            return Ok(prompt.defaults.to_vec());
+        }
+        Ok(answer.split(',').map(|name| name.trim().to_owned()).collect())
+    }
+
     fn select(&self, prompt: &SelectPrompt<'_>) -> Result<Option<String>, PromptError> {
-        let names: Vec<&str> = prompt.options.iter().map(PossibleValue::get_name).collect();
-        let answer = Self::ask(&format!("{} [{}]", prompt.question, names.join("/")))?;
+        let answer = Self::ask(&format!("{} [{}]", prompt.question, Choices(prompt.options)))?;
         Ok(Self::or_default(answer, prompt.default, prompt.optional))
     }
 
     fn text(&self, prompt: &TextPrompt<'_>) -> Result<Option<String>, PromptError> {
-        let answer = Self::ask(prompt.question)?;
-        Ok(Self::or_default(answer, prompt.default, prompt.optional))
+        let question = prompt.hint.map_or_else(
+            || prompt.question.to_owned(),
+            |hint| format!("{} {hint}", prompt.question),
+        );
+        let answer = Self::ask(&question)?;
+        // A plain line can't start out holding text, so take the initial text as a default.
+        Ok(Self::or_default(answer, prompt.default.or(prompt.initial), prompt.optional))
     }
 }
 

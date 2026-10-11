@@ -63,6 +63,101 @@ invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
 ✔ How many replicas? · abc
 invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
 ✔ How many replicas? · 3
+? Which sidecars? ›
+⬚ logging
+⬚ metrics
+⬚ proxy
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+✔ Application name · web
+✔ Tail the logs afterwards? · yes
+✔ Which region? · apac
+✔ How many replicas? · abc
+invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+✔ How many replicas? · 3
+? Which sidecars? ›
+✔ logging
+⬚ metrics
+⬚ proxy
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+✔ Application name · web
+✔ Tail the logs afterwards? · yes
+✔ Which region? · apac
+✔ How many replicas? · abc
+invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+✔ How many replicas? · 3
+? Which sidecars? ›
+✔ logging
+⬚ metrics
+✔ proxy
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+✔ Application name · web
+✔ Tail the logs afterwards? · yes
+✔ Which region? · apac
+✔ How many replicas? · abc
+invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+✔ How many replicas? · 3
+✔ Which sidecars? · logging, proxy
+? Environment variables (KEY=VALUE)? (<enter> to finish) ›
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+✔ Application name · web
+✔ Tail the logs afterwards? · yes
+✔ Which region? · apac
+✔ How many replicas? · abc
+invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+✔ How many replicas? · 3
+✔ Which sidecars? · logging, proxy
+? Environment variables (KEY=VALUE)? (<enter> to finish) › LOG=debug
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+✔ Application name · web
+✔ Tail the logs afterwards? · yes
+✔ Which region? · apac
+✔ How many replicas? · abc
+invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+✔ How many replicas? · 3
+✔ Which sidecars? · logging, proxy
+✔ Environment variables (KEY=VALUE)? (<enter> to finish) · LOG=debug
+? Environment variables (KEY=VALUE)? (<enter> to finish) ›
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+✔ Application name · web
+✔ Tail the logs afterwards? · yes
+✔ Which region? · apac
+✔ How many replicas? · abc
+invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+✔ How many replicas? · 3
+✔ Which sidecars? · logging, proxy
+✔ Environment variables (KEY=VALUE)? (<enter> to finish) · LOG=debug
+? Environment variables (KEY=VALUE)? (<enter> to finish) › PORT=8080
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+✔ Application name · web
+✔ Tail the logs afterwards? · yes
+✔ Which region? · apac
+✔ How many replicas? · abc
+invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+✔ How many replicas? · 3
+✔ Which sidecars? · logging, proxy
+✔ Environment variables (KEY=VALUE)? (<enter> to finish) · LOG=debug
+✔ Environment variables (KEY=VALUE)? (<enter> to finish) · PORT=8080
+? Environment variables (KEY=VALUE)? (<enter> to finish) ›
+────────────────────────────────────────────────────────────────────────────────
+> orbit-deploy
+✔ Application name · web
+✔ Tail the logs afterwards? · yes
+✔ Which region? · apac
+✔ How many replicas? · abc
+invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+✔ How many replicas? · 3
+✔ Which sidecars? · logging, proxy
+✔ Environment variables (KEY=VALUE)? (<enter> to finish) · LOG=debug
+✔ Environment variables (KEY=VALUE)? (<enter> to finish) · PORT=8080
+✔ Environment variables (KEY=VALUE)? (<enter> to finish) ·
 deploying web to apac with 3 replicas (follow: true)
+sidecars: [Logging, Proxy], vars: ["LOG=debug", "PORT=8080"]
 >
 ────────────────────────────────────────────────────────────────────────────────

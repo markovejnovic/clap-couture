@@ -10,8 +10,10 @@ use crate::text::TextExpr;
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct Messages {
+    finish_hint: Option<TextExpr>,
     none: Option<TextExpr>,
     options: Option<TextExpr>,
+    selection_required: Option<TextExpr>,
     usage: Option<TextExpr>,
 }
 
@@ -19,14 +21,20 @@ pub(crate) struct Messages {
 // would trip clippy's `needless_update` in the user's crate whenever all of them are set.
 impl ToTokens for Messages {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
-        let messages = [("none", &self.none), ("options", &self.options), ("usage", &self.usage)]
-            .map(|(name, text)| {
-                let name = syn::Ident::new(name, proc_macro2::Span::call_site());
-                text.as_ref().map_or_else(
-                    || quote!(#name: ::clap_couture::Messages::DEFAULT.#name),
-                    |text| quote!(#name: #text),
-                )
-            });
+        let messages = [
+            ("finish_hint", &self.finish_hint),
+            ("none", &self.none),
+            ("options", &self.options),
+            ("selection_required", &self.selection_required),
+            ("usage", &self.usage),
+        ]
+        .map(|(name, text)| {
+            let name = syn::Ident::new(name, proc_macro2::Span::call_site());
+            text.as_ref().map_or_else(
+                || quote!(#name: ::clap_couture::Messages::DEFAULT.#name),
+                |text| quote!(#name: #text),
+            )
+        });
         tokens.extend(quote! { ::clap_couture::Messages { #(#messages,)* } });
     }
 }

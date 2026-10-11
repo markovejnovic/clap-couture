@@ -1,10 +1,10 @@
 //! [`Backend`] drawn by [dialoguer](https://docs.rs/dialoguer).
 
 use clap::builder::PossibleValue;
-use dialoguer::{Confirm, Input, Select, theme::ColorfulTheme};
+use dialoguer::{Confirm, Input, MultiSelect, Select, theme::ColorfulTheme};
 
 use super::{Backend, CommandStyles, builtin::ClapStyle};
-use crate::interactive::{ConfirmPrompt, PromptError, SelectPrompt, TextPrompt};
+use crate::interactive::{ConfirmPrompt, MultiSelectPrompt, PromptError, SelectPrompt, TextPrompt};
 
 /// A dialoguer failure.
 struct DialoguerError(dialoguer::Error);
@@ -22,6 +22,34 @@ impl Backend for Dialoguer {
             .interact_opt()
             .map_err(DialoguerError)?
             .ok_or(PromptError::Cancelled)
+    }
+
+    fn multi_select(&self, prompt: &MultiSelectPrompt<'_>) -> Result<Vec<String>, PromptError> {
+        let theme = ColorfulTheme::from(prompt.styles);
+        let picked_by_default: Vec<bool> = prompt
+            .options
+            .iter()
+            .map(|option| prompt.defaults.iter().any(|default| default == option.get_name()))
+            .collect();
+        // dialoguer's `MultiSelect` has no way to demand at least one selection, so when a required
+        // prompt comes back empty, it says so and is shown again.
+        loop {
+            let picked = MultiSelect::with_theme(&theme)
+                .with_prompt(prompt.question)
+                .items(prompt.options.iter().map(PossibleValue::get_name))
+                .defaults(&picked_by_default)
+                .interact_opt()
+                .map_err(DialoguerError)?
+                .ok_or(PromptError::Cancelled)?;
+            if prompt.optional || !picked.is_empty() {
+                return Ok(picked
+                    .into_iter()
+                    .filter_map(|index| prompt.options.get(index))
+                    .map(|option| option.get_name().to_owned())
+                    .collect());
+            }
+            self.report(prompt.selection_required, prompt.styles)?;
+        }
     }
 
     fn report(&self, error: &str, styles: CommandStyles<'_>) -> Result<(), PromptError> {
@@ -53,8 +81,15 @@ impl Backend for Dialoguer {
     fn text(&self, prompt: &TextPrompt<'_>) -> Result<Option<String>, PromptError> {
         let theme = ColorfulTheme::from(prompt.styles);
         let input = Input::<String>::with_theme(&theme)
-            .with_prompt(prompt.question)
+            .with_prompt(prompt.hint.map_or_else(
+                || prompt.question.to_owned(),
+                |hint| format!("{} {hint}", prompt.question),
+            ))
             .allow_empty(prompt.optional);
+        let input = match prompt.initial {
+            Some(initial) => input.with_initial_text(initial),
+            None => input,
+        };
         let answer = match prompt.default {
             Some(default) => input.default(default.to_owned()),
             None => input,

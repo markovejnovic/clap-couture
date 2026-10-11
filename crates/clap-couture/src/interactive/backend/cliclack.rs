@@ -3,7 +3,7 @@
 use std::io;
 
 use super::{Backend, CommandStyles, builtin::ClapStyle};
-use crate::interactive::{ConfirmPrompt, PromptError, SelectPrompt, TextPrompt};
+use crate::interactive::{ConfirmPrompt, MultiSelectPrompt, PromptError, SelectPrompt, TextPrompt};
 
 /// Prompts drawn by cliclack, in its clack style.
 #[derive(Clone, Copy, Debug, Default)]
@@ -13,6 +13,23 @@ impl Backend for Cliclack {
     fn confirm(&self, prompt: &ConfirmPrompt<'_>) -> Result<bool, PromptError> {
         Theme::from(prompt.styles).scoped(|| {
             ::cliclack::confirm(prompt.question).initial_value(prompt.default).interact()
+        })
+    }
+
+    fn multi_select(&self, prompt: &MultiSelectPrompt<'_>) -> Result<Vec<String>, PromptError> {
+        Theme::from(prompt.styles).scoped(|| {
+            prompt
+                .options
+                .iter()
+                .fold(::cliclack::multiselect(prompt.question), |select, option| {
+                    let hint = option.get_help().map(ToString::to_string).unwrap_or_default();
+                    select.item(option.get_name().to_owned(), option.get_name(), hint)
+                })
+                .initial_values(prompt.defaults.to_vec())
+                // TODO(markovejnovic): cliclack says "Input required" on an empty selection and
+                // can't be told to say `prompt.selection_required` instead.
+                .required(!prompt.optional)
+                .interact()
         })
     }
 
@@ -40,11 +57,22 @@ impl Backend for Cliclack {
 
     fn text(&self, prompt: &TextPrompt<'_>) -> Result<Option<String>, PromptError> {
         let answer: String = Theme::from(prompt.styles).scoped(|| {
-            let mut input = ::cliclack::input(prompt.question).required(!prompt.optional);
-            match prompt.default {
-                Some(default) => input.default_input(default).interact(),
-                None => input.interact(),
-            }
+            let input = ::cliclack::input(prompt.question).required(!prompt.optional);
+            // TODO(markovejnovic): cliclack's `Input` can't start out holding editable text (no
+            // equivalent of inquire's `with_initial_value`), so `initial` is passed as a default
+            // instead. The cost: a list prompt pre-filled from the arg's defaults can't be
+            // finished early, as Enter on it keeps the default instead of ending the list. Once
+            // cliclack supports starting text, pass `initial` that way and show the hint even
+            // when there's a default.
+            //
+            // When there is a default, the hint is left off: cliclack shows the hint where it
+            // would show "(default)", hiding it, and Enter wouldn't finish the list anyway.
+            let mut input = match (prompt.default.or(prompt.initial), prompt.hint) {
+                (Some(default), _) => input.default_input(default),
+                (None, Some(hint)) => input.placeholder(hint),
+                (None, None) => input,
+            };
+            input.interact()
         })?;
         Ok(Some(answer).filter(|answer| !answer.is_empty()))
     }

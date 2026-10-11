@@ -1,6 +1,6 @@
 # `orbit-deploy` answering each kind of prompt. See `scripts/record-examples.py`.
 
-Set Height 640
+Set Height 960
 
 Hide
 Type "alias orbit-deploy=03-interactive && clear" Enter
@@ -26,6 +26,21 @@ Type "abc" Sleep 400ms Enter
 Wait+Screen /invalid value/
 Sleep 1.5s
 Type "3" Sleep 400ms Enter
+
+Wait+Screen /Which sidecars\?/
+Sleep 800ms
+# <space> picks the option under the cursor, <enter> confirms the picks.
+Space Sleep 400ms Down Sleep 400ms Down Sleep 400ms Space Sleep 600ms Enter
+
+Wait+Screen /Environment variables/
+Sleep 800ms
+Type "LOG=debug" Sleep 400ms Enter
+Wait+Screen /to finish/
+Sleep 800ms
+Type "PORT=8080" Sleep 400ms Enter
+Sleep 1s
+# <enter> on an empty answer finishes the list.
+Enter
 
 Wait+Screen /deploying web/
 Sleep 3s

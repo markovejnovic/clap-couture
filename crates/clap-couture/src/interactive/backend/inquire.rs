@@ -7,16 +7,16 @@ use clap::builder::{
     styling::{AnsiColor, Color, Effects},
 };
 use inquire::{
-    Confirm, Select, Text,
+    Confirm, MultiSelect, Select, Text,
     ui::{Attributes, ErrorMessageRenderConfig, RenderConfig, StyleSheet},
-    validator::ValueRequiredValidator,
+    validator::{MinLengthValidator, ValueRequiredValidator},
 };
 
 use super::{
     Backend, CommandStyles,
     builtin::{ClapColor, ClapStyle, NamedColor},
 };
-use crate::interactive::{ConfirmPrompt, PromptError, SelectPrompt, TextPrompt};
+use crate::interactive::{ConfirmPrompt, MultiSelectPrompt, PromptError, SelectPrompt, TextPrompt};
 
 struct InquireError(inquire::InquireError);
 
@@ -31,6 +31,26 @@ impl Backend for Inquire {
             .with_render_config(RenderConfig::from(prompt.styles))
             .prompt()
             .map_err(InquireError)?)
+    }
+
+    fn multi_select(&self, prompt: &MultiSelectPrompt<'_>) -> Result<Vec<String>, PromptError> {
+        let names: Vec<&str> = prompt.options.iter().map(PossibleValue::get_name).collect();
+        let defaults: Vec<usize> = (0..names.len())
+            .filter(|index| {
+                prompt.defaults.iter().any(|default| Some(&**default) == names.get(*index).copied())
+            })
+            .collect();
+        let select = MultiSelect::new(prompt.question, names)
+            .with_default(&defaults)
+            .with_render_config(RenderConfig::from(prompt.styles));
+        let select = if prompt.optional {
+            select
+        } else {
+            select
+                .with_validator(MinLengthValidator::new(1).with_message(prompt.selection_required))
+        };
+        let picked = select.prompt().map_err(InquireError)?;
+        Ok(picked.into_iter().map(str::to_owned).collect())
     }
 
     fn select(&self, prompt: &SelectPrompt<'_>) -> Result<Option<String>, PromptError> {
@@ -55,6 +75,14 @@ impl Backend for Inquire {
         let text = Text::new(prompt.question).with_render_config(RenderConfig::from(prompt.styles));
         let text = match prompt.default {
             Some(default) => text.with_default(default),
+            None => text,
+        };
+        let text = match prompt.hint {
+            Some(hint) => text.with_help_message(hint),
+            None => text,
+        };
+        let text = match prompt.initial {
+            Some(initial) => text.with_initial_value(initial),
             None => text,
         };
         let text = if prompt.optional {

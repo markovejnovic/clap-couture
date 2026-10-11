@@ -35,6 +35,7 @@
 
 #![expect(clippy::print_stdout, reason = "a runnable demo prints its result")]
 
+use core::fmt;
 use std::io::{self, Write as _};
 
 use clap::{Parser, Subcommand, ValueEnum, builder::PossibleValue};
@@ -138,6 +139,21 @@ enum Account {
 /// terminals that don't take well to cliclack's interactive widgets.
 struct Plain;
 
+/// The options' names, slash-separated: `eu/us`.
+struct Choices<'options>(&'options [PossibleValue]);
+
+impl fmt::Display for Choices<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (index, option) in self.0.iter().enumerate() {
+            if index > 0 {
+                f.write_str("/")?;
+            }
+            f.write_str(option.get_name())?;
+        }
+        Ok(())
+    }
+}
+
 impl Plain {
     /// Ask `question`, returning the line typed in answer, trimmed.
     fn ask(question: &str) -> Result<String, PromptError> {
@@ -175,9 +191,8 @@ impl Backend for Plain {
     }
 
     fn multi_select(&self, prompt: &MultiSelectPrompt<'_>) -> Result<Vec<String>, PromptError> {
-        let names: Vec<&str> = prompt.options.iter().map(PossibleValue::get_name).collect();
-        let answer =
-            Self::ask(&format!("{} [{}, comma-separated]", prompt.question, names.join("/")))?;
+        let choices = Choices(prompt.options);
+        let answer = Self::ask(&format!("{} [{choices}, comma-separated]", prompt.question))?;
         if answer.is_empty() {
             return Ok(prompt.defaults.to_vec());
         }
@@ -185,8 +200,7 @@ impl Backend for Plain {
     }
 
     fn select(&self, prompt: &SelectPrompt<'_>) -> Result<Option<String>, PromptError> {
-        let names: Vec<&str> = prompt.options.iter().map(PossibleValue::get_name).collect();
-        let answer = Self::ask(&format!("{} [{}]", prompt.question, names.join("/")))?;
+        let answer = Self::ask(&format!("{} [{}]", prompt.question, Choices(prompt.options)))?;
         Ok(Self::or_default(answer, prompt.default, prompt.optional))
     }
 

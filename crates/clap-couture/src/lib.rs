@@ -880,6 +880,14 @@ pub trait Couture {
     const PROMPTED_ARGS: __private::PromptedArgTree = __private::PromptedArgTree::EMPTY;
 }
 
+/// A boxed type's consts are the type's, so a boxed subcommand or flattened `Args` keeps them.
+impl<T: Couture> Couture for Box<T> {
+    const CATEGORIES: CommandCategoryMap = T::CATEGORIES;
+    const MESSAGES: Messages = T::MESSAGES;
+    #[cfg(feature = "interactive")]
+    const PROMPTED_ARGS: __private::PromptedArgTree = T::PROMPTED_ARGS;
+}
+
 /// Extension trait adding categorized help to a [`clap::Command`].
 pub trait CommandExt {
     /// Group this command's `--help` subcommand listing by `T`'s categories, with `T`'s

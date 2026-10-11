@@ -6,9 +6,9 @@ mod messages;
 mod prompted_args;
 
 use darling::ast;
-use proc_macro2::TokenStream as TokenStream2;
+use proc_macro2::{TokenStream as TokenStream2, TokenTree};
 use quote::{ToTokens, quote};
-use syn::{Generics, Ident, Path};
+use syn::{GenericParam, Generics, Ident, Path, Type, WherePredicate, parse_quote};
 
 use self::{
     categories::Categories, container::ContainerAttrs, messages::Messages,
@@ -59,11 +59,53 @@ impl TryFrom<CoutureInput> for CoutureImpl {
     }
 }
 
+impl CoutureImpl {
+    /// The type's generics, plus a `Couture` bound on each flattened or subcommand type naming a
+    /// type parameter, so a generic one keeps its consts rather than falling back to none.
+    fn bounded_generics(&self) -> Generics {
+        let mut generics = self.type_generics.clone();
+        let bounds: Vec<_> = self
+            .prompted_arg_tree
+            .merged_types()
+            .into_iter()
+            .filter(|merged_type| self.names_type_parameter(merged_type))
+            .map(|merged_type| -> WherePredicate { parse_quote!(#merged_type: #Runtime::Couture) })
+            .collect();
+        generics.make_where_clause().predicates.extend(bounds);
+        generics
+    }
+
+    /// Whether `ty` names one of the type's type parameters anywhere in its tokens.
+    fn names_type_parameter(&self, ty: &Type) -> bool {
+        let parameters: Vec<&Ident> = self
+            .type_generics
+            .params
+            .iter()
+            .filter_map(|parameter| match parameter {
+                GenericParam::Type(type_parameter) => Some(&type_parameter.ident),
+                GenericParam::Lifetime(_) | GenericParam::Const(_) => None,
+            })
+            .collect();
+        let mut token_streams = Vec::from([ty.to_token_stream()]);
+        while let Some(token_stream) = token_streams.pop() {
+            for token in token_stream {
+                match token {
+                    TokenTree::Ident(ident) if parameters.contains(&&ident) => return true,
+                    TokenTree::Group(group) => token_streams.push(group.stream()),
+                    TokenTree::Ident(_) | TokenTree::Punct(_) | TokenTree::Literal(_) => {}
+                }
+            }
+        }
+        false
+    }
+}
+
 impl ToTokens for CoutureImpl {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         let (type_name, categories, prompted_arg_tree) =
             (&self.type_name, &self.categories, &self.prompted_arg_tree);
-        let (impl_parameters, type_arguments, where_clause) = self.type_generics.split_for_impl();
+        let bounded_generics = self.bounded_generics();
+        let (impl_parameters, type_arguments, where_clause) = bounded_generics.split_for_impl();
         let crate_path = self
             .crate_path
             .as_ref()

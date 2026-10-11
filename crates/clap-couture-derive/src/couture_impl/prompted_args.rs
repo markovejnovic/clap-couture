@@ -89,6 +89,18 @@ struct SecretAttr {
 }
 
 impl PromptedArgTree {
+    /// Every flattened and subcommand type this tree reads consts from, nested levels included.
+    pub(crate) fn merged_types(&self) -> Vec<&Type> {
+        self.branches
+            .iter()
+            .flat_map(|branch| match branch {
+                PromptedArgBranch::Flattened(merged_type)
+                | PromptedArgBranch::Subcommand(_, merged_type) => Vec::from([merged_type]),
+                PromptedArgBranch::Inline(_, tree) => tree.merged_types(),
+            })
+            .collect()
+    }
+
     /// The tree for one command level's fields: its prompted args, plus its flattened and
     /// subcommand types.
     ///

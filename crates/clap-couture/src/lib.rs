@@ -193,15 +193,21 @@ impl CommandName {
 /// clap's and add your own.
 #[derive(Clone, Copy, Debug)]
 pub struct Messages {
-    /// Reported when a required `#[couture(prompt, editor)]` arg is answered with an empty file.
+    /// Reported when a `#[couture(prompt, editor)]` arg that is required or has a default is
+    /// answered with an empty file.
     /// The default is `"Aborting due to an empty answer."`.
     pub editor_empty: Text,
-    /// The last header line of a required `#[couture(prompt, editor)]` arg's file. The default
+    /// The last header line of the file of a `#[couture(prompt, editor)]` arg that is required or
+    /// has a default. The default
     /// is `"These lines are removed. Leave the file empty to cancel."`.
     pub editor_instructions: Text,
-    /// The last header line of an optional `#[couture(prompt, editor)]` arg's file. The default
+    /// The last header line of the file of an optional `#[couture(prompt, editor)]` arg with no
+    /// default. The default
     /// is `"These lines are removed. Leave the file empty to leave it unset."`.
     pub editor_instructions_optional: Text,
+    /// The error a `#[couture(prompt, editor)]` file reopens with when it was saved in an
+    /// encoding that can't be read. The default is `"The file is not UTF-8. Save it as UTF-8."`.
+    pub editor_not_utf8: Text,
     /// Asked when the editor returned right away and left the file as it was, as `code` does
     /// without `--wait`. The default is `"Your editor returned right away. Done editing the
     /// file?"`.
@@ -230,6 +236,7 @@ impl Messages {
         editor_instructions_optional: Text::Literal(
             "These lines are removed. Leave the file empty to leave it unset.",
         ),
+        editor_not_utf8: Text::Literal("The file is not UTF-8. Save it as UTF-8."),
         editor_returned_early: Text::Literal(
             "Your editor returned right away. Done editing the file?",
         ),

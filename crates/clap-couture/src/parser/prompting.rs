@@ -70,7 +70,7 @@ impl Session<'_> {
             match self.trial(answers, prompted_arg, &value) {
                 Ok(()) => return Ok(Some(value)),
                 Err(err) => {
-                    let error = summary(&err);
+                    let error = summary(&err, &value);
                     self.backend.report(&error, CommandStyles(self.cmd.get_styles()))?;
                     rejected = Some(Rejected { error, value });
                 }
@@ -137,7 +137,8 @@ impl Session<'_> {
     }
 
     /// Ask in the user's editor, starting from the rejected answer if there is one. An empty
-    /// answer to a required arg aborts, as git aborts on an empty commit message.
+    /// answer to a required arg aborts, as git aborts on an empty commit message, and so does one
+    /// to an arg with a default, which an empty answer would quietly bring back.
     #[cfg(feature = "interactive-editor")]
     fn ask_in_editor(
         &self,
@@ -149,7 +150,7 @@ impl Session<'_> {
         rejected: Option<&Rejected>,
     ) -> Result<Option<String>, PromptError> {
         let styles = CommandStyles(self.cmd.get_styles());
-        let optional = !arg.is_required_set();
+        let optional = !arg.is_required_set() && arg.get_default_values().is_empty();
         let instructions = if optional {
             self.messages.editor_instructions_optional.get()
         } else {
@@ -165,6 +166,7 @@ impl Session<'_> {
                 .collect::<Vec<_>>()
                 .join("-"),
             instructions: &instructions,
+            not_utf8: &self.messages.editor_not_utf8.get(),
             optional,
             question,
             returned_early: &self.messages.editor_returned_early.get(),
@@ -380,9 +382,13 @@ fn relax(cmd: Command, prompted_args: &[PromptedArg]) -> Command {
     })
 }
 
-/// The first line of clap's message, without its `error: ` prefix.
-fn summary(err: &clap::Error) -> String {
-    let rendered = err.render().to_string();
+/// The first line of clap's message, without its `error: ` prefix. clap quotes the rejected
+/// `value`, so a multi-line one is shortened to its first line first, keeping the reason after it.
+fn summary(err: &clap::Error, value: &str) -> String {
+    let mut rendered = err.render().to_string();
+    if let Some((first_line, _)) = value.split_once('\n') {
+        rendered = rendered.replace(value, &format!("{first_line}\u{2026}"));
+    }
     let line = rendered.lines().next().unwrap_or_default();
     line.strip_prefix("error: ").unwrap_or(line).to_owned()
 }

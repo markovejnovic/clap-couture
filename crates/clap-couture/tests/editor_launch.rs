@@ -152,6 +152,24 @@ fn the_default_backend_spawns_the_editor_itself() {
     // An unknown editor gets no hint at a wait flag.
     assert_eq!(backend.asked.take(), ["Your editor returned right away. Done editing the file?"]);
 
+    // Saved as Latin-1, the file reopens with what could be read and the error in its header;
+    // this editor then keeps the error line as the answer.
+    let reopened = dir.join("reopened");
+    let latin1 = script(
+        dir,
+        "latin1",
+        &format!(
+            "if [ -e '{0}' ]; then sed 's/^#| error: /error: /' \"$1\" > \"$1.new\" && mv \
+             \"$1.new\"              \"$1\"; else touch '{0}'; printf 'caf\\351\\n' > \"$1\"; fi",
+            reopened.display()
+        ),
+    );
+    let notes = notes_with(&latin1.display().to_string(), &quiet());
+    assert_eq!(
+        notes.as_deref(),
+        Ok("caf\u{FFFD}\n\nerror: The file is not UTF-8. Save it as UTF-8.")
+    );
+
     // Ctrl-C reaches the CLI too, which ignores it while the editor is open. Without that, this
     // test process would die here.
     let interrupt_parent =

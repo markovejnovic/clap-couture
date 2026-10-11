@@ -165,9 +165,9 @@ fn a_missing_arg_opens_the_editor_with_its_default() {
         error: None,
         extension: "md".to_owned(),
         file_stem: "release-notes".to_owned(),
-        // With a default, clap does not require the arg: emptied, it falls back to the default.
-        instructions: "These lines are removed. Leave the file empty to leave it unset.".to_owned(),
-        optional: true,
+        // Emptied, it would fall back to the default, so an empty file cancels instead.
+        instructions: "These lines are removed. Leave the file empty to cancel.".to_owned(),
+        optional: false,
         question: "Release notes".to_owned(),
     }]);
 }
@@ -273,4 +273,37 @@ fn a_counted_flag_is_not_edited() {
     // It takes no value, so it is asked as a plain prompt, which this backend refuses.
     assert!(err.contains("only editor prompts should be asked"), "{err}");
     assert_eq!(editor.opened.take(), []);
+}
+
+#[rstest]
+fn an_empty_answer_to_an_arg_with_a_default_aborts() {
+    let editor = Editor::new([None]);
+    let release = Release::couture_try_parse_from_with(&editor, [
+        "release",
+        "--port",
+        "1",
+        "--reviewer",
+        "a",
+    ]);
+    assert!(release.is_err_and(|err| err.to_string().contains("prompt cancelled")));
+    assert_eq!(editor.reported.take(), ["Aborting due to an empty answer."]);
+}
+
+#[rstest]
+fn a_rejected_multi_line_answer_keeps_the_reason() {
+    let editor = Editor::new([Some("eighty\nninety"), Some("80")]);
+    let release = Release::couture_try_parse_from_with(&editor, [
+        "release",
+        "--notes",
+        "n",
+        "--reviewer",
+        "a",
+    ]);
+    assert_eq!(release.ok().and_then(|release| release.port), Some(80));
+    let opened = editor.opened.take();
+    let retry = opened.get(1);
+    assert_eq!(retry.and_then(|retry| retry.default.as_deref()), Some("eighty\nninety"));
+    let error = retry.and_then(|retry| retry.error.clone()).unwrap_or_default();
+    assert!(error.contains("invalid value 'eighty\u{2026}'"), "{error}");
+    assert!(error.contains("invalid digit"), "{error}");
 }

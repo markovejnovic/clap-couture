@@ -368,6 +368,10 @@ const fn interrupted(_status: ExitStatus) -> bool {
 /// `code.cmd`. The answer is what the user saved, minus the header and any blank lines around
 /// it. Whether an empty answer is allowed is the caller's call.
 ///
+/// The file is read as UTF-8, or UTF-16 behind a byte order mark, or on Windows in the ANSI code
+/// page. A file in none of them reopens with what could be read and
+/// [`prompt.not_utf8`](EditorPrompt::not_utf8) in the header.
+///
 /// An editor that returns within two seconds and leaves the file as it was probably handed it to
 /// a running instance and isn't done; `confirm_done` is asked
 /// [`prompt.returned_early`](EditorPrompt::returned_early), with a hint at the editor's wait flag
@@ -385,7 +389,7 @@ where
     F: FnMut(&str) -> Result<bool, PromptError>,
 {
     let editor = Editor::from_env(|name| std::env::var_os(name), cfg!(windows))?;
-    let rendered = render(prompt);
+    let mut rendered = render(prompt);
     // A directory of our own, removed with everything in it, so an editor's backups and swap
     // files go too, and the file can go without a random part in its name.
     let dir = tempfile::Builder::new().prefix("clap-couture-").tempdir()?;
@@ -394,24 +398,106 @@ where
     loop {
         let started = Instant::now();
         let ran = editor.run(&path, prompt.waiting)?;
-        let saved = fs::read_to_string(&path)?;
-        if !ran || !returned_early(started.elapsed(), &rendered, &saved) {
-            return Ok(strip(&saved));
-        }
-        let question = editor.wait_fix().map_or_else(
-            || prompt.returned_early.to_owned(),
-            |fix| format!("{}\n{} {fix}", prompt.returned_early, prompt.wait_hint),
-        );
-        if confirm_done(&question)? {
+        let mut saved = fs::read(&path)?;
+        if ran && returned_early(started.elapsed(), rendered.as_bytes(), &saved) {
+            let question = editor.wait_fix().map_or_else(
+                || prompt.returned_early.to_owned(),
+                |fix| format!("{}\n{} {fix}", prompt.returned_early, prompt.wait_hint),
+            );
+            if !confirm_done(&question)? {
+                continue;
+            }
             // The user may have saved in the running instance meanwhile.
-            return Ok(strip(&fs::read_to_string(&path)?));
+            saved = fs::read(&path)?;
         }
+        if let Some(text) = decode(&saved) {
+            return Ok(strip(&text));
+        }
+        // Reopen with what could be read, and how to fix the rest.
+        let readable = strip(&String::from_utf8_lossy(&saved));
+        rendered = render(&EditorPrompt {
+            default: readable.as_deref(),
+            error: Some(prompt.not_utf8),
+            ..*prompt
+        });
+        fs::write(&path, &rendered)?;
     }
+}
+
+/// The text of a saved file: UTF-8, UTF-16 behind a byte order mark, as notepad's "Unicode"
+/// saves it, or on Windows the ANSI code page older editors save in. `None` when none fits.
+#[expect(
+    clippy::big_endian_bytes,
+    clippy::little_endian_bytes,
+    reason = "the byte order mark names the byte order"
+)]
+fn decode(bytes: &[u8]) -> Option<String> {
+    if let Some(utf16) = bytes.strip_prefix(&[0xFF, 0xFE]) {
+        return decode_utf16(utf16, u16::from_le_bytes);
+    }
+    if let Some(utf16) = bytes.strip_prefix(&[0xFE, 0xFF]) {
+        return decode_utf16(utf16, u16::from_be_bytes);
+    }
+    str::from_utf8(bytes).map(str::to_owned).ok().or_else(|| decode_ansi(bytes))
+}
+
+/// `bytes` as the ANSI code page, unless that is UTF-8, which already failed.
+#[cfg(windows)]
+fn decode_ansi(bytes: &[u8]) -> Option<String> {
+    use windows_sys::Win32::Globalization::{
+        CP_ACP, CP_UTF8, GetACP, MB_ERR_INVALID_CHARS, MultiByteToWideChar,
+    };
+
+    // SAFETY: takes nothing, reads a process setting.
+    if unsafe { GetACP() } == CP_UTF8 {
+        return None;
+    }
+    let length = i32::try_from(bytes.len()).ok()?;
+    // SAFETY: `bytes` holds `length` bytes; a null output only asks for the size.
+    let units = unsafe {
+        MultiByteToWideChar(
+            CP_ACP,
+            MB_ERR_INVALID_CHARS,
+            bytes.as_ptr(),
+            length,
+            core::ptr::null_mut(),
+            0i32,
+        )
+    };
+    let mut wide = vec![0u16; usize::try_from(units).ok().filter(|units| *units > 0)?];
+    // SAFETY: `bytes` holds `length` bytes and `wide` room for `units` units.
+    let written = unsafe {
+        MultiByteToWideChar(
+            CP_ACP,
+            MB_ERR_INVALID_CHARS,
+            bytes.as_ptr(),
+            length,
+            wide.as_mut_ptr(),
+            units,
+        )
+    };
+    wide.truncate(usize::try_from(written).ok()?);
+    String::from_utf16(&wide).ok()
+}
+
+/// Outside Windows, text that isn't UTF-8 has no code page to fall back to.
+#[cfg(not(windows))]
+const fn decode_ansi(_bytes: &[u8]) -> Option<String> {
+    None
+}
+
+/// `bytes` as UTF-16 code units, each two bytes read by `unit`.
+fn decode_utf16(bytes: &[u8], unit: fn([u8; 2]) -> u16) -> Option<String> {
+    let (units, odd_byte) = bytes.as_chunks::<2>();
+    if !odd_byte.is_empty() {
+        return None;
+    }
+    char::decode_utf16(units.iter().copied().map(unit)).collect::<Result<String, _>>().ok()
 }
 
 /// Check whether the editor came back too soon to have been used: within [`RETURNED_EARLY`], with
 /// the file exactly as it was written.
-fn returned_early(elapsed: Duration, rendered: &str, saved: &str) -> bool {
+fn returned_early(elapsed: Duration, rendered: &[u8], saved: &[u8]) -> bool {
     elapsed < RETURNED_EARLY && saved == rendered
 }
 
@@ -563,6 +649,7 @@ mod tests {
             extension: "md",
             file_stem: "deploy-notes",
             instructions: "Leave the file empty to cancel.",
+            not_utf8: "The file is not UTF-8. Save it as UTF-8.",
             optional: false,
             question: "Release notes",
             returned_early: "Your editor returned right away. Done editing the file?",
@@ -759,6 +846,24 @@ mod tests {
     }
 
     #[rstest]
+    #[case::utf8("h\u{e9}llo".as_bytes(), Some("h\u{e9}llo"))]
+    #[case::utf8_with_bom(b"\xEF\xBB\xBFhi", Some("\u{FEFF}hi"))]
+    #[case::utf16_le(b"\xFF\xFEh\x00\xE9\x00", Some("h\u{e9}"))]
+    #[case::utf16_be(b"\xFE\xFF\x00h\x00\xE9", Some("h\u{e9}"))]
+    #[case::utf16_odd_byte(b"\xFF\xFEh\x00\xE9", None)]
+    #[case::utf16_lone_surrogate(b"\xFF\xFE\x00\xD8", None)]
+    fn decode_reads_utf8_and_utf16(#[case] bytes: &[u8], #[case] expected: Option<&str>) {
+        assert_eq!(decode(bytes).as_deref(), expected);
+    }
+
+    /// Latin-1 `é` is no UTF-8; only Windows has a code page to read it with.
+    #[cfg(not(windows))]
+    #[test]
+    fn decode_rejects_latin1_outside_windows() {
+        assert_eq!(decode(b"caf\xE9"), None);
+    }
+
+    #[rstest]
     #[case::fast_and_unchanged(Duration::from_millis(300), "file", true)]
     #[case::fast_but_edited(Duration::from_millis(300), "edited", false)]
     #[case::slow_and_unchanged(Duration::from_secs(5), "file", false)]
@@ -767,7 +872,7 @@ mod tests {
         #[case] saved: &str,
         #[case] expected: bool,
     ) {
-        assert_eq!(returned_early(elapsed, "file", saved), expected);
+        assert_eq!(returned_early(elapsed, b"file", saved.as_bytes()), expected);
     }
 
     /// The handler `signal` has now.

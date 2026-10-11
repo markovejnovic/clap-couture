@@ -56,7 +56,10 @@
 //! The file opens with the arg's default, or the answer clap just turned down, above a header
 //! asking the question. The header's lines start with `#|`, so it comes back out while the
 //! user's own `#` lines, like markdown headings, stay. An empty file leaves an optional arg unset
-//! and aborts for a required one, like an empty commit message.
+//! and aborts for a required one, like an empty commit message. It aborts for an arg with a
+//! default too, rather than quietly bringing the default back. A file saved in an encoding other
+//! than UTF-8 reopens with an error, except that UTF-16 behind a byte order mark is read, and on
+//! Windows so is the ANSI code page.
 //!
 //! `editor` needs `prompt` beside it:
 #![cfg_attr(feature = "interactive-editor", doc = "```compile_fail")]
@@ -158,6 +161,8 @@ pub struct EditorPrompt<'prompt> {
     pub file_stem: &'prompt str,
     /// The header's last line: how to cancel, or how to leave the arg unset.
     pub instructions: &'prompt str,
+    /// The error the file reopens with when it was saved in an encoding that can't be read.
+    pub not_utf8: &'prompt str,
     /// An empty answer is allowed, and leaves the arg unset.
     pub optional: bool,
     /// What to ask.

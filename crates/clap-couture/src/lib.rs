@@ -301,10 +301,10 @@
 //!
 //! See [`examples/07-interactive-secret.rs`](https://github.com/markovejnovic/clap-couture/blob/main/crates/clap-couture/examples/07-interactive-secret.rs).
 //!
-//! ### Your own questions
+//! ### Custom interactive input
 //!
 //! Some questions only make sense after the parse. [`CoutureParser::prompter`] asks them in the
-//! same UI, styles and [`Messages`] as the prompted args, and is `None` without a terminal.
+//! same UI, styles and behavior as clap-couture does.
 //!
 //! ```
 //! use clap::{Parser, ValueEnum};

@@ -12,6 +12,8 @@ mod cliclack;
 mod console_style;
 #[cfg(feature = "interactive-dialoguer")]
 mod dialoguer;
+#[cfg(feature = "interactive-editor")]
+mod editor_interaction;
 #[cfg(feature = "interactive-inquire")]
 mod inquire;
 mod non_interactive;
@@ -23,6 +25,8 @@ use clap::builder::Styles;
 pub use cliclack::Cliclack;
 #[cfg(feature = "interactive-dialoguer")]
 pub use dialoguer::Dialoguer;
+#[cfg(feature = "interactive-editor")]
+pub use editor_interaction::EditorInteraction;
 #[cfg(feature = "interactive-inquire")]
 pub use inquire::Inquire;
 pub use non_interactive::NonInteractive;
@@ -83,9 +87,7 @@ pub trait Backend {
     /// - [`PromptError::Io`] when the editor cannot be found or started, or exits unsuccessfully.
     #[cfg(feature = "interactive-editor")]
     fn editor(&self, prompt: &EditorPrompt<'_>) -> Result<Option<String>, PromptError> {
-        super::edit(prompt, |question| {
-            self.confirm(&ConfirmPrompt { default: true, question, styles: prompt.styles })
-        })
+        EditorInteraction::start(self, prompt)?.answer()
     }
 
     /// Check whether there is a terminal to ask on: stdin and stderr must both be one.

@@ -24,6 +24,7 @@ use crate::{
         Backend, CommandStyles, ConfirmPrompt, PromptError, PromptedArg, PromptedArgTree,
         SelectPrompt, TextPrompt,
     },
+    os::signal::Signal,
 };
 
 /// A prompted arg's accepted answer.
@@ -183,7 +184,6 @@ impl Session<'_> {
             question,
             returned_early: &self.messages.editor_returned_early.get(),
             styles,
-            wait_hint: &self.messages.editor_wait_hint.get(),
             waiting: &self.messages.editor_waiting.get(),
         })?;
         if answer.is_none() && !optional {
@@ -253,10 +253,9 @@ where
         match session.answer(prompted_arg, current.as_deref(), &answers, &later) {
             Ok(Some(value)) => answers.push(Answer { prompted_arg, value }),
             Ok(None) => {}
-            Err(PromptError::Cancelled) => return Err(Failure::Cancelled { signal: None }),
-            Err(PromptError::Signalled(signal)) => {
-                return Err(Failure::Cancelled { signal: Some(signal) });
-            }
+            // Backing out counts as Ctrl-C.
+            Err(PromptError::Cancelled) => return Err(Failure::Cancelled(Signal::Interrupt)),
+            Err(PromptError::Signalled(signal)) => return Err(Failure::Cancelled(signal)),
             Err(PromptError::Io(err)) => return Err(Failure::Io(err)),
             Err(PromptError::NotATerminal) => return super::parse(cmd, argv),
         }

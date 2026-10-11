@@ -3,7 +3,11 @@
 use clap::builder::PossibleValue;
 use dialoguer::{Confirm, Input, Select, theme::ColorfulTheme};
 
+#[cfg(feature = "interactive-editor")]
+use super::builtin::Edited;
 use super::{Backend, CommandStyles, builtin::ClapStyle};
+#[cfg(feature = "interactive-editor")]
+use crate::interactive::EditorPrompt;
 use crate::interactive::{ConfirmPrompt, PromptError, SelectPrompt, TextPrompt};
 
 /// A dialoguer failure.
@@ -22,6 +26,26 @@ impl Backend for Dialoguer {
             .interact_opt()
             .map_err(DialoguerError)?
             .ok_or(PromptError::Cancelled)
+    }
+
+    /// The closed editor leaves the question with the answer's first line, as an answered input
+    /// does; a cancelled one leaves nothing, as dialoguer clears a cancelled prompt.
+    #[cfg(feature = "interactive-editor")]
+    fn editor(&self, prompt: &EditorPrompt<'_>) -> Result<Option<String>, PromptError> {
+        use dialoguer::theme::Theme as _;
+
+        let answer = super::EditorInteraction::start(self, prompt)
+            .and_then(super::EditorInteraction::answer);
+        if let Edited::Answered(line) = Edited::of(&answer, prompt.optional) {
+            let mut transcript = String::new();
+            let theme = ColorfulTheme::from(prompt.styles);
+            if theme.format_input_prompt_selection(&mut transcript, prompt.question, &line).is_ok()
+            {
+                // Best effort: after a hang-up there is no terminal left to draw on.
+                drop(console::Term::stderr().write_line(&transcript));
+            }
+        }
+        answer
     }
 
     fn report(&self, error: &str, styles: CommandStyles<'_>) -> Result<(), PromptError> {

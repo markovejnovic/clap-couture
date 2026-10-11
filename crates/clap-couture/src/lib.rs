@@ -85,6 +85,8 @@
 
 extern crate alloc;
 
+#[cfg(feature = "interactive-editor")]
+mod fs;
 #[cfg(feature = "interactive")]
 pub mod interactive;
 mod maybe_couture;
@@ -92,6 +94,8 @@ mod maybe_couture;
 mod os;
 mod parser;
 mod render;
+#[cfg(feature = "interactive-editor")]
+mod strings;
 mod text;
 
 use alloc::borrow::Cow;
@@ -214,9 +218,6 @@ pub struct Messages {
     /// without `--wait`. The default is `"Your editor returned right away. Done editing the
     /// file?"`.
     pub editor_returned_early: Text,
-    /// Put before the setting that makes a known editor wait, on a line after
-    /// `editor_returned_early`. The default is `"To make it wait, set"`.
-    pub editor_wait_hint: Text,
     /// Shown while the editor is open; empty shows nothing. The default is
     /// `"hint: Waiting for your editor to close the file..."`.
     pub editor_waiting: Text,
@@ -242,7 +243,6 @@ impl Messages {
         editor_returned_early: Text::Literal(
             "Your editor returned right away. Done editing the file?",
         ),
-        editor_wait_hint: Text::Literal("To make it wait, set"),
         editor_waiting: Text::Literal("hint: Waiting for your editor to close the file..."),
         none: Text::Literal("(none)"),
         options: Text::Literal("Options:"),

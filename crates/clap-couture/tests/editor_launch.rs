@@ -124,17 +124,19 @@ fn the_default_backend_spawns_the_editor_itself() {
     assert_eq!(notes_with(":", &backend).as_deref(), Ok("Bug fixes."));
     assert_eq!(backend.asked.take(), no_questions);
 
-    // Returned at once, file untouched, like `code` without `--wait`: asked, with the flag that
-    // makes it wait, and a yes takes the file as it is then.
-    let hand_off = script(dir, "code", "exit 0");
+    // A known editor that hands the file off gets the flag that makes it wait.
+    let code = script(dir, "code", r#"printf '%s\n' "$1" > "$2""#);
+    let backend = quiet();
+    let notes = notes_with(&code.display().to_string(), &backend);
+    assert_eq!(notes.as_deref(), Ok("--wait"));
+    assert_eq!(backend.asked.take(), no_questions);
+
+    // Returned at once, file untouched: asked, and a yes takes the file as it is then.
+    let hand_off = script(dir, "hand-off", "exit 0");
     let backend = DefaultEditor::replying(&[true]);
     let notes = notes_with(&hand_off.display().to_string(), &backend);
     assert_eq!(notes.as_deref(), Ok("Bug fixes."));
-    assert_eq!(backend.asked.take(), [format!(
-        "Your editor returned right away. Done editing the file?\nTo make it wait, set \
-         EDITOR=\"{} --wait\"",
-        hand_off.display()
-    )]);
+    assert_eq!(backend.asked.take(), ["Your editor returned right away. Done editing the file?"]);
 
     // A no reopens the editor; this one edits the file the second time.
     let marker = dir.join("opened-once");
@@ -149,7 +151,6 @@ fn the_default_backend_spawns_the_editor_itself() {
     let backend = DefaultEditor::replying(&[false]);
     let notes = notes_with(&second_time.display().to_string(), &backend);
     assert_eq!(notes.as_deref(), Ok("Second try."));
-    // An unknown editor gets no hint at a wait flag.
     assert_eq!(backend.asked.take(), ["Your editor returned right away. Done editing the file?"]);
 
     // Saved as Latin-1, the file reopens with what could be read and the error in its header;

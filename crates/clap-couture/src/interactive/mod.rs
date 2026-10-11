@@ -54,16 +54,17 @@
 //! The editor is found as git finds its own: `$VISUAL` (unless `TERM` says the terminal is
 //! dumb), then `$EDITOR`, then `vi`, and `:` takes the file as written. Its string is split into
 //! words like a shell would, so `EDITOR="code --wait"` works, but `~` and variables in it are not
-//! expanded. An editor that returns right away without touching the file, like `code` without
-//! `--wait`, is asked about before its answer is taken.
+//! expanded. A known editor that returns at once, like `code`, gets the flag that makes it wait;
+//! any other that returns right away without touching the file is asked about before its answer
+//! is taken.
 //!
 //! The file opens with the arg's default, or the answer clap just turned down, above a header
 //! asking the question. The header's lines start with `#|`, so it comes back out while the
 //! user's own `#` lines, like markdown headings, stay. An empty file leaves an optional arg unset
 //! and aborts for a required one, like an empty commit message. It aborts for an arg with a
-//! default too, rather than quietly bringing the default back. A file saved in an encoding other
-//! than UTF-8 reopens with an error, except that UTF-16 behind a byte order mark is read, and on
-//! Windows so is the ANSI code page.
+//! default too, rather than quietly bringing the default back. The file is read in the encoding
+//! its byte order mark names, or as UTF-8, or else in the system's legacy encoding: the ANSI code
+//! page on Windows, the locale's elsewhere. A file in none of them reopens with an error.
 //!
 //! `editor` needs `prompt` beside it:
 #![cfg_attr(feature = "interactive-editor", doc = "```compile_fail")]
@@ -94,8 +95,6 @@
 //! ```
 
 mod backend;
-#[cfg(feature = "interactive-editor")]
-mod editor;
 mod prompted_args;
 
 use std::io;
@@ -104,14 +103,16 @@ use std::io;
 pub use backend::Cliclack;
 #[cfg(feature = "interactive-dialoguer")]
 pub use backend::Dialoguer;
+#[cfg(feature = "interactive-editor")]
+pub use backend::EditorInteraction;
 #[cfg(feature = "interactive-inquire")]
 pub use backend::Inquire;
 pub use backend::{Backend, CommandStyles, DefaultBackend, NonInteractive};
 use clap::builder::PossibleValue;
-#[cfg(feature = "interactive-editor")]
-pub use editor::edit;
 #[doc(hidden)]
 pub use prompted_args::{EditorAttr, PromptAttr, PromptedArg, PromptedArgBranch, PromptedArgTree};
+
+pub use crate::os::signal::Signal;
 
 /// Why a prompt produced no answer.
 #[derive(Debug, thiserror::Error)]
@@ -128,7 +129,7 @@ pub enum PromptError {
     /// cancelled, and [`couture_parse`](crate::CoutureParser::couture_parse) dies of the same
     /// signal, so a shell loop around the CLI stops too.
     #[error("prompt cancelled")]
-    Signalled(i32),
+    Signalled(Signal),
 }
 
 // `Interrupted` is the user backing out, `NotConnected` a missing terminal.
@@ -181,8 +182,6 @@ pub struct EditorPrompt<'prompt> {
     pub returned_early: &'prompt str,
     /// The command's styles, for backends that theme themselves.
     pub styles: CommandStyles<'prompt>,
-    /// Put before the setting that makes an editor known to return at once wait.
-    pub wait_hint: &'prompt str,
     /// The hint shown while the editor is open; empty shows none.
     pub waiting: &'prompt str,
 }

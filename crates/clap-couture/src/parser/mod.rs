@@ -9,6 +9,8 @@ use clap::{Command, FromArgMatches, Parser};
 
 #[cfg(feature = "interactive")]
 use crate::interactive::Backend;
+#[cfg(feature = "interactive")]
+use crate::os::signal::Signal;
 use crate::{CommandExt as _, Couture};
 
 /// clap's [`Parser`] entry points, with couture's help installed.
@@ -94,10 +96,7 @@ impl<T> CoutureParser for T where T: Parser + Couture {}
 pub(crate) enum Failure {
     /// The user backed out of a prompt.
     #[cfg(feature = "interactive")]
-    Cancelled {
-        /// The signal the editor died of, if it did; backing out otherwise counts as Ctrl-C.
-        signal: Option<i32>,
-    },
+    Cancelled(Signal),
     /// clap rejected the arguments.
     Clap(clap::Error),
     /// A prompt failed: the terminal, the temp file or the editor.
@@ -111,7 +110,7 @@ impl Failure {
     fn exit(self) -> ! {
         match self {
             #[cfg(feature = "interactive")]
-            Self::Cancelled { signal } => die_of(signal),
+            Self::Cancelled(signal) => signal.die(),
             Self::Clap(err) => err.exit(),
             #[cfg(feature = "interactive")]
             Self::Io(err) => {
@@ -125,7 +124,7 @@ impl Failure {
     fn into_clap(self) -> clap::Error {
         match self {
             #[cfg(feature = "interactive")]
-            Self::Cancelled { signal: _ } => {
+            Self::Cancelled(_) => {
                 clap::Error::raw(clap::error::ErrorKind::Io, "prompt cancelled\n")
             }
             Self::Clap(err) => err,
@@ -133,52 +132,6 @@ impl Failure {
             Self::Io(err) => io_error(&err),
         }
     }
-}
-
-/// Die of `signal`, SIGINT when `None`, as git does: a shell only stops a loop or script around a
-/// command that died of Ctrl-C, and takes any exit status, 130 included, as the command having
-/// handled it. Exits with the shell's code for the signal where there are no signals to die of,
-/// or if the signal somehow doesn't kill.
-#[cfg(feature = "interactive")]
-#[expect(clippy::exit, reason = "the fallback when there is no signal to die of")]
-fn die_of(signal: Option<i32>) -> ! {
-    #[cfg(unix)]
-    let signal = signal.unwrap_or(libc::SIGINT);
-    #[cfg(unix)]
-    {
-        use std::io::Write as _;
-
-        // Dying skips Rust's own flushing; nothing is left to report a failed flush to.
-        drop(std::io::stdout().flush());
-        drop(std::io::stderr().flush());
-        // SAFETY: an all-zero `sigset_t` is valid storage, filled in by `sigemptyset`.
-        let mut set: libc::sigset_t = unsafe { core::mem::zeroed() };
-        // A blocked signal would stay pending instead of killing, so it is unblocked first.
-        // SAFETY: `set` is live for the call.
-        unsafe {
-            libc::sigemptyset(&raw mut set);
-        }
-        // SAFETY: as above; `signal` is a real signal, the one that ended the prompt.
-        unsafe {
-            libc::sigaddset(&raw mut set, signal);
-        }
-        // SAFETY: `set` is live, and the old mask is not asked for.
-        unsafe {
-            libc::pthread_sigmask(libc::SIG_UNBLOCK, &raw const set, core::ptr::null_mut());
-        }
-        // SAFETY: the default action is valid for every signal.
-        unsafe {
-            libc::signal(signal, libc::SIG_DFL);
-        }
-        // SAFETY: raising a real signal; with its default action, it ends the process.
-        unsafe {
-            libc::raise(signal);
-        }
-    }
-    // 128 plus the signal is how a shell reports a death by it: 130 for SIGINT.
-    #[cfg(not(unix))]
-    let signal = signal.unwrap_or(2i32);
-    std::process::exit(128i32.saturating_add(signal))
 }
 
 /// `err` as a clap error of kind [`Io`](clap::error::ErrorKind::Io), with clap's `error:` styling.
@@ -223,6 +176,8 @@ mod tests {
 
     #[cfg(all(unix, feature = "interactive"))]
     use super::Failure;
+    #[cfg(all(unix, feature = "interactive"))]
+    use crate::os::signal::Signal;
 
     #[cfg(all(unix, feature = "interactive"))]
     /// Set to the signal for [`die_in_child`] to die of, or empty for none.
@@ -234,7 +189,8 @@ mod tests {
     #[ignore = "run in a child process by `a_cancelled_parse_dies_of_its_signal`"]
     fn die_in_child() {
         let Ok(signal) = std::env::var(DIE_OF) else { return };
-        Failure::Cancelled { signal: signal.parse().ok() }.exit();
+        let signal = signal.parse().ok().and_then(Signal::from_raw).unwrap_or(Signal::Interrupt);
+        Failure::Cancelled(signal).exit();
     }
 
     #[cfg(all(unix, feature = "interactive"))]

@@ -128,7 +128,7 @@ fn without_a_dash_nothing_is_asked(#[case] argv: &[&str], #[case] message: Optio
 fn help_exits_before_asking() {
     let backend = ScriptedBackend::new([]);
     let commit = Commit::couture_try_parse_from_with(&backend, ["commit", "-m", "-", "--help"]);
-    assert_eq!(commit.map(drop).map_err(|err| err.kind()), Err(ErrorKind::DisplayHelp));
+    assert_eq!(commit.map(drop).map_err(|err| err.kind()), Err(Some(ErrorKind::DisplayHelp)));
 }
 
 #[test]
@@ -140,7 +140,7 @@ fn without_a_terminal_a_dash_is_an_error() {
         "error: --message <MESSAGE> got `-` to be asked for, but there is no terminal to ask on";
     assert!(
         err.as_ref().is_some_and(|(kind, rendered)| {
-            *kind == ErrorKind::ValueValidation && rendered.starts_with(message)
+            *kind == Some(ErrorKind::ValueValidation) && rendered.starts_with(message)
         }),
         "{err:?}"
     );
@@ -167,7 +167,7 @@ fn a_dash_asks_for_a_secret_the_command_line_may_not_pass() {
 fn a_secret_passed_on_the_command_line_is_still_refused() {
     let backend = ScriptedBackend::new([]);
     let login = Login::couture_try_parse_from_with(&backend, ["login", "--token", "hunter2"]);
-    assert_eq!(login.map(drop).map_err(|err| err.kind()), Err(ErrorKind::ValueValidation));
+    assert_eq!(login.map(drop).map_err(|err| err.kind()), Err(Some(ErrorKind::ValueValidation)));
 }
 
 #[test]
@@ -205,6 +205,8 @@ fn a_value_other_than_dash_fails_as_clap_fails_it() {
     let argv = ["serve", "--port", "abc"];
     let serve = Serve::couture_try_parse_from_with(&backend, argv);
     let plain = PlainServe::try_parse_from(argv);
-    let rendered = |err: clap::Error| (err.kind(), err.to_string());
-    assert_eq!(serve.err().map(rendered), plain.err().map(rendered));
+    assert_eq!(
+        serve.err().map(|err| (err.kind(), err.to_string())),
+        plain.err().map(|err| (Some(err.kind()), err.to_string()))
+    );
 }

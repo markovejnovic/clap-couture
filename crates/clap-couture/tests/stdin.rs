@@ -1,4 +1,4 @@
-//! `#[couture(stdin)]` takes piped stdin as the value of an arg the user left out, and
+//! `#[couture(stdin(piped))]` takes piped stdin as the value of an arg the user left out, and
 //! leaves any other stdin alone. Each case runs this binary again as a child, so its stdin can be
 //! a pipe, a file or the null device.
 #![cfg(feature = "interactive")]
@@ -41,7 +41,7 @@ const RESULT: &str = "stdin-test-result: ";
 #[derive(Parser, Couture, Debug)]
 struct Post {
     #[arg(long)]
-    #[couture(stdin)]
+    #[couture(stdin(piped))]
     message: String,
 
     #[arg(long, conflicts_with = "message")]
@@ -58,11 +58,11 @@ struct Codec {
 enum CodecCmd {
     Decode {
         #[arg(long)]
-        #[couture(stdin)]
+        #[couture(stdin(piped))]
         input: String,
     },
     Encode {
-        #[couture(stdin)]
+        #[couture(stdin(piped))]
         input: String,
     },
     Version,
@@ -71,21 +71,21 @@ enum CodecCmd {
 #[derive(Parser, Couture, Debug)]
 struct Note {
     #[arg(long)]
-    #[couture(stdin(dash))]
+    #[couture(stdin)]
     body: Option<String>,
 }
 
 #[derive(Parser, Couture, Debug)]
 struct Draft {
     #[arg(long)]
-    #[couture(prompt(dash), stdin(dash))]
+    #[couture(prompt(dash), stdin)]
     message: Option<String>,
 }
 
 #[derive(Parser, Couture)]
 struct DockerLogin {
     #[arg(long)]
-    #[couture(prompt, secret, stdin(dash))]
+    #[couture(prompt, secret, stdin)]
     password: SecretString,
 }
 
@@ -93,7 +93,7 @@ struct DockerLogin {
 struct Login {
     /// Password.
     #[arg(long)]
-    #[couture(prompt, secret, stdin)]
+    #[couture(prompt, secret, stdin(piped))]
     password: SecretString,
 
     #[arg(long)]
@@ -122,16 +122,16 @@ fn child() {
     let words = env::var(ARGV).unwrap_or_default();
     let argv = iter::once("app").chain(words.split('\x1f').filter(|word| !word.is_empty()));
     let result = match case.as_str() {
-        "post" => Post::couture_try_parse_from_with(&NonInteractive, argv)
+        "post" => Post::couture_try_parse_from_with(NonInteractive, argv)
             .map(|post| format!("message={:?} template={:?}", post.message, post.template)),
         "codec" => {
-            Codec::couture_try_parse_from_with(&NonInteractive, argv).map(|codec| match codec.cmd {
+            Codec::couture_try_parse_from_with(NonInteractive, argv).map(|codec| match codec.cmd {
                 CodecCmd::Decode { input } => format!("decode {input:?}"),
                 CodecCmd::Encode { input } => format!("encode {input:?}"),
                 CodecCmd::Version => "version".to_owned(),
             })
         }
-        "note" => Note::couture_try_parse_from_with(&NonInteractive, argv)
+        "note" => Note::couture_try_parse_from_with(NonInteractive, argv)
             .map(|note| format!("body={:?}", note.body)),
         "draft" => {
             // Available, yet stdin is no terminal: a `-` reads it.
@@ -141,7 +141,7 @@ fn child() {
                 format!("message={:?}", draft.message)
             })
         }
-        "docker-login" => DockerLogin::couture_try_parse_from_with(&NonInteractive, argv)
+        "docker-login" => DockerLogin::couture_try_parse_from_with(NonInteractive, argv)
             .map(|login| format!("password={}", login.password.expose_secret())),
         "login" => {
             // Available with stdin piped: the user is asked, the piped password is not.
@@ -155,8 +155,9 @@ fn child() {
         _ => return,
     };
     let result = result.unwrap_or_else(|err| {
-        let rendered = err.render().to_string();
-        format!("{:?}: {}", err.kind(), rendered.lines().next().unwrap_or_default())
+        let rendered = err.to_string();
+        let kind = err.kind().map_or_else(|| "prompt".to_owned(), |kind| format!("{kind:?}"));
+        format!("{kind}: {}", rendered.lines().next().unwrap_or_default())
     });
     writeln!(io::stdout(), "{RESULT}{result}").ok();
 }
@@ -313,4 +314,12 @@ fn a_dash_reads_a_secret_the_command_line_may_not_pass() {
 #[case::from_the_null_device(Stdin::Null, "message=Some(\"\")")]
 fn a_dash_that_may_ask_reads_stdin_that_is_no_terminal(#[case] stdin: Stdin, #[case] parsed: &str) {
     assert_eq!(run("draft", &["--message", "-"], stdin).as_deref(), Ok(parsed));
+}
+
+#[rstest]
+fn stdin_past_the_limit_is_an_error() {
+    let past_the_limit: &'static [u8] = Vec::leak(vec![b'a'; (16 << 20) + 1]);
+    let result = run("note", &["--body", "-"], Stdin::File(past_the_limit));
+    let error = "ValueValidation: error: --body <BODY> got more than 16 MiB from stdin";
+    assert_eq!(result.as_deref(), Ok(error));
 }

@@ -5,15 +5,18 @@ use clap::{Command, Subcommand};
 use clap_couture::Couture;
 use rstest::rstest;
 
+/// The name clap evaluates, which couture can't read off the attribute.
+const LIST_NAME: &str = "ls";
+
 #[derive(Subcommand, Couture)]
 #[couture(categories = { "all" = {} })]
 enum DefaultCasing {
-    #[category("all")]
+    #[couture(category = "all")]
     DryRun,
     #[command(name = "ls")]
-    #[category("all")]
+    #[couture(category = "all")]
     List,
-    #[category("all")]
+    #[couture(category = "all")]
     r#Type,
 }
 
@@ -21,7 +24,7 @@ enum DefaultCasing {
 #[command(rename_all = "snake_case")]
 #[couture(categories = { "all" = {} })]
 enum EnumCasing {
-    #[category("all")]
+    #[couture(category = "all")]
     DryRun,
 }
 
@@ -30,10 +33,18 @@ enum EnumCasing {
 #[couture(categories = { "all" = {} })]
 enum VariantCasing {
     #[command(rename_all = "kebab-case")]
-    #[category("all")]
+    #[couture(category = "all")]
     DryRun,
     #[command(name = "ls", rename_all = "SCREAMING_SNAKE_CASE")]
-    #[category("all")]
+    #[couture(category = "all")]
+    List,
+}
+
+#[derive(Subcommand, Couture)]
+#[couture(categories = { "all" = {} })]
+enum NamedByConst {
+    #[command(name = LIST_NAME)]
+    #[couture(category = "all")]
     List,
 }
 
@@ -42,7 +53,7 @@ enum VariantCasing {
 #[derive(Subcommand, Couture)]
 #[couture(categories = { "all" = {} })]
 enum Flattening {
-    #[category("all")]
+    #[couture(category = "all")]
     Apply,
     #[command(flatten)]
     Merged(DefaultCasing),
@@ -66,6 +77,7 @@ where
 #[case::enum_rename_all(clap_and_couture_names::<EnumCasing>())]
 #[case::variant_rename_all(clap_and_couture_names::<VariantCasing>())]
 #[case::flatten(clap_and_couture_names::<Flattening>())]
+#[case::name_from_a_const(clap_and_couture_names::<NamedByConst>())]
 fn categories_name_variants_the_way_clap_does(#[case] names: (Vec<String>, Vec<String>)) {
     let (clap, couture) = names;
     assert_eq!(couture, clap);

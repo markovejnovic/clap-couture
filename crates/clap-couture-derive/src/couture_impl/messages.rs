@@ -1,54 +1,57 @@
 //! `MESSAGES`: the text couture prints itself, as `#[couture(messages = { ... })]` sets it.
 
 use proc_macro2::TokenStream as TokenStream2;
-use quote::{ToTokens, quote};
-use serde::Deserialize;
+use quote::{ToTokens, format_ident, quote};
+use syn::{
+    Ident, Token,
+    parse::{Parse, ParseStream},
+    punctuated::Punctuated,
+};
 
-use crate::text::TextExpr;
+use super::container::{Entry, Keys};
+use crate::{runtime::Runtime, text::TextExpr};
 
-/// The messages a type sets; the rest keep `clap_couture::Messages::DEFAULT`'s.
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-pub(crate) struct Messages {
-    editor_empty: Option<TextExpr>,
-    editor_instructions: Option<TextExpr>,
-    editor_instructions_optional: Option<TextExpr>,
-    editor_not_utf8: Option<TextExpr>,
-    editor_returned_early: Option<TextExpr>,
-    editor_waiting: Option<TextExpr>,
-    environment: Option<TextExpr>,
-    finish_hint: Option<TextExpr>,
-    none: Option<TextExpr>,
-    options: Option<TextExpr>,
-    selection_required: Option<TextExpr>,
-    usage: Option<TextExpr>,
+/// The messages a type sets, in written order; the rest keep `clap_couture::Messages::DEFAULT`'s.
+pub(crate) struct Messages(Vec<(Ident, TextExpr)>);
+
+impl Messages {
+    /// Every key `messages = { ... }` takes, one per `clap_couture::Messages` builder.
+    const KEYS: Keys = Keys(&[
+        "arguments",
+        "editor_empty",
+        "editor_instructions",
+        "editor_instructions_optional",
+        "editor_not_utf8",
+        "editor_returned_early",
+        "editor_waiting",
+        "environment",
+        "finish_hint",
+        "none",
+        "options",
+        "selection_required",
+        "usage",
+    ]);
 }
 
-// Every field is spelled out, the unset ones from the defaults: a `..DEFAULT` struct update
-// would trip clippy's `needless_update` in the user's crate whenever all of them are set.
+impl Parse for Messages {
+    fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
+        Punctuated::<Entry, Token![,]>::parse_terminated(input)?
+            .into_iter()
+            .map(|Entry { key, value }| {
+                Self::KEYS.check(&key)?;
+                Ok((key, TextExpr::from(value)))
+            })
+            .collect::<syn::Result<_>>()
+            .map(Self)
+    }
+}
+
 impl ToTokens for Messages {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
-        let messages = [
-            ("editor_empty", &self.editor_empty),
-            ("editor_instructions", &self.editor_instructions),
-            ("editor_instructions_optional", &self.editor_instructions_optional),
-            ("editor_not_utf8", &self.editor_not_utf8),
-            ("editor_returned_early", &self.editor_returned_early),
-            ("editor_waiting", &self.editor_waiting),
-            ("environment", &self.environment),
-            ("finish_hint", &self.finish_hint),
-            ("none", &self.none),
-            ("options", &self.options),
-            ("selection_required", &self.selection_required),
-            ("usage", &self.usage),
-        ]
-        .map(|(name, text)| {
-            let name = syn::Ident::new(name, proc_macro2::Span::call_site());
-            text.as_ref().map_or_else(
-                || quote!(#name: ::clap_couture::Messages::DEFAULT.#name),
-                |text| quote!(#name: #text),
-            )
+        let setters = self.0.iter().map(|(key, text)| {
+            let setter = format_ident!("with_{key}", span = key.span());
+            quote!(.#setter(#text))
         });
-        tokens.extend(quote! { ::clap_couture::Messages { #(#messages,)* } });
+        tokens.extend(quote!(#Runtime::Messages::DEFAULT #(#setters)*));
     }
 }

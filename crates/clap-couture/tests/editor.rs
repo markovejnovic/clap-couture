@@ -4,9 +4,9 @@
 use core::cell::RefCell;
 use std::io;
 
-use clap::{ArgAction, ArgGroup, Parser, Subcommand, error::ErrorKind};
+use clap::{ArgAction, ArgGroup, Parser, Subcommand};
 use clap_couture::{
-    Couture, CoutureParser as _,
+    Couture, CoutureParser as _, ParseError,
     interactive::{
         Backend, ConfirmPrompt, EditorPrompt, MultiSelectPrompt, PromptError, SecretPrompt,
         SelectPrompt, TextPrompt, secrecy::SecretString,
@@ -287,8 +287,7 @@ fn an_empty_required_answer_aborts() {
     let release =
         Release::couture_try_parse_from_with(&editor, ["release", "--notes", "n", "--port", "1"]);
     let err = release.err();
-    assert_eq!(err.as_ref().map(clap::Error::kind), Some(ErrorKind::Io));
-    assert!(err.is_some_and(|err| err.to_string().contains("prompt cancelled")));
+    assert!(matches!(err, Some(ParseError::Cancelled(_))), "{err:?}");
     assert_eq!(editor.reported.take(), ["Aborting due to an empty answer."]);
 }
 

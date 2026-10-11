@@ -3,9 +3,9 @@
 use darling::FromMeta;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{ToTokens, quote, quote_spanned};
-use serde::{Deserialize, Deserializer};
-use serde_tokenstream::ParseWrapper;
 use syn::{Expr, ExprLit, Lit, spanned::Spanned as _};
+
+use crate::runtime::Runtime;
 
 /// The expression of a `title = ...`, `description = ...` or `prompt = ...`. A string literal is
 /// kept as is; any other expression is evaluated each time the text is shown, like clap's
@@ -16,12 +16,9 @@ pub(crate) struct TextExpr(Expr);
 /// An `Option<clap_couture::Text>` in the generated code: `Some(...)` or `None`.
 pub(crate) struct OptionalText<'text>(Option<&'text TextExpr>);
 
-impl<'de> Deserialize<'de> for TextExpr {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        ParseWrapper::<Expr>::deserialize(deserializer).map(|expr| Self(expr.into_inner()))
+impl From<Expr> for TextExpr {
+    fn from(expr: Expr) -> Self {
+        Self(expr)
     }
 }
 
@@ -37,10 +34,10 @@ impl ToTokens for TextExpr {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         let expr = &self.0;
         tokens.extend(if let Expr::Lit(ExprLit { attrs: _, lit: Lit::Str(literal) }) = expr {
-            quote!(::clap_couture::Text::Literal(#literal))
+            quote!(#Runtime::Text::Literal(#literal))
         } else {
             quote_spanned! {expr.span()=>
-                ::clap_couture::Text::Computed(|| ::core::convert::Into::into(#expr))
+                #Runtime::Text::Computed(|| ::core::convert::Into::into(#expr))
             }
         });
     }

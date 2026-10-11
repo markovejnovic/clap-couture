@@ -1,4 +1,4 @@
-//! `prompt(dash)` and `stdin(dash)`: `-` as an arg's value stands for what is asked for it, or
+//! `prompt(dash)` and `stdin`: `-` as an arg's value stands for what is asked for it, or
 //! read from stdin.
 //!
 //! clap parses `-` like any value. A dash arg's value parser swaps it for what the arg's
@@ -22,7 +22,7 @@ use clap::{
 };
 
 use super::{
-    Failure,
+    ParseError,
     prompting::{arg_at, matches_at, raw_values, with_arg_at},
     stdin::StdinArgs,
 };
@@ -31,7 +31,7 @@ use crate::interactive::{DashAttr, PromptedArg};
 /// The id of the one arg of [`DashValueParser::parse_alone`]'s command.
 const VALUE: &str = "value";
 
-/// One arg that takes `-`, from `prompt(dash)`, `stdin(dash)` or both.
+/// One arg that takes `-`, from `prompt(dash)`, `stdin` or both.
 pub(super) struct DashArg {
     /// The clap id of the arg.
     arg_id: &'static str,
@@ -39,7 +39,7 @@ pub(super) struct DashArg {
     asks: bool,
     /// Makes its value parser for the final parse.
     attr: DashAttr,
-    /// `stdin(dash)`: `-` may read stdin into it.
+    /// `stdin`: `-` may read stdin into it.
     reads: bool,
     /// What `-` stands for, once asked or read.
     slot: DashSlot,
@@ -99,13 +99,13 @@ impl DashArg {
     }
 
     /// The error for its `-` with no terminal to ask on.
-    pub(super) fn unaskable(&self, cmd: &Command) -> Failure {
+    pub(super) fn unaskable(&self, cmd: &Command) -> ParseError {
         let mut built = cmd.clone();
         built.build();
         let arg = arg_at(&built, &self.subcommand_path, self.arg_id)
             .map_or_else(|| self.arg_id.to_owned(), ToString::to_string);
         let message = format!("{arg} got `-` to be asked for, but there is no terminal to ask on");
-        Failure::Clap(
+        ParseError::Clap(
             clap::Error::raw(ErrorKind::ValueValidation, message).format(&mut cmd.clone()),
         )
     }

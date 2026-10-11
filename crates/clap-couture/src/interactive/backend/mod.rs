@@ -10,6 +10,7 @@ mod builtin;
 mod cliclack;
 #[cfg(any(feature = "interactive-cliclack", feature = "interactive-dialoguer"))]
 mod console_style;
+mod default;
 #[cfg(feature = "interactive-dialoguer")]
 mod dialoguer;
 #[cfg(feature = "interactive-editor")]
@@ -23,6 +24,7 @@ use std::io::{self, IsTerminal as _, Write as _};
 use clap::builder::Styles;
 #[cfg(feature = "interactive-cliclack")]
 pub use cliclack::Cliclack;
+pub use default::DefaultBackend;
 #[cfg(feature = "interactive-dialoguer")]
 pub use dialoguer::Dialoguer;
 #[cfg(feature = "interactive-editor")]
@@ -41,30 +43,6 @@ use super::{
 /// A command's clap styles, for a backend to build its theme from.
 #[derive(Clone, Copy, Debug)]
 pub struct CommandStyles<'styles>(pub &'styles Styles);
-
-/// The backend [`CoutureParser`](crate::CoutureParser)'s entry points ask through: the first
-/// enabled of cliclack, dialoguer and inquire, or [`NonInteractive`] when none is.
-#[cfg(feature = "interactive-cliclack")]
-pub type DefaultBackend = Cliclack;
-/// The backend [`CoutureParser`](crate::CoutureParser)'s entry points ask through: the first
-/// enabled of cliclack, dialoguer and inquire, or [`NonInteractive`] when none is.
-#[cfg(all(feature = "interactive-dialoguer", not(feature = "interactive-cliclack")))]
-pub type DefaultBackend = Dialoguer;
-/// The backend [`CoutureParser`](crate::CoutureParser)'s entry points ask through: the first
-/// enabled of cliclack, dialoguer and inquire, or [`NonInteractive`] when none is.
-#[cfg(all(
-    feature = "interactive-inquire",
-    not(any(feature = "interactive-cliclack", feature = "interactive-dialoguer"))
-))]
-pub type DefaultBackend = Inquire;
-/// The backend [`CoutureParser`](crate::CoutureParser)'s entry points ask through: the first
-/// enabled of cliclack, dialoguer and inquire, or [`NonInteractive`] when none is.
-#[cfg(not(any(
-    feature = "interactive-cliclack",
-    feature = "interactive-dialoguer",
-    feature = "interactive-inquire"
-)))]
-pub type DefaultBackend = NonInteractive;
 
 /// A terminal UI that can ask for one arg's value.
 ///

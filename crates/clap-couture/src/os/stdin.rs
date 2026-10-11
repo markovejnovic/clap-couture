@@ -2,7 +2,11 @@
 
 use std::io::{self, IsTerminal as _, Read as _};
 
-/// Which stdin [`read`] reads.
+/// The most stdin a parse reads, 16 MiB: an arg's value, not a stream, so `cat /dev/zero |`
+/// fails the parse rather than exhausting memory.
+pub(crate) const STDIN_LIMIT: usize = 16 << 20;
+
+/// Which stdin [`Stdin::read`] reads.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum ReadWhen {
     /// Whatever stdin is, as `-` asks: a terminal is read until end of input.
@@ -20,7 +24,8 @@ pub(crate) trait Stdin {
     /// Check whether stdin is a terminal.
     fn is_terminal(&self) -> bool;
 
-    /// Everything on stdin; `None` when `when` leaves it unread.
+    /// Everything on stdin, but at most one byte past [`STDIN_LIMIT`]; `None` when `when` leaves
+    /// it unread.
     ///
     /// # Errors
     /// Reading stdin failed.
@@ -37,7 +42,8 @@ impl Stdin for ProcessStdin {
             return Ok(None);
         }
         let mut stdin = Vec::new();
-        io::stdin().lock().read_to_end(&mut stdin)?;
+        let limit = u64::try_from(STDIN_LIMIT).unwrap_or(u64::MAX).saturating_add(1);
+        io::stdin().lock().take(limit).read_to_end(&mut stdin)?;
         Ok(Some(stdin))
     }
 }

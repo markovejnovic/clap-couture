@@ -73,27 +73,27 @@ enum Cmd {
     Debug,
 
     /// Ship the current project.
-    #[category("deploy")]
+    #[couture(category = "deploy")]
     Deploy(Deploy),
 
     /// Tail live logs.
-    #[category("everyday")]
+    #[couture(category = "everyday")]
     Logs,
 
     /// Roll back to a previous release.
-    #[category("deploy")]
+    #[couture(category = "deploy")]
     Rollback,
 
     /// Search your deployment history.
-    #[category("everyday")]
+    #[couture(category = "everyday")]
     Search,
 
     /// Manage environment secrets.
-    #[category("deploy")]
+    #[couture(category = "deploy")]
     #[command(subcommand)]
     Secrets(Secrets),
 
-    // A command without a `#[category]` is listed first, under no heading.
+    // A command without a category is listed first, under no heading.
     /// Show recent activity.
     Status,
 }
@@ -128,11 +128,11 @@ enum Secrets {
 #[couture(categories = { "account" = { title = "Account & sync:" } })]
 enum Account {
     /// Sign in to your account.
-    #[category("account")]
+    #[couture(category = "account")]
     Login,
 
     /// Sync settings across machines.
-    #[category("account")]
+    #[couture(category = "account")]
     Sync,
 }
 

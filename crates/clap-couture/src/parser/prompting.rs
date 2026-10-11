@@ -30,7 +30,7 @@ use clap::{
 };
 
 use super::{
-    Failure,
+    ParseError,
     dash::{DashArgs, Dashed},
     secrets::{self, Vault},
     stdin::{StdinArgs, StdinValue},
@@ -416,7 +416,7 @@ pub(super) fn parse<T>(
     argv: &[OsString],
     backend: &dyn Backend,
     stdin: &impl Stdin,
-) -> Result<T, Failure>
+) -> Result<T, ParseError>
 where
     T: FromArgMatches,
 {
@@ -498,7 +498,7 @@ where
             unanswered.iter().skip(index.saturating_add(1)).map(|(later, _)| *later).collect();
         let answer = match prompted_arg.attr.purpose {
             PromptPurpose::Confirmation => match session.confirm(prompted_arg, &answers) {
-                Ok(false) => return Err(Failure::Declined),
+                Ok(false) => return Err(ParseError::Declined),
                 confirmed => confirmed.map(|_| Some(Vec::from(["true".to_owned()]))),
             },
             PromptPurpose::Value => session.answer(prompted_arg, current, &answers, &later),
@@ -507,9 +507,9 @@ where
             Ok(Some(injected_values)) => answers.push(Answer { injected_values, prompted_arg }),
             Ok(None) => {}
             // Backing out counts as Ctrl-C.
-            Err(PromptError::Cancelled) => return Err(Failure::Cancelled(Signal::Interrupt)),
-            Err(PromptError::Signalled(signal)) => return Err(Failure::Cancelled(signal)),
-            Err(PromptError::Io(err)) => return Err(Failure::Io(err)),
+            Err(PromptError::Cancelled) => return Err(ParseError::Cancelled(Signal::Interrupt)),
+            Err(PromptError::Signalled(signal)) => return Err(ParseError::Cancelled(signal)),
+            Err(PromptError::Io(err)) => return Err(ParseError::Io(err)),
             Err(PromptError::NotATerminal) => {
                 if let Some(asked) = dashed.first_asked() {
                     return Err(asked.unaskable(&cmd));
@@ -531,7 +531,7 @@ fn parse_unprompted<T>(
     mut cmd: Command,
     prompted_args: &[PromptedArg],
     argv: &[OsString],
-) -> Result<T, Failure>
+) -> Result<T, ParseError>
 where
     T: FromArgMatches,
 {
@@ -544,7 +544,7 @@ where
     }
     // Kept unbuilt: requiring an arg on the built command makes clap show help instead.
     let declared = cmd.clone();
-    let mut matches = cmd.try_get_matches_from_mut(argv).map_err(Failure::Clap)?;
+    let mut matches = cmd.try_get_matches_from_mut(argv).map_err(ParseError::Clap)?;
     let unconfirmed = confirmations.iter().any(|confirmation| {
         let id = confirmation.attr.arg_id;
         let passed = matches_at(&matches, &confirmation.subcommand_path)
@@ -560,7 +560,7 @@ where
         });
         return super::parse(required, argv);
     }
-    T::from_arg_matches_mut(&mut matches).map_err(|err| Failure::Clap(err.format(&mut cmd)))
+    T::from_arg_matches_mut(&mut matches).map_err(|err| ParseError::Clap(err.format(&mut cmd)))
 }
 
 pub(super) fn arg_at<'cmd>(cmd: &'cmd Command, path: &[&str], id: &str) -> Option<&'cmd Arg> {
@@ -857,15 +857,16 @@ mod tests {
 
     use super::parse;
     use crate::{
+        __private::{DashAttr, PromptAttr, PromptPurpose, PromptedArgTree, StdinAttr},
         Messages,
         interactive::{
-            Backend, ConfirmPrompt, DashAttr, MultiSelectPrompt, PromptAttr, PromptError,
-            PromptPurpose, PromptedArgTree, SecretPrompt, SelectPrompt, StdinAttr, TextPrompt,
+            Backend, ConfirmPrompt, MultiSelectPrompt, PromptError, SecretPrompt, SelectPrompt,
+            TextPrompt,
         },
         os::stdin::{ReadWhen, Stdin},
     };
 
-    /// `#[couture(prompt(dash), stdin(dash))]` on `--message`.
+    /// `#[couture(prompt(dash), stdin)]` on `--message`.
     static ASKED_OR_READ: PromptedArgTree = PromptedArgTree {
         branches: &[],
         own_args: &[PromptAttr {

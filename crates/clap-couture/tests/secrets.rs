@@ -7,7 +7,7 @@ mod common;
 
 use clap::{Parser, Subcommand, error::ErrorKind};
 use clap_couture::{
-    Couture, CoutureParser as _,
+    Couture, CoutureParser as _, ParseError,
     interactive::{
         NonInteractive,
         secrecy::{ExposeSecret as _, SecretString},
@@ -97,11 +97,11 @@ fn token_asked_masked() -> Asked {
 
 #[rstest]
 fn the_derive_records_the_secret_and_its_argv_policy() {
-    let allow_argv = |tree: &'static clap_couture::interactive::PromptedArgTree| {
+    let allow_argv = |tree: &'static clap_couture::__private::PromptedArgTree| {
         tree.prompted_args()
             .first()
             .and_then(|arg| arg.attr.secret.as_ref())
-            .map(clap_couture::interactive::SecretAttr::allow_argv)
+            .map(clap_couture::__private::SecretAttr::allow_argv)
     };
     assert_eq!(allow_argv(&Login::PROMPTED_ARGS), Some(false));
     assert_eq!(allow_argv(&OptionalLogin::PROMPTED_ARGS), Some(false));
@@ -112,26 +112,34 @@ fn the_derive_records_the_secret_and_its_argv_policy() {
 fn the_command_line_is_refused_before_anything_is_asked() {
     let backend = ScriptedBackend::new([]);
     let login = Login::couture_try_parse_from_with(&backend, ["app", "--token", "x"]);
-    assert_eq!(login.map(drop).map_err(|err| err.kind()).err(), Some(ErrorKind::ValueValidation));
+    assert_eq!(
+        login.map(drop).map_err(|err| err.kind()).err(),
+        Some(Some(ErrorKind::ValueValidation))
+    );
     assert_eq!(backend.asked(), []);
 }
 
 #[rstest]
 fn the_command_line_is_refused_without_a_terminal() {
-    let login = Login::couture_try_parse_from_with(&NonInteractive, ["app", "--token", "x"]);
-    assert_eq!(login.map(drop).map_err(|err| err.kind()).err(), Some(ErrorKind::ValueValidation));
+    let login = Login::couture_try_parse_from_with(NonInteractive, ["app", "--token", "x"]);
+    assert_eq!(
+        login.map(drop).map_err(|err| err.kind()).err(),
+        Some(Some(ErrorKind::ValueValidation))
+    );
 }
 
 #[rstest]
 fn an_optional_secret_is_refused_on_the_command_line() {
-    let login =
-        OptionalLogin::couture_try_parse_from_with(&NonInteractive, ["app", "--token", "x"]);
-    assert_eq!(login.map(drop).map_err(|err| err.kind()).err(), Some(ErrorKind::ValueValidation));
+    let login = OptionalLogin::couture_try_parse_from_with(NonInteractive, ["app", "--token", "x"]);
+    assert_eq!(
+        login.map(drop).map_err(|err| err.kind()).err(),
+        Some(Some(ErrorKind::ValueValidation))
+    );
 }
 
 #[rstest]
 fn the_refusal_names_the_arg() {
-    let login = Login::couture_try_parse_from_with(&NonInteractive, ["app", "--token", "x"]);
+    let login = Login::couture_try_parse_from_with(NonInteractive, ["app", "--token", "x"]);
     let message = login.map(drop).map_err(|err| err.to_string()).err().unwrap_or_default();
     assert!(message.contains("--token <TOKEN> is a secret"), "{message}");
 }
@@ -144,8 +152,7 @@ fn couture_command_alone_refuses_the_command_line() {
 
 #[rstest]
 fn allow_argv_takes_the_command_line() {
-    let login =
-        ScriptedLogin::couture_try_parse_from_with(&NonInteractive, ["app", "--token", "x"]);
+    let login = ScriptedLogin::couture_try_parse_from_with(NonInteractive, ["app", "--token", "x"]);
     let token = login.map(|login| login.token.expose_secret().to_owned());
     assert_eq!(token.ok().as_deref(), Some("x"));
 }
@@ -197,7 +204,7 @@ fn a_rejected_answer_after_a_secret_is_asked_again_and_reported_without_its_plac
 fn a_cancelled_secret_is_an_io_error() {
     let backend = ScriptedBackend::new([Reply::Cancel]);
     let login = Login::couture_try_parse_from_with(&backend, ["app"]);
-    assert_eq!(login.map(drop).map_err(|err| err.kind()).err(), Some(ErrorKind::Io));
+    assert!(matches!(login, Err(ParseError::Cancelled(_))));
 }
 
 #[rstest]
@@ -218,7 +225,7 @@ fn a_secret_on_a_subcommand_is_refused_on_the_command_line() {
         Registry::couture_try_parse_from_with(&backend, ["app", "login", "--token", "x"]);
     assert_eq!(
         registry.map(drop).map_err(|err| err.kind()).err(),
-        Some(ErrorKind::ValueValidation)
+        Some(Some(ErrorKind::ValueValidation))
     );
     assert_eq!(backend.asked(), []);
 }

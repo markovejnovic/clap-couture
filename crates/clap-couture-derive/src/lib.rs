@@ -3,6 +3,7 @@
 mod clap_compat;
 mod couture_impl;
 mod input;
+mod runtime;
 mod text;
 
 use darling::FromDeriveInput as _;
@@ -13,7 +14,7 @@ use syn::{DeriveInput, parse_macro_input};
 use crate::{couture_impl::CoutureImpl, input::CoutureInput};
 
 /// Enable [`clap-couture`](https://docs.rs/clap-couture) on your clap subcommand enum.
-#[proc_macro_derive(Couture, attributes(category, couture))]
+#[proc_macro_derive(Couture, attributes(couture))]
 pub fn derive_couture(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 

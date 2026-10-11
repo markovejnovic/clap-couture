@@ -9,6 +9,7 @@ mod secrets;
 #[cfg(feature = "interactive")]
 mod stdin;
 
+use core::fmt;
 use std::ffi::OsString;
 
 use clap::{Command, FromArgMatches, Parser};
@@ -22,69 +23,98 @@ use crate::{CommandExt as _, Couture};
 /// clap's [`Parser`] entry points, with couture's help installed.
 ///
 /// Implemented for every [`Parser`] that also implements [`Couture`]. With an `interactive-*`
-/// backend feature on, every entry point asks for prompted args the user left out.
+/// backend feature on, every entry point asks for prompted args the user left out, through
+/// [`DefaultBackend`] or, for the `_with` ones, the backend given.
 pub trait CoutureParser: Parser + Couture {
     /// The clap [`Command`] with couture's help installed, and its secret args guarded.
     #[must_use]
     fn couture_command() -> Command {
-        let cmd = Self::command().with_couture::<Self>();
+        let cmd = Self::command();
+        // Guarded first, so the help couture renders hides the refused secrets.
         #[cfg(feature = "interactive")]
         let cmd = guard_secrets::<Self>(cmd);
-        cmd
+        cmd.with_couture::<Self>()
     }
 
     /// Equivalent to [`Parser::parse`], with couture's help.
     ///
-    /// When the user cancels a prompt, dies of Ctrl-C's signal, or of the one the editor died of,
-    /// so a shell loop around the CLI stops too; exits with status 130 where there are no
-    /// signals. Exits with status 1 when a prompt fails or a confirmation is declined.
+    /// Exits as [`ParseError::exit`] does on a failed parse.
     #[must_use]
     fn couture_parse() -> Self {
         Self::couture_parse_from(std::env::args_os())
     }
 
     /// Equivalent to [`Parser::parse_from`], with couture's help.
+    ///
+    /// Exits as [`ParseError::exit`] does on a failed parse.
     #[must_use]
     fn couture_parse_from<I, T>(itr: I) -> Self
     where
         I: IntoIterator<Item = T>,
         T: Into<OsString> + Clone,
     {
-        parse_default(&itr.into_iter().map(Into::into).collect::<Vec<OsString>>())
-            .unwrap_or_else(|failure| failure.exit())
+        Self::couture_try_parse_from(itr).unwrap_or_else(|err| err.exit())
+    }
+
+    /// Equivalent to [`couture_parse_from`](Self::couture_parse_from), asking `backend` for
+    /// prompted args.
+    #[cfg(feature = "interactive")]
+    #[must_use]
+    fn couture_parse_from_with<B, I, T>(backend: B, itr: I) -> Self
+    where
+        B: Backend,
+        I: IntoIterator<Item = T>,
+        T: Into<OsString> + Clone,
+    {
+        Self::couture_try_parse_from_with(backend, itr).unwrap_or_else(|err| err.exit())
+    }
+
+    /// Equivalent to [`couture_parse`](Self::couture_parse), asking `backend` for prompted args.
+    #[cfg(feature = "interactive")]
+    #[must_use]
+    fn couture_parse_with<B>(backend: B) -> Self
+    where
+        B: Backend,
+    {
+        Self::couture_parse_from_with(backend, std::env::args_os())
     }
 
     /// Equivalent to [`Parser::try_parse`], with couture's help.
     ///
     /// # Errors
-    /// The [`clap::Error`] clap would report for the same arguments, or one of kind
-    /// [`Io`](clap::error::ErrorKind::Io) when a prompt fails, is cancelled or is declined.
-    fn couture_try_parse() -> Result<Self, clap::Error> {
+    /// See [`ParseError`].
+    fn couture_try_parse() -> Result<Self, ParseError> {
         Self::couture_try_parse_from(std::env::args_os())
     }
 
     /// Equivalent to [`Parser::try_parse_from`], with couture's help.
     ///
     /// # Errors
-    /// The [`clap::Error`] clap would report for the same arguments, or one of kind
-    /// [`Io`](clap::error::ErrorKind::Io) when a prompt fails, is cancelled or is declined.
-    fn couture_try_parse_from<I, T>(itr: I) -> Result<Self, clap::Error>
+    /// See [`ParseError`].
+    fn couture_try_parse_from<I, T>(itr: I) -> Result<Self, ParseError>
     where
         I: IntoIterator<Item = T>,
         T: Into<OsString> + Clone,
     {
-        parse_default(&itr.into_iter().map(Into::into).collect::<Vec<OsString>>())
-            .map_err(Failure::into_clap)
+        #[cfg(feature = "interactive")]
+        {
+            Self::couture_try_parse_from_with(DefaultBackend::default(), itr)
+        }
+        #[cfg(not(feature = "interactive"))]
+        {
+            parse(Self::couture_command(), &itr.into_iter().map(Into::into).collect::<Vec<_>>())
+        }
     }
 
     /// Equivalent to [`couture_try_parse_from`](Self::couture_try_parse_from), asking `backend`
     /// for prompted args.
     ///
     /// # Errors
-    /// As [`couture_try_parse_from`](Self::couture_try_parse_from).
+    /// See [`ParseError`].
     #[cfg(feature = "interactive")]
-    fn couture_try_parse_from_with<I, T>(backend: &dyn Backend, itr: I) -> Result<Self, clap::Error>
+    fn couture_try_parse_from_with<B, I, T>(backend: B, itr: I) -> Result<Self, ParseError>
     where
+        B: Backend,
         I: IntoIterator<Item = T>,
         T: Into<OsString> + Clone,
     {
@@ -93,10 +123,22 @@ pub trait CoutureParser: Parser + Couture {
             &Self::PROMPTED_ARGS,
             &Self::MESSAGES,
             &itr.into_iter().map(Into::into).collect::<Vec<OsString>>(),
-            backend,
+            &backend,
             &crate::os::stdin::ProcessStdin,
         )
-        .map_err(Failure::into_clap)
+    }
+
+    /// Equivalent to [`couture_try_parse`](Self::couture_try_parse), asking `backend` for
+    /// prompted args.
+    ///
+    /// # Errors
+    /// See [`ParseError`].
+    #[cfg(feature = "interactive")]
+    fn couture_try_parse_with<B>(backend: B) -> Result<Self, ParseError>
+    where
+        B: Backend,
+    {
+        Self::couture_try_parse_from_with(backend, std::env::args_os())
     }
 
     /// A [`Prompter`] asking through [`DefaultBackend`], in this command's styles and
@@ -105,6 +147,18 @@ pub trait CoutureParser: Parser + Couture {
     #[must_use]
     fn prompter() -> Option<Prompter> {
         Self::prompter_with(DefaultBackend::default())
+    }
+
+    /// Equivalent to [`prompter`](Self::prompter), but sure there is a terminal.
+    ///
+    /// # Panics
+    /// Without a terminal to ask on.
+    #[cfg(feature = "interactive")]
+    #[must_use]
+    #[track_caller]
+    #[expect(clippy::expect_used, reason = "panicking without a terminal is its contract")]
+    fn prompter_unwrap() -> Prompter {
+        Self::prompter().expect("`prompter_unwrap` needs a terminal to ask on")
     }
 
     /// Equivalent to [`prompter`](Self::prompter), asking through `backend`.
@@ -120,25 +174,32 @@ pub trait CoutureParser: Parser + Couture {
 
 impl<T> CoutureParser for T where T: Parser + Couture {}
 
-/// Why a parse produced no value.
-pub(crate) enum Failure {
-    /// The user backed out of a prompt.
+/// Why a [`CoutureParser`] parse produced no value.
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum ParseError {
+    /// The user backed out of a prompt, which counts as Ctrl-C, or the editor died of this
+    /// signal.
     #[cfg(feature = "interactive")]
     Cancelled(Signal),
-    /// clap rejected the arguments.
+    /// clap rejected the arguments, or the user asked for `--help` or `--version`.
     Clap(clap::Error),
-    /// The user answered no to a confirmation.
+    /// The user answered no to a `#[couture(confirm)]`.
     #[cfg(feature = "interactive")]
     Declined,
-    /// A prompt failed: the terminal, the temp file or the editor.
+    /// A prompt failed: the terminal, the temp file, the editor, or reading stdin.
     #[cfg(feature = "interactive")]
     Io(std::io::Error),
 }
 
-impl Failure {
-    /// Exit the process the way clap would for this failure; die of the signal for a cancelled
-    /// prompt, and exit 1 for a failed one or a declined confirmation, which is no usage error.
-    fn exit(self) -> ! {
+impl ParseError {
+    /// Exit the process as [`couture_parse`](CoutureParser::couture_parse) does.
+    ///
+    /// clap's errors exit as [`clap::Error::exit`] does: `--help` with status 0, a usage error
+    /// with 2. A cancelled prompt dies of its signal, so a shell loop around the CLI stops too,
+    /// or exits with status 130 where there are no signals. A failed prompt prints why and exits
+    /// with status 1, as does a declined confirmation, silently.
+    pub fn exit(self) -> ! {
         match self {
             #[cfg(feature = "interactive")]
             Self::Cancelled(signal) => signal.die(),
@@ -147,35 +208,57 @@ impl Failure {
             Self::Declined => std::process::exit(1),
             #[cfg(feature = "interactive")]
             Self::Io(err) => {
-                // Nothing is left to report a failed print to.
-                drop(io_error(&err).print());
+                // clap's `error:` styling; nothing is left to report a failed print to.
+                let err = clap::Error::raw(clap::error::ErrorKind::Io, format!("{err}\n"));
+                drop(err.print());
                 std::process::exit(1)
             }
         }
     }
 
-    fn into_clap(self) -> clap::Error {
+    /// The kind of clap's error; `None` when a prompt, not clap, ended the parse.
+    #[must_use]
+    pub fn kind(&self) -> Option<clap::error::ErrorKind> {
         match self {
+            Self::Clap(err) => Some(err.kind()),
             #[cfg(feature = "interactive")]
-            Self::Cancelled(_) => {
-                clap::Error::raw(clap::error::ErrorKind::Io, "prompt cancelled\n")
-            }
-            Self::Clap(err) => err,
-            #[cfg(feature = "interactive")]
-            Self::Declined => {
-                clap::Error::raw(clap::error::ErrorKind::Io, "confirmation declined\n")
-            }
-            #[cfg(feature = "interactive")]
-            Self::Io(err) => io_error(&err),
+            Self::Cancelled(_) | Self::Declined | Self::Io(_) => None,
         }
     }
 }
 
-/// `err` as a clap error of kind [`Io`](clap::error::ErrorKind::Io), with clap's `error:` styling.
-#[cfg(feature = "interactive")]
-fn io_error(err: &std::io::Error) -> clap::Error {
-    clap::Error::raw(clap::error::ErrorKind::Io, format!("{err}\n"))
+impl fmt::Display for ParseError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            #[cfg(feature = "interactive")]
+            Self::Cancelled(_) => f.write_str("prompt cancelled"),
+            Self::Clap(err) => err.fmt(f),
+            #[cfg(feature = "interactive")]
+            Self::Declined => f.write_str("confirmation declined"),
+            #[cfg(feature = "interactive")]
+            Self::Io(err) => err.fmt(f),
+        }
+    }
 }
+
+impl core::error::Error for ParseError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
+        match self {
+            Self::Clap(err) => Some(err),
+            #[cfg(feature = "interactive")]
+            Self::Io(err) => Some(err),
+            #[cfg(feature = "interactive")]
+            Self::Cancelled(_) | Self::Declined => None,
+        }
+    }
+}
+
+impl From<clap::Error> for ParseError {
+    fn from(err: clap::Error) -> Self {
+        Self::Clap(err)
+    }
+}
+
 /// Guard `T`'s secret args, so every parse of the command refuses them on the command line.
 #[cfg(feature = "interactive")]
 fn guard_secrets<T>(cmd: Command) -> Command
@@ -191,37 +274,13 @@ where
     )
 }
 
-/// Parse through [`DefaultBackend`](crate::interactive::DefaultBackend), or without prompting
-/// when the `interactive` feature is off.
-fn parse_default<T>(argv: &[OsString]) -> Result<T, Failure>
-where
-    T: CoutureParser,
-{
-    #[cfg(feature = "interactive")]
-    {
-        let backend = crate::interactive::DefaultBackend::default();
-        prompting::parse(
-            T::couture_command(),
-            &T::PROMPTED_ARGS,
-            &T::MESSAGES,
-            argv,
-            &backend,
-            &crate::os::stdin::ProcessStdin,
-        )
-    }
-    #[cfg(not(feature = "interactive"))]
-    {
-        parse(T::couture_command(), argv)
-    }
-}
-
 /// Parse `argv` against `cmd` as clap would, then build `T`. The prompting parse ends here too.
-fn parse<T>(mut cmd: Command, argv: &[OsString]) -> Result<T, Failure>
+fn parse<T>(mut cmd: Command, argv: &[OsString]) -> Result<T, ParseError>
 where
     T: FromArgMatches,
 {
-    let mut matches = cmd.try_get_matches_from_mut(argv).map_err(Failure::Clap)?;
-    T::from_arg_matches_mut(&mut matches).map_err(|err| Failure::Clap(err.format(&mut cmd)))
+    let mut matches = cmd.try_get_matches_from_mut(argv)?;
+    T::from_arg_matches_mut(&mut matches).map_err(|err| ParseError::Clap(err.format(&mut cmd)))
 }
 
 #[cfg(test)]
@@ -233,7 +292,7 @@ mod tests {
     use rstest::rstest;
 
     #[cfg(all(unix, feature = "interactive"))]
-    use super::Failure;
+    use super::ParseError;
     #[cfg(all(unix, feature = "interactive"))]
     use crate::os::signal::Signal;
 
@@ -248,7 +307,7 @@ mod tests {
     fn die_in_child() {
         let Ok(signal) = std::env::var(DIE_OF) else { return };
         let signal = signal.parse().ok().and_then(Signal::from_raw).unwrap_or(Signal::Interrupt);
-        Failure::Cancelled(signal).exit();
+        ParseError::Cancelled(signal).exit();
     }
 
     #[cfg(all(unix, feature = "interactive"))]

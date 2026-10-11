@@ -10,7 +10,7 @@ use crate::{
     parser::dash::{DashValueParser, TypedDashValueParser},
 };
 
-/// The `dash` of `prompt(dash)` or `stdin(dash)`: `-` as the arg's value stands for what is asked
+/// The `dash` of `prompt(dash)` or `stdin`: `-` as the arg's value stands for what is asked
 /// or read for it.
 #[derive(Clone, Copy, Debug)]
 pub struct DashAttr {
@@ -118,7 +118,7 @@ pub struct PromptedArgTree {
 pub struct StdinAttr {
     /// The clap id of the arg it is on.
     pub arg_id: &'static str,
-    /// `stdin(dash)`: stdin is read only when `-` is its value.
+    /// Stdin is read only when `-` is its value; `None` for `stdin(piped)`.
     pub dash: Option<DashAttr>,
 }
 

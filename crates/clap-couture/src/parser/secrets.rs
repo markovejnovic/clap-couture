@@ -221,7 +221,7 @@ mod tests {
     use secrecy::{ExposeSecret, SecretString};
 
     use super::{PLACEHOLDER_PREFIX, Vault, guard};
-    use crate::interactive::{PromptAttr, PromptPurpose, PromptedArg, SecretAttr};
+    use crate::__private::{PromptAttr, PromptPurpose, PromptedArg, SecretAttr};
 
     static TOKEN: PromptAttr = PromptAttr {
         arg_id: "token",

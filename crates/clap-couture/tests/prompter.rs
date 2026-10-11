@@ -1,6 +1,10 @@
 //! `CoutureParser::prompter` asks your own questions through the parse's backend.
 #![cfg(feature = "interactive")]
 
+#[expect(
+    dead_code,
+    reason = "secret replies script tests/secrets.rs; the prompter asks no secrets"
+)]
 mod common;
 
 use clap::{Parser, ValueEnum};

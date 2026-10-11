@@ -6,7 +6,7 @@
 //!
 //! # Example Output
 //!
-//! `cargo run -p clap-couture --example 07-interactive-prompter` outputs:
+//! `cargo run -p clap-couture --example 08-interactive-prompter` outputs:
 //!
 //! ```terminal
 //! ◇  Application name

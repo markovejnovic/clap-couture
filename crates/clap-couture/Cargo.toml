@@ -106,7 +106,7 @@ name = "07-interactive-secret"
 required-features = ["interactive"]
 
 [[example]]
-name = "07-interactive-prompter"
+name = "08-interactive-prompter"
 required-features = ["interactive"]
 
 [[example]]

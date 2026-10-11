@@ -167,8 +167,8 @@
 
 mod backend;
 mod prompted_args;
-mod sealed;
 mod prompter;
+mod sealed;
 
 use std::io;
 
@@ -187,10 +187,10 @@ pub use prompted_args::{
     EditorAttr, PromptAttr, PromptPurpose, PromptedArg, PromptedArgBranch, PromptedArgTree,
     SecretAttr, SecretField,
 };
+pub use prompter::Prompter;
 /// The [`secrecy`](https://docs.rs/secrecy) crate couture's secret args are typed with, so the app
 /// names the same `SecretString`.
 pub use secrecy;
-pub use prompter::Prompter;
 
 pub use crate::os::signal::Signal;
 
@@ -288,6 +288,7 @@ pub struct MultiSelectPrompt<'prompt> {
 
 /// A question whose answer is typed masked and never echoed.
 #[derive(Debug)]
+#[non_exhaustive]
 pub struct SecretPrompt<'prompt> {
     /// An empty answer is allowed, and leaves the arg unset.
     pub optional: bool,

@@ -285,8 +285,8 @@
 //!
 //! An example of this interaction is:
 //!
-//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/07-interactive-secret-dark.gif" alt="running orbit-deploy with no flags: it asks for the app, then for the deploy token, showing only a mask as it is typed, and deploys" width="600">
-//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/07-interactive-secret-light.gif" alt="running orbit-deploy with no flags: it asks for the app, then for the deploy token, showing only a mask as it is typed, and deploys" width="600">
+//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/07-interactive-secret-dark.gif" alt="running orbit-deploy with no flags: it asks for the app, then for the deploy token, showing only a mask as it is typed, and deploys">
+//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/07-interactive-secret-light.gif" alt="running orbit-deploy with no flags: it asks for the app, then for the deploy token, showing only a mask as it is typed, and deploys">
 //!
 //! See [`examples/07-interactive-secret.rs`](https://github.com/markovejnovic/clap-couture/blob/main/crates/clap-couture/examples/07-interactive-secret.rs).
 //!
@@ -321,10 +321,10 @@
 //!
 //! An example of this interaction is:
 //!
-//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/07-interactive-prompter-dark.gif" alt="running orbit-create with no flags: it asks for the app, then whether to add a database, and on a yes, which engine">
-//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/07-interactive-prompter-light.gif" alt="running orbit-create with no flags: it asks for the app, then whether to add a database, and on a yes, which engine">
+//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/08-interactive-prompter-dark.gif" alt="running orbit-create with no flags: it asks for the app, then whether to add a database, and on a yes, which engine">
+//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/08-interactive-prompter-light.gif" alt="running orbit-create with no flags: it asks for the app, then whether to add a database, and on a yes, which engine">
 //!
-//! See [`examples/07-interactive-prompter.rs`](https://github.com/markovejnovic/clap-couture/blob/main/crates/clap-couture/examples/07-interactive-prompter.rs).
+//! See [`examples/08-interactive-prompter.rs`](https://github.com/markovejnovic/clap-couture/blob/main/crates/clap-couture/examples/08-interactive-prompter.rs).
 //!
 //! ### Backends
 //!

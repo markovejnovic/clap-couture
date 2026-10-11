@@ -161,6 +161,10 @@ where
         (**self).report(error, styles)
     }
 
+    fn secret(&self, prompt: &SecretPrompt<'_>) -> Result<Option<SecretString>, PromptError> {
+        (**self).secret(prompt)
+    }
+
     fn select(&self, prompt: &SelectPrompt<'_>) -> Result<Option<String>, PromptError> {
         (**self).select(prompt)
     }

@@ -381,7 +381,7 @@
 
 #![doc(
     html_logo_url = "https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/logo.svg",
-    html_favicon_url = "https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/logo.svg"
+    html_favicon_url = "https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/favicon.svg"
 )]
 
 extern crate alloc;

@@ -80,6 +80,10 @@ impl Backend for Inquire {
             Some(hint) => text.with_help_message(hint),
             None => text,
         };
+        let text = match prompt.initial {
+            Some(initial) => text.with_initial_value(initial),
+            None => text,
+        };
         let text = if prompt.optional {
             text
         } else {

@@ -84,6 +84,10 @@ impl Backend for Dialoguer {
                 |hint| format!("{} {hint}", prompt.question),
             ))
             .allow_empty(prompt.optional);
+        let input = match prompt.initial {
+            Some(initial) => input.with_initial_text(initial),
+            None => input,
+        };
         let answer = match prompt.default {
             Some(default) => input.default(default.to_owned()),
             None => input,

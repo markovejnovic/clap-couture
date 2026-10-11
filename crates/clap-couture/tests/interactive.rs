@@ -318,6 +318,7 @@ fn asked(kind: Kind, question: &str, default: Option<&str>, options: &[&str]) ->
         defaults: default.map(str::to_owned).into_iter().collect(),
         error: None,
         hint: None,
+        initial: None,
         kind,
         options: options.iter().map(|option| (*option).to_owned()).collect(),
         question: question.to_owned(),
@@ -577,17 +578,19 @@ fn multi_select(defaults: &[&str]) -> Asked {
         defaults: defaults.iter().map(|default| (*default).to_owned()).collect(),
         error: None,
         hint: None,
+        initial: None,
         kind: Kind::MultiSelect,
         options: ["dev", "prod", "stage"].map(str::to_owned).into(),
         question: "Which envs?".to_owned(),
     }
 }
 
-fn text(question: &str, default: Option<&str>, hint: bool) -> Asked {
+fn text(question: &str, initial: Option<&str>, hint: bool) -> Asked {
     Asked {
-        defaults: default.map(str::to_owned).into_iter().collect(),
+        defaults: Vec::new(),
         error: None,
         hint: hint.then(|| "(empty to finish)".to_owned()),
+        initial: initial.map(str::to_owned),
         kind: Kind::Text,
         options: Vec::new(),
         question: question.to_owned(),
@@ -678,7 +681,7 @@ fn asks_an_invalid_value_again_and_keeps_the_rest() {
 }
 
 #[rstest]
-fn prefills_each_default_in_turn() {
+fn starts_each_value_as_the_default_in_turn() {
     let backend = ScriptedBackend::new([
         Reply::Text(Some("a")),
         Reply::Text(Some("c")),

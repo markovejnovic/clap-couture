@@ -122,6 +122,9 @@ pub struct TextPrompt<'prompt> {
     /// What to show beside the question, if anything: for one more value of a multi-value arg,
     /// that an empty answer finishes the list.
     pub hint: Option<&'prompt str>,
+    /// The text the answer starts out as, for the user to keep, edit or clear. Unlike
+    /// [`default`](Self::default), clearing it leaves the answer empty.
+    pub initial: Option<&'prompt str>,
     /// An empty answer is allowed, and leaves the arg unset.
     pub optional: bool,
     /// What to ask.

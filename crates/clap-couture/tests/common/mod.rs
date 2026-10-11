@@ -15,6 +15,8 @@ pub(crate) struct Asked {
     pub(crate) defaults: Vec<String>,
     pub(crate) error: Option<String>,
     pub(crate) hint: Option<String>,
+    /// The text the answer starts out as.
+    pub(crate) initial: Option<String>,
     pub(crate) kind: Kind,
     pub(crate) options: Vec<String>,
     pub(crate) question: String,
@@ -85,6 +87,7 @@ impl Backend for ScriptedBackend {
             defaults: Vec::from([prompt.default.to_string()]),
             error: None,
             hint: None,
+            initial: None,
             kind: Kind::Confirm,
             options: Vec::new(),
             question: prompt.question.to_owned(),
@@ -105,6 +108,7 @@ impl Backend for ScriptedBackend {
             defaults: prompt.defaults.to_vec(),
             error: None,
             hint: None,
+            initial: None,
             kind: Kind::MultiSelect,
             options: prompt.options.iter().map(|option| option.get_name().to_owned()).collect(),
             question: prompt.question.to_owned(),
@@ -126,6 +130,7 @@ impl Backend for ScriptedBackend {
             defaults: prompt.default.map(str::to_owned).into_iter().collect(),
             error: None,
             hint: None,
+            initial: None,
             kind: Kind::Select,
             // As the user sees them: the none option last, on an optional prompt.
             options: prompt
@@ -149,6 +154,7 @@ impl Backend for ScriptedBackend {
             defaults: prompt.default.map(str::to_owned).into_iter().collect(),
             error: None,
             hint: prompt.hint.map(str::to_owned),
+            initial: prompt.initial.map(str::to_owned),
             kind: Kind::Text,
             options: Vec::new(),
             question: prompt.question.to_owned(),

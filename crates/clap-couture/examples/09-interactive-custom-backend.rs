@@ -196,7 +196,8 @@ impl Backend for Plain {
             |hint| format!("{} {hint}", prompt.question),
         );
         let answer = Self::ask(&question)?;
-        Ok(Self::or_default(answer, prompt.default, prompt.optional))
+        // A plain line can't start out holding text, so take the initial text as a default.
+        Ok(Self::or_default(answer, prompt.default.or(prompt.initial), prompt.optional))
     }
 }
 

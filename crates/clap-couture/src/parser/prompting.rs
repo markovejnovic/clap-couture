@@ -98,6 +98,7 @@ impl Session<'_> {
             return self.backend.text(&TextPrompt {
                 default: current.map(String::as_str),
                 hint: None,
+                initial: None,
                 optional: !arg.is_required_set(),
                 question,
                 styles,
@@ -113,8 +114,11 @@ impl Session<'_> {
         })
     }
 
-    /// Ask for one value at a time until an empty answer, each pre-filled with the default's
+    /// Ask for one value at a time until an empty answer, each starting out as the default's
     /// value at its position. Only a required arg's first value may not be empty.
+    ///
+    /// The default goes in as initial text rather than as the answer Enter accepts, so clearing it
+    /// still finishes the list.
     fn each_value(
         &self,
         arg: &Arg,
@@ -128,8 +132,9 @@ impl Session<'_> {
         loop {
             let optional = !values.is_empty() || !arg.is_required_set();
             let Some(value) = self.backend.text(&TextPrompt {
-                default: current.get(values.len()).map(String::as_str),
+                default: None,
                 hint: optional.then_some(&*finish_hint),
+                initial: current.get(values.len()).map(String::as_str),
                 optional,
                 question,
                 styles: CommandStyles(self.cmd.get_styles()),

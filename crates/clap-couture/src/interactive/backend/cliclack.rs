@@ -56,14 +56,16 @@ impl Backend for Cliclack {
     fn text(&self, prompt: &TextPrompt<'_>) -> Result<Option<String>, PromptError> {
         let answer: String = Theme::from(prompt.styles).scoped(|| {
             let input = ::cliclack::input(prompt.question).required(!prompt.optional);
-            let mut input = match prompt.hint {
-                Some(hint) => input.placeholder(hint),
-                None => input,
+            // TODO(markovejnovic): cliclack's `Input` cannot start out holding text, so `initial`
+            // falls back to a default Enter accepts: the user can replace it but not clear it, so
+            // a list with defaults cannot finish early. The hint is dropped with it, as an empty
+            // answer no longer finishes, and cliclack shows a placeholder in place of the default.
+            let mut input = match (prompt.default.or(prompt.initial), prompt.hint) {
+                (Some(default), _) => input.default_input(default),
+                (None, Some(hint)) => input.placeholder(hint),
+                (None, None) => input,
             };
-            match prompt.default {
-                Some(default) => input.default_input(default).interact(),
-                None => input.interact(),
-            }
+            input.interact()
         })?;
         Ok(Some(answer).filter(|answer| !answer.is_empty()))
     }

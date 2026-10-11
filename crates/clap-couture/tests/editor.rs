@@ -108,13 +108,32 @@ struct TwoInGroup {
     summary: Option<String>,
 }
 
+#[derive(Parser, Couture, Debug)]
+#[command(name = "commit")]
+struct Commit {
+    /// Message.
+    #[arg(long)]
+    #[couture(prompt, editor(initial = "Summary\n\n# Why"))]
+    message: String,
+
+    /// Port.
+    #[arg(long)]
+    #[couture(prompt, editor(initial = port_template()))]
+    port: Option<u16>,
+
+    /// Trailer.
+    #[arg(long, default_value = "Signed-off-by: a")]
+    #[couture(prompt, editor(initial = "Signed-off-by: "))]
+    trailer: String,
+}
+
 /// One `EditorPrompt`, owned.
 #[derive(Debug, Default, PartialEq, Eq)]
 struct Opened {
-    default: Option<String>,
     error: Option<String>,
     extension: String,
     file_stem: String,
+    initial: Option<String>,
     instructions: String,
     optional: bool,
     question: String,
@@ -146,7 +165,7 @@ impl Backend for Editor {
 
     fn editor(&self, prompt: &EditorPrompt<'_>) -> Result<Option<String>, PromptError> {
         self.opened.borrow_mut().push(Opened {
-            default: prompt.default.map(str::to_owned),
+            initial: prompt.initial.map(str::to_owned),
             error: prompt.error.map(str::to_owned),
             extension: prompt.extension.to_owned(),
             file_stem: prompt.file_stem.to_owned(),
@@ -190,6 +209,10 @@ impl Backend for Editor {
     }
 }
 
+fn port_template() -> String {
+    "8080".to_owned()
+}
+
 fn not_editor() -> PromptError {
     PromptError::Io(io::Error::other("only editor prompts should be asked"))
 }
@@ -209,7 +232,7 @@ fn a_missing_arg_opens_the_editor_with_its_default() {
         Some("Faster builds.\n\nAnd more.")
     );
     assert_eq!(editor.opened.take(), [Opened {
-        default: Some("Bug fixes.".to_owned()),
+        initial: Some("Bug fixes.".to_owned()),
         error: None,
         extension: "md".to_owned(),
         file_stem: "release-notes".to_owned(),
@@ -233,7 +256,7 @@ fn a_rejected_answer_reopens_with_its_text_and_error() {
     assert_eq!(release.ok().and_then(|release| release.port), Some(80));
     let opened = editor.opened.take();
     let retry = opened.get(1);
-    assert_eq!(retry.and_then(|retry| retry.default.as_deref()), Some("eighty"));
+    assert_eq!(retry.and_then(|retry| retry.initial.as_deref()), Some("eighty"));
     let error = retry.and_then(|retry| retry.error.clone()).unwrap_or_default();
     assert!(error.contains("invalid value 'eighty'"), "{error}");
     assert_eq!(editor.reported.take(), [error]);
@@ -350,7 +373,7 @@ fn a_rejected_multi_line_answer_keeps_the_reason() {
     assert_eq!(release.ok().and_then(|release| release.port), Some(80));
     let opened = editor.opened.take();
     let retry = opened.get(1);
-    assert_eq!(retry.and_then(|retry| retry.default.as_deref()), Some("eighty\nninety"));
+    assert_eq!(retry.and_then(|retry| retry.initial.as_deref()), Some("eighty\nninety"));
     let error = retry.and_then(|retry| retry.error.clone()).unwrap_or_default();
     assert!(error.contains("invalid value 'eighty\u{2026}'"), "{error}");
     assert!(error.contains("invalid digit"), "{error}");
@@ -414,11 +437,11 @@ fn an_answered_group_member_satisfies_the_group() {
 #[rstest]
 fn the_prompter_asks_in_the_editor() {
     let editor = Editor::new([Some("Faster builds.")]);
-    let answer =
-        Release::prompter_with(&editor).and_then(|prompter| prompter.editor("Notes?", "md").ok());
+    let answer = Release::prompter_with(&editor)
+        .and_then(|prompter| prompter.editor("Notes?", "md", None).ok());
     assert_eq!(answer.as_deref(), Some("Faster builds."));
     assert_eq!(editor.opened.take(), [Opened {
-        default: None,
+        initial: None,
         error: None,
         extension: "md".to_owned(),
         file_stem: "release".to_owned(),
@@ -429,9 +452,61 @@ fn the_prompter_asks_in_the_editor() {
 }
 
 #[rstest]
+fn the_prompter_starts_the_file_with_its_initial_text() {
+    let editor = Editor::new([Some("Faster builds.")]);
+    let answer = Release::prompter_with(&editor)
+        .and_then(|prompter| prompter.editor("Notes?", "md", Some("## Changes")).ok());
+    assert_eq!(answer.as_deref(), Some("Faster builds."));
+    let opened = editor.opened.take();
+    assert_eq!(opened.first().and_then(|opened| opened.initial.as_deref()), Some("## Changes"));
+}
+
+#[rstest]
+fn the_file_starts_with_the_initial_text() {
+    let editor = Editor::new([Some("Fix it."), Some("80")]);
+    let commit = Commit::couture_try_parse_from_with(&editor, ["commit", "--trailer", "t"]);
+    assert_eq!(
+        commit.ok().map(|commit| (commit.message, commit.port)),
+        Some(("Fix it.".to_owned(), Some(80)))
+    );
+    let initials: Vec<_> = editor.opened.take().into_iter().map(|opened| opened.initial).collect();
+    // A literal is kept as is; any other expression is evaluated.
+    assert_eq!(initials, [Some("Summary\n\n# Why".to_owned()), Some("8080".to_owned())]);
+}
+
+#[rstest]
+fn the_default_wins_over_the_initial_text() {
+    let editor = Editor::new([Some("Signed-off-by: b")]);
+    let commit =
+        Commit::couture_try_parse_from_with(&editor, ["commit", "--message", "m", "--port", "1"]);
+    assert_eq!(commit.ok().map(|commit| commit.trailer).as_deref(), Some("Signed-off-by: b"));
+    let opened = editor.opened.take();
+    assert_eq!(
+        opened.first().and_then(|opened| opened.initial.as_deref()),
+        Some("Signed-off-by: a")
+    );
+}
+
+#[rstest]
+fn a_rejected_answer_wins_over_the_initial_text() {
+    let editor = Editor::new([Some("eighty"), Some("80")]);
+    let commit = Commit::couture_try_parse_from_with(&editor, [
+        "commit",
+        "--message",
+        "m",
+        "--trailer",
+        "t",
+    ]);
+    assert_eq!(commit.ok().and_then(|commit| commit.port), Some(80));
+    let initials: Vec<_> = editor.opened.take().into_iter().map(|opened| opened.initial).collect();
+    assert_eq!(initials, [Some("8080".to_owned()), Some("eighty".to_owned())]);
+}
+
+#[rstest]
 fn an_empty_prompter_editor_answer_cancels() {
     let editor = Editor::new([None]);
-    let answer = Release::prompter_with(&editor).map(|prompter| prompter.editor("Notes?", "md"));
+    let answer =
+        Release::prompter_with(&editor).map(|prompter| prompter.editor("Notes?", "md", None));
     assert!(matches!(answer, Some(Err(PromptError::Cancelled))));
     assert_eq!(editor.reported.take(), ["Aborting due to an empty answer."]);
 }

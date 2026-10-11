@@ -27,8 +27,6 @@ use super::{
     Failure,
     secrets::{self, Vault},
 };
-#[cfg(feature = "interactive-editor")]
-use crate::interactive::{EditorAttr, EditorPrompt};
 use crate::{
     Messages,
     interactive::{
@@ -36,6 +34,11 @@ use crate::{
         PromptedArg, PromptedArgTree, SecretPrompt, SelectPrompt, TextPrompt,
     },
     os::signal::Signal,
+};
+#[cfg(feature = "interactive-editor")]
+use crate::{
+    Text,
+    interactive::{EditorAttr, EditorPrompt},
 };
 
 /// A prompted arg's accepted answer.
@@ -180,7 +183,8 @@ impl Session<'_> {
         })
     }
 
-    /// Ask in the user's editor, starting from the rejected answer if there is one. An empty
+    /// Ask in the user's editor, starting from the rejected answer, else the arg's default, else
+    /// the editor's `initial` text. An empty
     /// answer to a required arg aborts, as git aborts on an empty commit message, and so does one
     /// to an arg with a default, which an empty answer would quietly bring back.
     #[cfg(feature = "interactive-editor")]
@@ -198,8 +202,12 @@ impl Session<'_> {
         } else {
             self.messages.editor_instructions.get()
         };
+        let initial = editor.initial.as_ref().map(Text::get);
         let answer = self.backend.editor(&EditorPrompt {
-            default: rejected.map_or(current, |rejected| Some(rejected.value.as_str())),
+            initial: rejected
+                .map(|rejected| rejected.value.as_str())
+                .or(current)
+                .or(initial.as_deref()),
             error: rejected.map(|rejected| rejected.error.as_str()),
             extension: editor.extension,
             file_stem: &iter::once(self.cmd.get_name())

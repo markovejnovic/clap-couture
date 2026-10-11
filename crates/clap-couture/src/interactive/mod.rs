@@ -40,7 +40,8 @@
 //!
 //! With the `interactive-editor` feature, `#[couture(prompt, editor)]` asks in the user's editor
 //! instead, for text a single line can't hold. `editor(extension = "md")` names the temp file's
-//! extension, `txt` by default, so the editor highlights it.
+//! extension, `txt` by default, so the editor highlights it. `editor(initial = "...")` is the text
+//! the file starts with; an expression other than a string literal is evaluated each time.
 #![cfg_attr(feature = "interactive-editor", doc = "```no_run")]
 #![cfg_attr(not(feature = "interactive-editor"), doc = "```ignore")]
 //! use clap::Parser;
@@ -50,7 +51,7 @@
 //! struct Cli {
 //!     /// Release notes
 //!     #[arg(long)]
-//!     #[couture(prompt, editor(extension = "md"))]
+//!     #[couture(prompt, editor(extension = "md", initial = "## Changes\n\n## Breaking"))]
 //!     notes: String,
 //! }
 //!
@@ -64,9 +65,9 @@
 //! any other that returns right away without touching the file is asked about before its answer
 //! is taken.
 //!
-//! The file opens with the arg's default, or the answer clap just turned down, above a header
-//! asking the question. The header's lines start with `#|`, so it comes back out while the
-//! user's own `#` lines, like markdown headings, stay. An empty file leaves an optional arg unset
+//! The file opens with the answer clap just turned down, else the arg's default, else the
+//! `initial` text, above a header asking the question. The header's lines start with `#|`, so it
+//! comes back out while the user's own `#` lines, like markdown headings, stay. An empty file leaves an optional arg unset
 //! and aborts for a required one, like an empty commit message. It aborts for an arg with a
 //! default too, rather than quietly bringing the default back. The file is read in the encoding
 //! its byte order mark names, or as UTF-8, or else in the system's legacy encoding: the ANSI code
@@ -244,14 +245,15 @@ pub struct ConfirmPrompt<'prompt> {
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct EditorPrompt<'prompt> {
-    /// The text the file starts with: the arg's default, or the previous rejected answer.
-    pub default: Option<&'prompt str>,
     /// clap's complaint about the previous answer, shown in the file's header.
     pub error: Option<&'prompt str>,
     /// The temp file's extension, without the dot.
     pub extension: &'prompt str,
     /// The temp file's name, before the extension: the command path and the arg's id.
     pub file_stem: &'prompt str,
+    /// The text the file starts with, for the user to keep, edit or clear: the previous rejected
+    /// answer, the arg's default, or the `initial` text it was given.
+    pub initial: Option<&'prompt str>,
     /// The header's last line: how to cancel, or how to leave the arg unset.
     pub instructions: &'prompt str,
     /// The error the file reopens with when it was saved in an encoding that can't be read.

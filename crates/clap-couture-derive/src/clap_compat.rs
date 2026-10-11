@@ -257,8 +257,8 @@ pub(crate) trait ClapFieldType {
 
 impl ClapFieldType for Type {
     fn is_bool(&self) -> bool {
-        let Self::Path(type_path) = self else { return false };
-        type_path.path.segments.last().is_some_and(|last_segment| last_segment.ident == "bool")
+        // As clap's derive decides it: a bare `bool`, not `std::primitive::bool`.
+        matches!(self, Self::Path(type_path) if type_path.qself.is_none() && type_path.path.is_ident("bool"))
     }
 
     fn is_multi_value(&self) -> bool {

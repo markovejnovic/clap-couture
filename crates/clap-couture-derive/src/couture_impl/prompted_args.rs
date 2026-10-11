@@ -128,6 +128,11 @@ impl PromptedArgBranch {
             Style::Unit => Ok(None),
         }
     }
+
+    /// `field_type`'s prompted args, or none when `field_type` does not implement `Couture`.
+    fn prompted_args_of(field_type: &Type) -> TokenStream2 {
+        quote!(<::clap_couture::MaybeCouture<#field_type>>::PROMPTED_ARGS)
+    }
 }
 
 impl EditorAttr {
@@ -188,7 +193,7 @@ impl PromptAttr {
         let Some(arg_id) = field.clap_arg_id() else {
             return Err(Error::custom(format!("{attr} needs a named field")).with_span(&span));
         };
-        if purpose == Purpose::Confirmation && !is_bool(&field.ty) {
+        if purpose == Purpose::Confirmation && !field.ty.is_bool() {
             return Err(Error::custom(format!("{attr} marks a `bool` flag")).with_span(&span));
         }
         let editor =
@@ -222,13 +227,13 @@ impl PromptAttr {
         let (span, attr) = (question.span(), purpose.attr());
         match FieldKind::from(field.attrs.as_slice()) {
             FieldKind::Arg => Self::new(field, purpose, question).map(Some),
-            FieldKind::Flatten => Err(misplaced(span, attr, "the fields of the flattened type")),
+            FieldKind::Flatten => Err(purpose.misplaced(span, "the fields of the flattened type")),
             FieldKind::Skip => {
                 Err(Error::custom(format!("{attr} cannot mark a field clap skips"))
                     .with_span(&span))
             }
             FieldKind::Subcommand => {
-                Err(misplaced(span, attr, "the fields of the subcommand's variants"))
+                Err(purpose.misplaced(span, "the fields of the subcommand's variants"))
             }
         }
     }
@@ -241,6 +246,12 @@ impl Purpose {
             Self::Confirmation => "`#[couture(confirm)]`",
             Self::Value => "`#[couture(prompt)]`",
         }
+    }
+
+    fn misplaced(self, span: Span, instead: &str) -> Error {
+        let attr = self.attr();
+        Error::custom(format!("{attr} marks a single arg; put it on {instead} instead"))
+            .with_span(&span)
     }
 }
 
@@ -260,7 +271,7 @@ impl ToTokens for PromptedArgBranch {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         tokens.extend(match self {
             Self::Flattened(flattened_type) => {
-                let tree = maybe_couture_prompted_args(flattened_type);
+                let tree = Self::prompted_args_of(flattened_type);
                 quote!(::clap_couture::interactive::PromptedArgBranch::Flattened(#tree))
             }
             Self::Inline(subcommand_name, tree) => quote! {
@@ -270,7 +281,7 @@ impl ToTokens for PromptedArgBranch {
                 )
             },
             Self::Subcommand(subcommand_name, subcommand_type) => {
-                let tree = maybe_couture_prompted_args(subcommand_type);
+                let tree = Self::prompted_args_of(subcommand_type);
                 quote! {
                     ::clap_couture::interactive::PromptedArgBranch::Subcommand(
                         #subcommand_name,
@@ -311,19 +322,4 @@ impl ToTokens for PromptAttr {
             }
         });
     }
-}
-
-/// Check whether `field_type` is spelled `bool`, which clap makes a flag.
-fn is_bool(field_type: &Type) -> bool {
-    matches!(field_type, Type::Path(type_path) if type_path.qself.is_none() && type_path.path.is_ident("bool"))
-}
-
-fn misplaced(span: Span, attr: &str, instead: &str) -> Error {
-    Error::custom(format!("{attr} marks a single arg; put it on {instead} instead"))
-        .with_span(&span)
-}
-
-/// `field_type`'s prompted args, or none when `field_type` does not implement `Couture`.
-fn maybe_couture_prompted_args(field_type: &Type) -> TokenStream2 {
-    quote!(<::clap_couture::MaybeCouture<#field_type>>::PROMPTED_ARGS)
 }

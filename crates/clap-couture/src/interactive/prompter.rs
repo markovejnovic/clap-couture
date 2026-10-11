@@ -4,12 +4,13 @@ use clap::{
     Command, ValueEnum,
     builder::{PossibleValue, Styles},
 };
+use secrecy::SecretString;
 
 #[cfg(feature = "interactive-editor")]
 use super::EditorPrompt;
 use super::{
     Backend, CommandStyles, ConfirmPrompt, DefaultBackend, MultiSelectPrompt, PromptError,
-    SelectPrompt, TextPrompt,
+    SecretPrompt, SelectPrompt, TextPrompt,
 };
 use crate::Messages;
 
@@ -103,6 +104,19 @@ where
             name: cmd.get_name().to_owned(),
             styles: cmd.get_styles().clone(),
         })
+    }
+
+    /// Ask for a secret, typed masked and never echoed.
+    ///
+    /// # Errors
+    /// - [`PromptError::Cancelled`] when the user backs out.
+    pub fn secret(&self, question: &str) -> Result<SecretString, PromptError> {
+        let answer = self.backend.secret(&SecretPrompt {
+            optional: false,
+            question,
+            styles: self.styles(),
+        })?;
+        Ok(answer.unwrap_or_else(|| SecretString::from("")))
     }
 
     /// Ask to pick one of `T`'s visible values.

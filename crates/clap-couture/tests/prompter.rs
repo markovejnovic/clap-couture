@@ -1,14 +1,13 @@
 //! `CoutureParser::prompter` asks your own questions through the parse's backend.
 #![cfg(feature = "interactive")]
 
-#[expect(
-    dead_code,
-    reason = "secret replies script tests/secrets.rs; the prompter asks no secrets"
-)]
 mod common;
 
 use clap::{Parser, ValueEnum};
-use clap_couture::{Couture, CoutureParser as _, interactive::PromptError};
+use clap_couture::{
+    Couture, CoutureParser as _,
+    interactive::{PromptError, secrecy::ExposeSecret as _},
+};
 use common::{Asked, Kind, Reply, ScriptedBackend};
 use rstest::rstest;
 
@@ -109,4 +108,15 @@ fn a_cancelled_prompt_is_cancelled() {
     let answer = Cli::prompter_with(&backend).map(|prompter| prompter.text("App?"));
 
     assert!(matches!(answer, Some(Err(PromptError::Cancelled))));
+}
+
+#[rstest]
+fn secret_returns_the_answer() {
+    let backend = ScriptedBackend::new([Reply::Secret(Some("hunter2"))]);
+    let answer = Cli::prompter_with(&backend)
+        .and_then(|prompter| prompter.secret("Token?").ok())
+        .map(|secret| secret.expose_secret().to_owned());
+
+    assert_eq!(answer.as_deref(), Some("hunter2"));
+    assert_eq!(backend.asked(), [asked(Kind::Secret, "Token?")]);
 }

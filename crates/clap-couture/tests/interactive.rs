@@ -589,7 +589,7 @@ fn text(question: &str, initial: Option<&str>, hint: bool) -> Asked {
     Asked {
         defaults: Vec::new(),
         error: None,
-        hint: hint.then(|| "(empty to finish)".to_owned()),
+        hint: hint.then(|| "(<enter> to finish)".to_owned()),
         initial: initial.map(str::to_owned),
         kind: Kind::Text,
         options: Vec::new(),

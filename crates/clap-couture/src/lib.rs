@@ -230,14 +230,14 @@
 //!
 //! [`clap_couture`](self) has support for different types of fields:
 //!
-//! | Field Type                | Example                 | Prompt         | Example                                     |
-//! |---------------------------|-------------------------|----------------|---------------------------------------------|
-//! | `bool`                    | `force: bool`           | `[y/N]`        | Do you want to force input [y/N]: **y**     |
-//! | Possible values           | `region: RegionEnum`    | Picker         | Which region (eu)? **us**                   |
-//! | Arbitrary types           | `count: u16`            | Free text      | How many: **32**                            |
-//! | `Option<T>`               | `fruit: Option<String>` | Optional input | Which fruit (none): **`<enter>`**           |
-//! | `Vec<T>`, possible values | `envs: Vec<Env>`        | Multi-picker   | Which envs? **dev, stage**                  |
-//! | `Vec<T>`, arbitrary type  | `tags: Vec<String>`     | Repeated input | Which tags (empty to finish): **`<enter>`** |
+//! | Field Type                | Example                 | Prompt         | Example                                         |
+//! |---------------------------|-------------------------|----------------|-------------------------------------------------|
+//! | `bool`                    | `force: bool`           | `[y/N]`        | Do you want to force input [y/N]: **y**         |
+//! | Possible values           | `region: RegionEnum`    | Picker         | Which region (eu)? **us**                       |
+//! | Arbitrary types           | `count: u16`            | Free text      | How many: **32**                                |
+//! | `Option<T>`               | `fruit: Option<String>` | Optional input | Which fruit (none): **`<enter>`**               |
+//! | `Vec<T>`, possible values | `envs: Vec<Env>`        | Multi-picker   | Which envs? **dev, stage**                      |
+//! | `Vec<T>`, arbitrary type  | `tags: Vec<String>`     | Repeated input | Which tags `(<enter> to finish)`: **`<enter>`** |
 //!
 //! ### Backends
 //!
@@ -396,7 +396,7 @@ impl CommandName {
 #[derive(Clone, Copy, Debug)]
 pub struct Messages {
     /// The hint beside each prompt for one more value of a multi-value arg, telling that an empty
-    /// answer finishes the list. The default is `"(empty to finish)"`.
+    /// answer finishes the list. The default is `"(<enter> to finish)"`.
     pub finish_hint: Text,
     /// The select option that leaves an optional prompted arg unset. The default is `"(none)"`.
     pub none: Text,
@@ -409,7 +409,7 @@ pub struct Messages {
 impl Messages {
     /// clap's English wording.
     pub const DEFAULT: Self = Self {
-        finish_hint: Text::Literal("(empty to finish)"),
+        finish_hint: Text::Literal("(<enter> to finish)"),
         none: Text::Literal("(none)"),
         options: Text::Literal("Options:"),
         usage: Text::Literal("Usage:"),

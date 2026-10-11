@@ -10,6 +10,12 @@ use crate::text::TextExpr;
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct Messages {
+    editor_empty: Option<TextExpr>,
+    editor_instructions: Option<TextExpr>,
+    editor_instructions_optional: Option<TextExpr>,
+    editor_not_utf8: Option<TextExpr>,
+    editor_returned_early: Option<TextExpr>,
+    editor_waiting: Option<TextExpr>,
     finish_hint: Option<TextExpr>,
     none: Option<TextExpr>,
     options: Option<TextExpr>,
@@ -22,6 +28,12 @@ pub(crate) struct Messages {
 impl ToTokens for Messages {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         let messages = [
+            ("editor_empty", &self.editor_empty),
+            ("editor_instructions", &self.editor_instructions),
+            ("editor_instructions_optional", &self.editor_instructions_optional),
+            ("editor_not_utf8", &self.editor_not_utf8),
+            ("editor_returned_early", &self.editor_returned_early),
+            ("editor_waiting", &self.editor_waiting),
             ("finish_hint", &self.finish_hint),
             ("none", &self.none),
             ("options", &self.options),

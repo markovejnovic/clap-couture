@@ -20,6 +20,18 @@ cliclack = { workspace = true, optional = true }
 console = { workspace = true, optional = true }
 dialoguer = { workspace = true, optional = true }
 inquire = { workspace = true, optional = true }
+tempfile = { workspace = true, optional = true }
+encoding_rs = { workspace = true, optional = true }
+which = { workspace = true, optional = true }
+anstream = { workspace = true, optional = true }
+
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true, optional = true }
+shlex = { workspace = true, optional = true }
+
+[target.'cfg(windows)'.dependencies]
+codepage = { workspace = true, optional = true }
+windows-sys = { workspace = true, optional = true }
 
 [features]
 default = ["full"]
@@ -27,12 +39,31 @@ default = ["full"]
 derive = ["dep:clap-couture-derive"]
 markdown = ["dep:pulldown-cmark"]
 # Prompts are declared with `#[couture(prompt)]`, so they need the derive.
-interactive = ["derive", "clap/string", "clap-couture-derive/interactive", "dep:thiserror"]
+interactive = [
+    "derive",
+    "clap/string",
+    "clap-couture-derive/interactive",
+    "dep:libc",
+    "dep:thiserror",
+    "dep:windows-sys",
+]
 interactive-cliclack = ["interactive", "dep:cliclack", "dep:console"]
 interactive-dialoguer = ["interactive", "dep:dialoguer", "dep:console"]
 interactive-inquire = ["interactive", "dep:inquire"]
+interactive-editor = [
+    "interactive",
+    "clap-couture-derive/interactive-editor",
+    "dep:anstream",
+    "dep:codepage",
+    "dep:encoding_rs",
+    "dep:libc",
+    "dep:shlex",
+    "dep:tempfile",
+    "dep:which",
+    "dep:windows-sys",
+]
 # Everything, with cliclack for prompts: it's the default backend whenever it's enabled.
-full = ["derive", "markdown", "interactive-cliclack"]
+full = ["derive", "markdown", "interactive-cliclack", "interactive-editor"]
 
 # Document every backend, not only the default one.
 [package.metadata.docs.rs]
@@ -62,6 +93,10 @@ required-features = ["interactive"]
 [[example]]
 name = "05-interactive-confirm"
 required-features = ["interactive"]
+
+[[example]]
+name = "06-interactive-editor"
+required-features = ["interactive-editor"]
 
 [[example]]
 name = "09-interactive-custom-backend"

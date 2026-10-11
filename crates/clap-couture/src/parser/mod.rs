@@ -9,6 +9,8 @@ use clap::{Command, FromArgMatches, Parser};
 
 #[cfg(feature = "interactive")]
 use crate::interactive::Backend;
+#[cfg(feature = "interactive")]
+use crate::os::signal::Signal;
 use crate::{CommandExt as _, Couture};
 
 /// clap's [`Parser`] entry points, with couture's help installed.
@@ -24,8 +26,9 @@ pub trait CoutureParser: Parser + Couture {
 
     /// Equivalent to [`Parser::parse`], with couture's help.
     ///
-    /// Exits with status 130 when the user cancels a prompt, and 1 when they decline a
-    /// confirmation.
+    /// When the user cancels a prompt, dies of Ctrl-C's signal, or of the one the editor died of,
+    /// so a shell loop around the CLI stops too; exits with status 130 where there are no
+    /// signals. Exits with status 1 when a prompt fails or a confirmation is declined.
     #[must_use]
     fn couture_parse() -> Self {
         Self::couture_parse_from(std::env::args_os())
@@ -93,39 +96,57 @@ impl<T> CoutureParser for T where T: Parser + Couture {}
 pub(crate) enum Failure {
     /// The user backed out of a prompt.
     #[cfg(feature = "interactive")]
-    Cancelled,
-    /// clap rejected the arguments, or a prompt failed.
+    Cancelled(Signal),
+    /// clap rejected the arguments.
     Clap(clap::Error),
     /// The user answered no to a confirmation.
     #[cfg(feature = "interactive")]
     Declined,
+    /// A prompt failed: the terminal, the temp file or the editor.
+    #[cfg(feature = "interactive")]
+    Io(std::io::Error),
 }
 
 impl Failure {
-    /// Exit the process the way clap would for this failure; 130 for a cancelled prompt, 1 for a
-    /// declined confirmation.
+    /// Exit the process the way clap would for this failure; die of the signal for a cancelled
+    /// prompt, and exit 1 for a failed one or a declined confirmation, which is no usage error.
     fn exit(self) -> ! {
         match self {
-            // 130 is the conventional status for an interrupted command.
             #[cfg(feature = "interactive")]
-            Self::Cancelled => std::process::exit(130),
+            Self::Cancelled(signal) => signal.die(),
             Self::Clap(err) => err.exit(),
             #[cfg(feature = "interactive")]
             Self::Declined => std::process::exit(1),
+            #[cfg(feature = "interactive")]
+            Self::Io(err) => {
+                // Nothing is left to report a failed print to.
+                drop(io_error(&err).print());
+                std::process::exit(1)
+            }
         }
     }
 
     fn into_clap(self) -> clap::Error {
         match self {
             #[cfg(feature = "interactive")]
-            Self::Cancelled => clap::Error::raw(clap::error::ErrorKind::Io, "prompt cancelled\n"),
+            Self::Cancelled(_) => {
+                clap::Error::raw(clap::error::ErrorKind::Io, "prompt cancelled\n")
+            }
             Self::Clap(err) => err,
             #[cfg(feature = "interactive")]
             Self::Declined => {
                 clap::Error::raw(clap::error::ErrorKind::Io, "confirmation declined\n")
             }
+            #[cfg(feature = "interactive")]
+            Self::Io(err) => io_error(&err),
         }
     }
+}
+
+/// `err` as a clap error of kind [`Io`](clap::error::ErrorKind::Io), with clap's `error:` styling.
+#[cfg(feature = "interactive")]
+fn io_error(err: &std::io::Error) -> clap::Error {
+    clap::Error::raw(clap::error::ErrorKind::Io, format!("{err}\n"))
 }
 
 /// Parse through [`DefaultBackend`](crate::interactive::DefaultBackend), or without prompting
@@ -152,4 +173,48 @@ where
 {
     let mut matches = cmd.try_get_matches_from_mut(argv).map_err(Failure::Clap)?;
     T::from_arg_matches_mut(&mut matches).map_err(|err| Failure::Clap(err.format(&mut cmd)))
+}
+
+#[cfg(test)]
+mod tests {
+    #[cfg(all(unix, feature = "interactive"))]
+    use std::{os::unix::process::ExitStatusExt as _, process::Command};
+
+    #[cfg(all(unix, feature = "interactive"))]
+    use rstest::rstest;
+
+    #[cfg(all(unix, feature = "interactive"))]
+    use super::Failure;
+    #[cfg(all(unix, feature = "interactive"))]
+    use crate::os::signal::Signal;
+
+    #[cfg(all(unix, feature = "interactive"))]
+    /// Set to the signal for [`die_in_child`] to die of, or empty for none.
+    const DIE_OF: &str = "CLAP_COUTURE_TEST_DIE_OF";
+
+    #[cfg(all(unix, feature = "interactive"))]
+    /// Run by [`a_cancelled_parse_dies_of_its_signal`] in a child process of this binary.
+    #[test]
+    #[ignore = "run in a child process by `a_cancelled_parse_dies_of_its_signal`"]
+    fn die_in_child() {
+        let Ok(signal) = std::env::var(DIE_OF) else { return };
+        let signal = signal.parse().ok().and_then(Signal::from_raw).unwrap_or(Signal::Interrupt);
+        Failure::Cancelled(signal).exit();
+    }
+
+    #[cfg(all(unix, feature = "interactive"))]
+    #[rstest]
+    #[case::backed_out("", libc::SIGINT)]
+    #[case::editor_hung_up("1", libc::SIGHUP)]
+    #[case::editor_interrupted("2", libc::SIGINT)]
+    fn a_cancelled_parse_dies_of_its_signal(#[case] editor_signal: &str, #[case] died_of: i32) {
+        let status = std::env::current_exe().and_then(|test_binary| {
+            Command::new(test_binary)
+                .args(["parser::tests::die_in_child", "--exact", "--ignored", "--quiet"])
+                .env(DIE_OF, editor_signal)
+                .output()
+        });
+        let signal = status.ok().and_then(|output| output.status.signal());
+        assert_eq!(signal, Some(died_of));
+    }
 }

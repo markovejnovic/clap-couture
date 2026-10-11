@@ -10,7 +10,7 @@
 )]
 
 use darling::{
-    FromDeriveInput, FromField, FromVariant, ast,
+    FromDeriveInput, FromField, FromMeta, FromVariant, ast,
     util::{Override, SpannedValue},
 };
 use syn::{Attribute, Generics, Ident, Type, ext::IdentExt as _};
@@ -27,6 +27,13 @@ pub(crate) struct CoutureInput {
     pub(crate) ident: Ident,
 }
 
+/// The options of `#[couture(editor(...))]`.
+#[derive(Clone, Default, FromMeta)]
+pub(crate) struct EditorOptions {
+    /// The temp file's extension, without the dot; `txt` when left out.
+    pub(crate) extension: Option<SpannedValue<String>>,
+}
+
 /// What `#[couture(prompt)]` or `#[couture(confirm)]` asks: `Inherit` when bare, the arg's help
 /// text; `Explicit` for `= ...`.
 pub(crate) type Question = SpannedValue<Override<TextExpr>>;
@@ -37,6 +44,8 @@ pub(crate) type Question = SpannedValue<Override<TextExpr>>;
 pub(crate) struct FieldInput {
     pub(crate) attrs: Vec<Attribute>,
     pub(crate) confirm: Option<Question>,
+    /// `Inherit` for `#[couture(editor)]`, `Explicit` for `#[couture(editor(...))]`.
+    pub(crate) editor: Option<SpannedValue<Override<EditorOptions>>>,
     pub(crate) ident: Option<Ident>,
     pub(crate) prompt: Option<Question>,
     pub(crate) ty: Type,

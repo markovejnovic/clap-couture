@@ -12,6 +12,8 @@ mod cliclack;
 mod console_style;
 #[cfg(feature = "interactive-dialoguer")]
 mod dialoguer;
+#[cfg(feature = "interactive-editor")]
+mod editor_interaction;
 #[cfg(feature = "interactive-inquire")]
 mod inquire;
 mod non_interactive;
@@ -23,10 +25,14 @@ use clap::builder::Styles;
 pub use cliclack::Cliclack;
 #[cfg(feature = "interactive-dialoguer")]
 pub use dialoguer::Dialoguer;
+#[cfg(feature = "interactive-editor")]
+pub use editor_interaction::EditorInteraction;
 #[cfg(feature = "interactive-inquire")]
 pub use inquire::Inquire;
 pub use non_interactive::NonInteractive;
 
+#[cfg(feature = "interactive-editor")]
+use super::EditorPrompt;
 use super::{ConfirmPrompt, MultiSelectPrompt, PromptError, SelectPrompt, TextPrompt};
 
 /// A command's clap styles, for a backend to build its theme from.
@@ -66,6 +72,25 @@ pub trait Backend {
     /// # Errors
     /// - [`PromptError::Cancelled`] when the user backs out.
     fn confirm(&self, prompt: &ConfirmPrompt<'_>) -> Result<bool, PromptError>;
+
+    /// Ask in the user's editor, returning `None` for an empty answer. Whether an empty answer is
+    /// allowed is decided by the caller, from `prompt.optional`.
+    ///
+    /// The default opens the editor through
+    /// [`EditorInteraction`](crate::interactive::EditorInteraction), asking with
+    /// [`Backend::confirm`] whether the user is done when the editor returns right
+    /// away. Override it to draw something around the editor, and use `EditorInteraction` from the
+    /// override.
+    ///
+    /// # Errors
+    /// - [`PromptError::Signalled`] when the editor dies of Ctrl-C or of the terminal closing;
+    ///   [`PromptError::Cancelled`] on Windows.
+    /// - [`PromptError::Cancelled`] when the done-editing question is cancelled.
+    /// - [`PromptError::Io`] when the editor cannot be found or started, or exits unsuccessfully.
+    #[cfg(feature = "interactive-editor")]
+    fn editor(&self, prompt: &EditorPrompt<'_>) -> Result<Option<String>, PromptError> {
+        EditorInteraction::start(self, prompt)?.answer()
+    }
 
     /// Check whether there is a terminal to ask on: stdin and stderr must both be one.
     fn is_available(&self) -> bool {

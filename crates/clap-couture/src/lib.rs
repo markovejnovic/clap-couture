@@ -286,7 +286,7 @@
 //! `clap-couture` allows you to accept *any* expression instead of plain strings, which can be
 //! useful to localize with something like [fluent](https://projectfluent.org/).
 //!
-//! ```no_compile
+//! ```rust,ignore
 //! #[couture(messages = {
 //!     none = fl!("none-opt"),
 //!     options = fl!("options-opt"),
@@ -320,11 +320,17 @@
 
 extern crate alloc;
 
+#[cfg(feature = "interactive-editor")]
+mod fs;
 #[cfg(feature = "interactive")]
 pub mod interactive;
 mod maybe_couture;
+#[cfg(feature = "interactive")]
+mod os;
 mod parser;
 mod render;
+#[cfg(feature = "interactive-editor")]
+mod strings;
 mod text;
 
 use alloc::borrow::Cow;
@@ -426,6 +432,28 @@ impl CommandName {
 /// clap's and add your own.
 #[derive(Clone, Copy, Debug)]
 pub struct Messages {
+    /// Reported when a `#[couture(prompt, editor)]` arg that is required or has a default is
+    /// answered with an empty file.
+    /// The default is `"Aborting due to an empty answer."`.
+    pub editor_empty: Text,
+    /// The last header line of the file of a `#[couture(prompt, editor)]` arg that is required or
+    /// has a default. The default
+    /// is `"These lines are removed. Leave the file empty to cancel."`.
+    pub editor_instructions: Text,
+    /// The last header line of the file of an optional `#[couture(prompt, editor)]` arg with no
+    /// default. The default
+    /// is `"These lines are removed. Leave the file empty to leave it unset."`.
+    pub editor_instructions_optional: Text,
+    /// The error a `#[couture(prompt, editor)]` file reopens with when it was saved in an
+    /// encoding that can't be read. The default is `"The file is not UTF-8. Save it as UTF-8."`.
+    pub editor_not_utf8: Text,
+    /// Asked when the editor returned right away and left the file as it was, as `code` does
+    /// without `--wait`. The default is `"Your editor returned right away. Done editing the
+    /// file?"`.
+    pub editor_returned_early: Text,
+    /// Shown while the editor is open; empty shows nothing. The default is
+    /// `"hint: Waiting for your editor to close the file..."`.
+    pub editor_waiting: Text,
     /// The hint beside each prompt for one more value of a multi-value arg, telling that an empty
     /// answer finishes the list. The default is `"(<enter> to finish)"`.
     pub finish_hint: Text,
@@ -443,6 +471,18 @@ pub struct Messages {
 impl Messages {
     /// clap's English wording.
     pub const DEFAULT: Self = Self {
+        editor_empty: Text::Literal("Aborting due to an empty answer."),
+        editor_instructions: Text::Literal(
+            "These lines are removed. Leave the file empty to cancel.",
+        ),
+        editor_instructions_optional: Text::Literal(
+            "These lines are removed. Leave the file empty to leave it unset.",
+        ),
+        editor_not_utf8: Text::Literal("The file is not UTF-8. Save it as UTF-8."),
+        editor_returned_early: Text::Literal(
+            "Your editor returned right away. Done editing the file?",
+        ),
+        editor_waiting: Text::Literal("hint: Waiting for your editor to close the file..."),
         finish_hint: Text::Literal("(<enter> to finish)"),
         none: Text::Literal("(none)"),
         options: Text::Literal("Options:"),

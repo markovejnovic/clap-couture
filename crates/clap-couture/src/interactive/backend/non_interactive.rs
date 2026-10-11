@@ -1,6 +1,8 @@
 //! A [`Backend`] that never asks.
 
 use super::Backend;
+#[cfg(feature = "interactive-editor")]
+use crate::interactive::EditorPrompt;
 use crate::interactive::{ConfirmPrompt, MultiSelectPrompt, PromptError, SelectPrompt, TextPrompt};
 
 /// Never asks, as if there were no terminal: every arg is left to clap.
@@ -9,6 +11,11 @@ pub struct NonInteractive;
 
 impl Backend for NonInteractive {
     fn confirm(&self, _prompt: &ConfirmPrompt<'_>) -> Result<bool, PromptError> {
+        Err(PromptError::NotATerminal)
+    }
+
+    #[cfg(feature = "interactive-editor")]
+    fn editor(&self, _prompt: &EditorPrompt<'_>) -> Result<Option<String>, PromptError> {
         Err(PromptError::NotATerminal)
     }
 

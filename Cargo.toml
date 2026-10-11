@@ -21,10 +21,18 @@ serde_tokenstream = "0.3"
 darling = "0.24"
 rstest = { version = "0.27", default-features = false } # no async tests
 thiserror = "2"
+anstream = { version = "1", default-features = false }
 cliclack = "0.5"
+codepage = "0.1"
 console = "0.16"
 dialoguer = { version = "0.12", default-features = false }
+encoding_rs = "0.8"
 inquire = { version = "0.9", default-features = false, features = ["crossterm"] }
+libc = "0.2"
+shlex = "1.3"
+tempfile = "3"
+which = "8"
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Globalization", "Win32_System_Console"] }
 
 [workspace.lints.rust]
 rust_2018_idioms = { level = "warn", priority = -1 }

@@ -2,11 +2,32 @@
 
 use crate::Text;
 
+/// The `editor` beside a `#[couture(prompt)]`: ask in the user's editor.
+#[derive(Debug)]
+pub struct EditorAttr {
+    /// The temp file's extension, without the dot.
+    pub extension: &'static str,
+}
+
+impl EditorAttr {
+    /// Evaluated beside every `#[couture(prompt, editor)]`: without the `interactive-editor`
+    /// feature, the build fails here instead of the prompt quietly falling back to one line.
+    /// Only reachable when `clap-couture-derive`'s feature is on and ours isn't.
+    #[cfg(feature = "interactive-editor")]
+    pub const FEATURE_CHECK: () = ();
+    /// See the version with the feature on.
+    #[cfg(not(feature = "interactive-editor"))]
+    pub const FEATURE_CHECK: () =
+        panic!("`#[couture(editor)]` needs clap-couture's `interactive-editor` feature");
+}
+
 /// One `#[couture(prompt)]` or `#[couture(confirm)]`, with or without `= "..."`.
 #[derive(Debug)]
 pub struct PromptAttr {
     /// The clap id of the arg it is on.
     pub arg_id: &'static str,
+    /// `Some` for `#[couture(prompt, editor)]`; only set with the `interactive-editor` feature.
+    pub editor: Option<EditorAttr>,
     /// What the answer is for.
     pub purpose: PromptPurpose,
     /// The `= ...` override; `None` asks the arg's help text.

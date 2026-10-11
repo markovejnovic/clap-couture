@@ -13,17 +13,22 @@ use core::iter;
 use std::ffi::OsString;
 
 use clap::{
-    Arg, ArgAction, ArgGroup, ArgMatches, Command, FromArgMatches, Id, builder::PossibleValue,
-    error::ErrorKind, parser::ValueSource,
+    Arg, ArgAction, ArgGroup, ArgMatches, Command, FromArgMatches, Id,
+    builder::{PossibleValue, Resettable},
+    error::ErrorKind,
+    parser::ValueSource,
 };
 
 use super::Failure;
+#[cfg(feature = "interactive-editor")]
+use crate::interactive::{EditorAttr, EditorPrompt};
 use crate::{
     Messages,
     interactive::{
         Backend, CommandStyles, ConfirmPrompt, MultiSelectPrompt, PromptError, PromptPurpose,
         PromptedArg, PromptedArgTree, SelectPrompt, TextPrompt,
     },
+    os::signal::Signal,
 };
 
 /// A prompted arg's accepted answer.
@@ -31,6 +36,25 @@ struct Answer<'prompted_arg> {
     prompted_arg: &'prompted_arg PromptedArg,
     /// One value, or any number for an arg that takes many.
     values: Vec<String>,
+}
+
+/// A prompted arg about to be asked in the editor, and what is known about it.
+#[cfg(feature = "interactive-editor")]
+struct Asked<'ask> {
+    arg: &'ask Arg,
+    /// Its default's value, pre-filled.
+    current: Option<&'ask str>,
+    /// Leaving it unset passes clap, so an empty answer is allowed.
+    optional: bool,
+    prompted_arg: &'ask PromptedArg,
+    question: &'ask str,
+}
+
+/// An answer clap turned down, and why; an editor prompt reopens with it.
+#[cfg(feature = "interactive-editor")]
+struct Rejected {
+    error: String,
+    value: String,
 }
 
 /// One parse: the command, its argv, its prompted args and who to ask.
@@ -44,33 +68,54 @@ struct Session<'run> {
 
 impl Session<'_> {
     /// Ask for `prompted_arg` until clap accepts the answer; `None` when an optional single-value
-    /// one is left empty. `current` is the arg's default, split into its values.
+    /// one is left empty. `current` is the arg's default, split into its values. `later` are the
+    /// prompted args still to be asked after it.
     fn answer(
         &self,
         prompted_arg: &PromptedArg,
         current: &[String],
         answers: &[Answer<'_>],
+        later: &[&PromptedArg],
     ) -> Result<Option<Vec<String>>, PromptError> {
         let Some(arg) = arg_at(self.cmd, &prompted_arg.subcommand_path, prompted_arg.attr.arg_id)
         else {
             return Ok(None);
         };
+        let optional = !self.required(answers, later);
         let question = self.question(prompted_arg);
+        // A flag has nothing to edit, so one that slipped past the derive asks as a flag.
+        #[cfg(feature = "interactive-editor")]
+        if let Some(editor) = prompted_arg
+            .attr
+            .editor
+            .as_ref()
+            .filter(|_| arg.get_action().takes_values() && !takes_many(arg))
+        {
+            let asked = Asked {
+                arg,
+                current: current.first().map(String::as_str),
+                optional,
+                prompted_arg,
+                question: &question,
+            };
+            return self.in_editor(&asked, editor, answers);
+        }
         let options: Vec<PossibleValue> =
             arg.get_possible_values().into_iter().filter(|value| !value.is_hide_set()).collect();
         if !takes_many(arg) {
             return self.until_accepted(answers, prompted_arg, || {
-                Ok(self.ask(arg, &question, &options, current.first())?.map(|value| vec![value]))
+                let value = self.ask(arg, &question, &options, current.first(), optional)?;
+                Ok(value.map(|value| vec![value]))
             });
         }
         if options.is_empty() {
-            return self.each_value(arg, &question, prompted_arg, current, answers).map(Some);
+            return self.each_value(&question, prompted_arg, current, answers, optional).map(Some);
         }
         self.until_accepted(answers, prompted_arg, || {
             self.backend
                 .multi_select(&MultiSelectPrompt {
                     defaults: current,
-                    optional: !arg.is_required_set(),
+                    optional,
                     options: &options,
                     question: &question,
                     selection_required: &self.messages.selection_required.get(),
@@ -86,6 +131,7 @@ impl Session<'_> {
         question: &str,
         options: &[PossibleValue],
         current: Option<&String>,
+        optional: bool,
     ) -> Result<Option<String>, PromptError> {
         let styles = CommandStyles(self.cmd.get_styles());
         if let Some(negate) = flag_negation(arg.get_action()) {
@@ -97,7 +143,7 @@ impl Session<'_> {
                 default: current.map(String::as_str),
                 hint: None,
                 initial: None,
-                optional: !arg.is_required_set(),
+                optional,
                 question,
                 styles,
             });
@@ -105,11 +151,53 @@ impl Session<'_> {
         self.backend.select(&SelectPrompt {
             default: current.map(String::as_str),
             none_option: &self.messages.none.get(),
-            optional: !arg.is_required_set(),
+            optional,
             options,
             question,
             styles,
         })
+    }
+
+    /// Ask in the user's editor, starting from the rejected answer if there is one. An empty
+    /// answer to a required arg aborts, as git aborts on an empty commit message, and so does one
+    /// to an arg with a default, which an empty answer would quietly bring back.
+    #[cfg(feature = "interactive-editor")]
+    fn ask_in_editor(
+        &self,
+        asked: &Asked<'_>,
+        editor: &EditorAttr,
+        rejected: Option<&Rejected>,
+    ) -> Result<Option<String>, PromptError> {
+        let Asked { arg, current, optional: _, prompted_arg, question } = *asked;
+        let styles = CommandStyles(self.cmd.get_styles());
+        let optional = asked.optional && arg.get_default_values().is_empty();
+        let instructions = if optional {
+            self.messages.editor_instructions_optional.get()
+        } else {
+            self.messages.editor_instructions.get()
+        };
+        let answer = self.backend.editor(&EditorPrompt {
+            default: rejected.map_or(current, |rejected| Some(rejected.value.as_str())),
+            error: rejected.map(|rejected| rejected.error.as_str()),
+            extension: editor.extension,
+            file_stem: &iter::once(self.cmd.get_name())
+                .chain(prompted_arg.subcommand_path.iter().copied())
+                .chain(iter::once(prompted_arg.attr.arg_id))
+                .collect::<Vec<_>>()
+                .join("-"),
+            instructions: &instructions,
+            not_utf8: &self.messages.editor_not_utf8.get(),
+            optional,
+            question,
+            returned_early: &self.messages.editor_returned_early.get(),
+            styles,
+            waiting: &self.messages.editor_waiting.get(),
+        })?;
+        if answer.is_none() && !optional {
+            self.backend.report(&self.messages.editor_empty.get(), styles)?;
+            return Err(PromptError::Cancelled);
+        }
+        Ok(answer)
     }
 
     /// Ask whether to go ahead, with each `{id}` in the question filled in from the args as
@@ -147,16 +235,16 @@ impl Session<'_> {
     /// still finishes the list.
     fn each_value(
         &self,
-        arg: &Arg,
         question: &str,
         prompted_arg: &PromptedArg,
         current: &[String],
         answers: &[Answer<'_>],
+        optional: bool,
     ) -> Result<Vec<String>, PromptError> {
         let finish_hint = self.messages.finish_hint.get();
         let mut values = Vec::new();
         loop {
-            let optional = !values.is_empty() || !arg.is_required_set();
+            let optional = !values.is_empty() || optional;
             let Some(value) = self.backend.text(&TextPrompt {
                 default: None,
                 hint: optional.then_some(&*finish_hint),
@@ -170,8 +258,34 @@ impl Session<'_> {
             };
             values.push(value);
             if let Err(err) = self.trial(answers, prompted_arg, &values) {
+                self.backend
+                    .report(&summary(&err, &values), CommandStyles(self.cmd.get_styles()))?;
                 values.pop();
-                self.backend.report(&summary(&err), CommandStyles(self.cmd.get_styles()))?;
+            }
+        }
+    }
+
+    /// Ask in the editor until clap accepts the answer, reopening with the rejected one.
+    #[cfg(feature = "interactive-editor")]
+    fn in_editor(
+        &self,
+        asked: &Asked<'_>,
+        editor: &EditorAttr,
+        answers: &[Answer<'_>],
+    ) -> Result<Option<Vec<String>>, PromptError> {
+        let mut rejected = None;
+        loop {
+            let Some(value) = self.ask_in_editor(asked, editor, rejected.as_ref())? else {
+                return Ok(None);
+            };
+            let values = vec![value];
+            match self.trial(answers, asked.prompted_arg, &values) {
+                Ok(()) => return Ok(Some(values)),
+                Err(err) => {
+                    let error = summary(&err, &values);
+                    self.backend.report(&error, CommandStyles(self.cmd.get_styles()))?;
+                    rejected = values.into_iter().next().map(|value| Rejected { error, value });
+                }
             }
         }
     }
@@ -188,6 +302,17 @@ impl Session<'_> {
         )
     }
 
+    /// Check whether leaving the arg being asked unset fails the parse: it is `required`, or
+    /// required through `required_unless_present` or a required group. The accepted answers go
+    /// in, and only the args still to be asked, `later`, stay relaxed, so a group another of them
+    /// can still satisfy doesn't make this one required.
+    fn required(&self, answers: &[Answer<'_>], later: &[&PromptedArg]) -> bool {
+        let accepted = answers.iter().map(|answer| (answer.prompted_arg, answer.values.as_slice()));
+        let cmd = inject(relax(self.cmd.clone(), later.iter().copied()), accepted);
+        cmd.try_get_matches_from(self.argv)
+            .is_err_and(|err| err.kind() == ErrorKind::MissingRequiredArgument)
+    }
+
     /// Parse with `candidate` as `prompted_arg`'s answer on top of the accepted ones.
     fn trial(
         &self,
@@ -197,7 +322,7 @@ impl Session<'_> {
     ) -> Result<(), clap::Error> {
         let accepted = answers.iter().map(|answer| (answer.prompted_arg, answer.values.as_slice()));
         let cmd = inject(
-            relax(self.cmd.clone(), self.prompted_args),
+            relax(self.cmd.clone(), self.prompted_args.iter()),
             accepted.chain(iter::once((prompted_arg, candidate))),
         );
         cmd.try_get_matches_from(self.argv).map(drop)
@@ -215,7 +340,8 @@ impl Session<'_> {
             match self.trial(answers, prompted_arg, &values) {
                 Ok(()) => return Ok(Some(values)),
                 Err(err) => {
-                    self.backend.report(&summary(&err), CommandStyles(self.cmd.get_styles()))?;
+                    let error = summary(&err, &values);
+                    self.backend.report(&error, CommandStyles(self.cmd.get_styles()))?;
                 }
             }
         }
@@ -239,7 +365,7 @@ where
         return parse_unprompted(cmd, &prompted_args, argv);
     }
     // Help, usage and errors come from the command the user sees, not the relaxed one.
-    let Ok(matches) = relax(cmd.clone(), &prompted_args).try_get_matches_from(argv) else {
+    let Ok(matches) = relax(cmd.clone(), prompted_args.iter()).try_get_matches_from(argv) else {
         return super::parse(cmd, argv);
     };
 
@@ -249,24 +375,26 @@ where
     // Stable, so values and confirmations each keep declaration order.
     unanswered
         .sort_by_key(|(prompted_arg, _)| prompted_arg.attr.purpose == PromptPurpose::Confirmation);
-    for (prompted_arg, current) in unanswered {
+    for (index, (prompted_arg, current)) in unanswered.iter().enumerate() {
         if blocked(&cmd, &matches, prompted_arg, &answers) {
             continue;
         }
+        let later: Vec<&PromptedArg> =
+            unanswered.iter().skip(index.saturating_add(1)).map(|(later, _)| *later).collect();
         let answer = match prompted_arg.attr.purpose {
             PromptPurpose::Confirmation => match session.confirm(prompted_arg, &answers) {
                 Ok(false) => return Err(Failure::Declined),
                 confirmed => confirmed.map(|_| Some(Vec::from(["true".to_owned()]))),
             },
-            PromptPurpose::Value => session.answer(prompted_arg, &current, &answers),
+            PromptPurpose::Value => session.answer(prompted_arg, current, &answers, &later),
         };
         match answer {
             Ok(Some(values)) => answers.push(Answer { prompted_arg, values }),
             Ok(None) => {}
-            Err(PromptError::Cancelled) => return Err(Failure::Cancelled),
-            Err(PromptError::Io(err)) => {
-                return Err(Failure::Clap(clap::Error::raw(ErrorKind::Io, err)));
-            }
+            // Backing out counts as Ctrl-C.
+            Err(PromptError::Cancelled) => return Err(Failure::Cancelled(Signal::Interrupt)),
+            Err(PromptError::Signalled(signal)) => return Err(Failure::Cancelled(signal)),
+            Err(PromptError::Io(err)) => return Err(Failure::Io(err)),
             Err(PromptError::NotATerminal) => return parse_unprompted(cmd, &prompted_args, argv),
         }
     }
@@ -367,6 +495,20 @@ fn default_values(arg: &Arg) -> impl Iterator<Item = &str> {
         .flat_map(move |value| value.split(move |char| Some(char) == delimiter))
 }
 
+/// The command at `path` passed through `edit`; unchanged when the path is missing.
+fn with_command_at<F>(cmd: Command, path: &[&str], edit: F) -> Command
+where
+    F: FnOnce(Command) -> Command,
+{
+    match path.split_first() {
+        None => edit(cmd),
+        Some((name, rest)) if cmd.find_subcommand(name).is_some() => {
+            cmd.mut_subcommand(name, |sub| with_command_at(sub, rest, edit))
+        }
+        Some(_) => cmd,
+    }
+}
+
 fn command_at<'cmd>(cmd: &'cmd Command, path: &[&str]) -> Option<&'cmd Command> {
     path.iter().try_fold(cmd, |level, name| level.find_subcommand(name))
 }
@@ -409,9 +551,14 @@ fn inject<'prompted_arg>(
     answers: impl IntoIterator<Item = (&'prompted_arg PromptedArg, &'prompted_arg [String])>,
 ) -> Command {
     answers.into_iter().fold(cmd, |cmd, (prompted_arg, values)| {
-        with_arg_at(cmd, &prompted_arg.subcommand_path, prompted_arg.attr.arg_id, |arg| {
-            arg.required(false).default_values(values.iter().cloned())
-        })
+        // A default value is no explicit value to clap, so the rules that require the arg would
+        // still miss it.
+        with_arg_at(
+            unrequire(cmd, prompted_arg),
+            &prompted_arg.subcommand_path,
+            prompted_arg.attr.arg_id,
+            |arg| arg.default_values(values.iter().cloned()),
+        )
     })
 }
 
@@ -510,20 +657,47 @@ fn takes_many(arg: &Arg) -> bool {
         || arg.get_num_args().is_some_and(|range| range.max_values() > 1)
 }
 
-/// Make every prompted arg optional, so a missing one does not stop the first parse.
-fn relax(cmd: Command, prompted_args: &[PromptedArg]) -> Command {
-    prompted_args.iter().fold(cmd, |cmd, prompted_arg| {
-        with_arg_at(cmd, &prompted_arg.subcommand_path, prompted_arg.attr.arg_id, |arg| {
-            arg.required(false)
-        })
-    })
+/// Make each of `prompted_args` optional, so a missing one does not stop a parse.
+fn relax<'prompted_arg>(
+    cmd: Command,
+    prompted_args: impl IntoIterator<Item = &'prompted_arg PromptedArg>,
+) -> Command {
+    prompted_args.into_iter().fold(cmd, unrequire)
 }
 
-/// The first line of clap's message, without its `error: ` prefix.
-fn summary(err: &clap::Error) -> String {
-    let rendered = err.render().to_string();
+/// The first line of clap's message, without its `error: ` prefix. clap quotes the rejected
+/// `values`, so a multi-line one is shortened to its first line first, keeping the reason after it.
+fn summary(err: &clap::Error, values: &[String]) -> String {
+    let mut rendered = err.render().to_string();
+    for value in values {
+        if let Some((first_line, _)) = value.split_once('\n') {
+            rendered = rendered.replace(value.as_str(), &format!("{first_line}\u{2026}"));
+        }
+    }
     let line = rendered.lines().next().unwrap_or_default();
     line.strip_prefix("error: ").unwrap_or(line).to_owned()
+}
+
+/// Drop the rules that make `prompted_arg` required: its `required`, its
+/// `required_unless_present`, and the `required` of the groups it belongs to. clap can't clear
+/// `required_unless_present_all` or `required_if_eq`, so those stay.
+fn unrequire(cmd: Command, prompted_arg: &PromptedArg) -> Command {
+    let id = prompted_arg.attr.arg_id;
+    with_command_at(cmd, &prompted_arg.subcommand_path, |level| {
+        if !level.get_arguments().any(|arg| arg.get_id() == id) {
+            return level;
+        }
+        let groups: Vec<Id> = level
+            .get_groups()
+            .filter(|group| group.is_required_set() && group.get_args().any(|arg| arg == id))
+            .map(|group| group.get_id().clone())
+            .collect();
+        let level =
+            level.mut_arg(id, |arg| arg.required(false).required_unless_present(Resettable::Reset));
+        groups
+            .iter()
+            .fold(level, |level, group| level.mut_group(group, |group| group.required(false)))
+    })
 }
 
 /// Apply `edit` to the arg `id` of the command at `path`; unchanged when either is missing.
@@ -531,11 +705,11 @@ fn with_arg_at<F>(cmd: Command, path: &[&str], id: &str, edit: F) -> Command
 where
     F: FnOnce(Arg) -> Arg,
 {
-    match path.split_first() {
-        None if cmd.get_arguments().any(|arg| arg.get_id() == id) => cmd.mut_arg(id, edit),
-        Some((name, rest)) if cmd.find_subcommand(name).is_some() => {
-            cmd.mut_subcommand(name, |sub| with_arg_at(sub, rest, id, edit))
+    with_command_at(cmd, path, |level| {
+        if level.get_arguments().any(|arg| arg.get_id() == id) {
+            level.mut_arg(id, edit)
+        } else {
+            level
         }
-        None | Some(_) => cmd,
-    }
+    })
 }

@@ -15,6 +15,7 @@ proc-macro = true
 
 [features]
 interactive = []
+interactive-editor = ["interactive"]
 
 [dependencies]
 heck = { workspace = true }

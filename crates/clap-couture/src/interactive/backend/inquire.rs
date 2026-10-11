@@ -16,6 +16,8 @@ use super::{
     Backend, CommandStyles,
     builtin::{ClapColor, ClapStyle, NamedColor},
 };
+#[cfg(feature = "interactive-editor")]
+use crate::interactive::EditorPrompt;
 use crate::interactive::{ConfirmPrompt, MultiSelectPrompt, PromptError, SelectPrompt, TextPrompt};
 
 struct InquireError(inquire::InquireError);
@@ -31,6 +33,39 @@ impl Backend for Inquire {
             .with_render_config(RenderConfig::from(prompt.styles))
             .prompt()
             .map_err(InquireError)?)
+    }
+
+    /// The closed editor leaves the question with the answer's first line, or `<canceled>`, as
+    /// inquire leaves an answered or cancelled prompt.
+    #[cfg(feature = "interactive-editor")]
+    fn editor(&self, prompt: &EditorPrompt<'_>) -> Result<Option<String>, PromptError> {
+        use std::io::Write as _;
+
+        use clap::builder::styling::Style;
+
+        use super::builtin::Edited;
+
+        let answer = super::EditorInteraction::start(self, prompt)
+            .and_then(super::EditorInteraction::answer);
+        let CommandStyles(styles) = prompt.styles;
+        // inquire's colored defaults: a light green `>` before an answered prompt, and a dark red
+        // `<canceled>` after a cancelled one.
+        let (closing, closing_style) = match Edited::of(&answer, prompt.optional) {
+            Edited::Answered(line) => (line, *styles.get_literal()),
+            Edited::Cancelled => {
+                ("<canceled>".to_owned(), Style::new().fg_color(Some(AnsiColor::Red.into())))
+            }
+            Edited::Failed => return answer,
+        };
+        let prefix = Style::new().fg_color(Some(AnsiColor::BrightGreen.into()));
+        let header = styles.get_header();
+        // Best effort: after a hang-up there is no terminal left to draw on.
+        drop(writeln!(
+            io::stderr(),
+            "{prefix}>{prefix:#} {header}{}{header:#} {closing_style}{closing}{closing_style:#}",
+            prompt.question
+        ));
+        answer
     }
 
     fn multi_select(&self, prompt: &MultiSelectPrompt<'_>) -> Result<Vec<String>, PromptError> {

@@ -1,5 +1,10 @@
 <div align="center">
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/logo-dark.svg">
+  <img src="assets/logo.svg" alt="clap-couture's logo: a pair of tabi boots" width="128">
+</picture>
+
 <h1>clap-couture</h1>
 
 <p>

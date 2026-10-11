@@ -93,6 +93,8 @@ pub struct MultiSelectPrompt<'prompt> {
     pub options: &'prompt [PossibleValue],
     /// What to ask.
     pub question: &'prompt str,
+    /// What to tell the user when they select nothing, unless the prompt is optional.
+    pub selection_required: &'prompt str,
     /// The command's styles, for backends that theme themselves.
     pub styles: CommandStyles<'prompt>,
 }

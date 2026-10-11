@@ -46,7 +46,8 @@ impl Backend for Inquire {
         let select = if prompt.optional {
             select
         } else {
-            select.with_validator(MinLengthValidator::new(1))
+            select
+                .with_validator(MinLengthValidator::new(1).with_message(prompt.selection_required))
         };
         let picked = select.prompt().map_err(InquireError)?;
         Ok(picked.into_iter().map(str::to_owned).collect())

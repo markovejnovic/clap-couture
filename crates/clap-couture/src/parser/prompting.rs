@@ -76,6 +76,7 @@ impl Session<'_> {
                     optional: !arg.is_required_set(),
                     options: &options,
                     question: &question,
+                    selection_required: &self.messages.selection_required.get(),
                     styles: CommandStyles(self.cmd.get_styles()),
                 })
                 .map(Some)

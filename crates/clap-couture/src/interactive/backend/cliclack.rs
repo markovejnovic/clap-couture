@@ -26,6 +26,8 @@ impl Backend for Cliclack {
                     select.item(option.get_name().to_owned(), option.get_name(), hint)
                 })
                 .initial_values(prompt.defaults.to_vec())
+                // TODO(markovejnovic): cliclack says "Input required" on an empty selection and
+                // can't be told to say `prompt.selection_required` instead.
                 .required(!prompt.optional)
                 .interact()
         })

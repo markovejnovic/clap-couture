@@ -194,6 +194,10 @@ impl Backend for Plain {
         let choices = Choices(prompt.options);
         let answer = Self::ask(&format!("{} [{choices}, comma-separated]", prompt.question))?;
         if answer.is_empty() {
+            if prompt.defaults.is_empty() && !prompt.optional {
+                writeln!(io::stderr(), "{}", prompt.selection_required)?;
+                return self.multi_select(prompt);
+            }
             return Ok(prompt.defaults.to_vec());
         }
         Ok(answer.split(',').map(|name| name.trim().to_owned()).collect())

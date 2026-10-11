@@ -13,6 +13,7 @@ pub(crate) struct Messages {
     finish_hint: Option<TextExpr>,
     none: Option<TextExpr>,
     options: Option<TextExpr>,
+    selection_required: Option<TextExpr>,
     usage: Option<TextExpr>,
 }
 
@@ -24,6 +25,7 @@ impl ToTokens for Messages {
             ("finish_hint", &self.finish_hint),
             ("none", &self.none),
             ("options", &self.options),
+            ("selection_required", &self.selection_required),
             ("usage", &self.usage),
         ]
         .map(|(name, text)| {

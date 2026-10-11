@@ -20,6 +20,8 @@ pub(crate) struct Asked {
     pub(crate) kind: Kind,
     pub(crate) options: Vec<String>,
     pub(crate) question: String,
+    /// What a required multi-select tells the user when nothing is selected.
+    pub(crate) selection_required: Option<String>,
 }
 
 /// Which prompt method was called.
@@ -91,6 +93,7 @@ impl Backend for ScriptedBackend {
             kind: Kind::Confirm,
             options: Vec::new(),
             question: prompt.question.to_owned(),
+            selection_required: None,
         };
         match self.next(asked)? {
             Reply::Confirm(yes) => Ok(yes),
@@ -112,6 +115,7 @@ impl Backend for ScriptedBackend {
             kind: Kind::MultiSelect,
             options: prompt.options.iter().map(|option| option.get_name().to_owned()).collect(),
             question: prompt.question.to_owned(),
+            selection_required: (!prompt.optional).then(|| prompt.selection_required.to_owned()),
         };
         match self.next(asked)? {
             Reply::MultiSelect(names) => Ok(names.iter().map(|name| (*name).to_owned()).collect()),
@@ -141,6 +145,7 @@ impl Backend for ScriptedBackend {
                 .map(str::to_owned)
                 .collect(),
             question: prompt.question.to_owned(),
+            selection_required: None,
         };
         match self.next(asked)? {
             Reply::Select(name) => Ok(name.map(str::to_owned)),
@@ -158,6 +163,7 @@ impl Backend for ScriptedBackend {
             kind: Kind::Text,
             options: Vec::new(),
             question: prompt.question.to_owned(),
+            selection_required: None,
         };
         match self.next(asked)? {
             Reply::Text(answer) => Ok(answer.map(str::to_owned)),

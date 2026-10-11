@@ -257,6 +257,14 @@ struct Narrowed {
 }
 
 #[derive(Parser, Couture, Debug)]
+#[couture(messages = { selection_required = "Mindestens eine Auswahl" })]
+struct NarrowedGerman {
+    #[arg(long, value_enum, required = true)]
+    #[couture(prompt = "Which envs?")]
+    envs: Vec<Env>,
+}
+
+#[derive(Parser, Couture, Debug)]
 struct Maybe {
     #[arg(long, value_enum)]
     #[couture(prompt = "Which envs?")]
@@ -322,6 +330,7 @@ fn asked(kind: Kind, question: &str, default: Option<&str>, options: &[&str]) ->
         kind,
         options: options.iter().map(|option| (*option).to_owned()).collect(),
         question: question.to_owned(),
+        selection_required: None,
     }
 }
 
@@ -582,6 +591,7 @@ fn multi_select(defaults: &[&str]) -> Asked {
         kind: Kind::MultiSelect,
         options: ["dev", "prod", "stage"].map(str::to_owned).into(),
         question: "Which envs?".to_owned(),
+        selection_required: None,
     }
 }
 
@@ -594,6 +604,7 @@ fn text(question: &str, initial: Option<&str>, hint: bool) -> Asked {
         kind: Kind::Text,
         options: Vec::new(),
         question: question.to_owned(),
+        selection_required: None,
     }
 }
 
@@ -625,6 +636,26 @@ fn a_required_multi_select_is_not_optional() {
     let backend = ScriptedBackend::new([Reply::MultiSelect(&["prod"])]);
     let narrowed = Narrowed::couture_try_parse_from_with(&backend, ["narrowed"]);
     assert_eq!(narrowed.map(|narrowed| narrowed.envs).ok(), Some(Vec::from([Env::Prod])));
+}
+
+#[rstest]
+fn a_required_multi_select_says_a_selection_is_required() {
+    let backend = ScriptedBackend::new([Reply::MultiSelect(&["prod"])]);
+    let narrowed = Narrowed::couture_try_parse_from_with(&backend, ["narrowed"]);
+    assert!(narrowed.is_ok(), "{narrowed:?}");
+    let messages: Vec<_> =
+        backend.asked().into_iter().map(|asked| asked.selection_required).collect();
+    assert_eq!(messages, [Some("Select at least one option".to_owned())]);
+}
+
+#[rstest]
+fn the_selection_required_message_can_be_set() {
+    let backend = ScriptedBackend::new([Reply::MultiSelect(&["prod"])]);
+    let narrowed = NarrowedGerman::couture_try_parse_from_with(&backend, ["narrowed"]);
+    assert!(narrowed.is_ok(), "{narrowed:?}");
+    let messages: Vec<_> =
+        backend.asked().into_iter().map(|asked| asked.selection_required).collect();
+    assert_eq!(messages, [Some("Mindestens eine Auswahl".to_owned())]);
 }
 
 #[rstest]

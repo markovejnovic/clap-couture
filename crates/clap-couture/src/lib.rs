@@ -402,6 +402,9 @@ pub struct Messages {
     pub none: Text,
     /// The heading above the options in `--help`. The default is `"Options:"`.
     pub options: Text,
+    /// What a required multi-select tells the user when nothing is selected. The default is
+    /// `"Select at least one option"`.
+    pub selection_required: Text,
     /// The heading above the usage in `--help`. The default is `"Usage:"`.
     pub usage: Text,
 }
@@ -412,6 +415,7 @@ impl Messages {
         finish_hint: Text::Literal("(<enter> to finish)"),
         none: Text::Literal("(none)"),
         options: Text::Literal("Options:"),
+        selection_required: Text::Literal("Select at least one option"),
         usage: Text::Literal("Usage:"),
     };
 }

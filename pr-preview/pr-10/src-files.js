@@ -1,2 +1,0 @@
-createSrcSidebar('[["clap_couture",["",[["interactive",[["backend",[],["builtin.rs","cliclack.rs","console_style.rs","dialoguer.rs","editor_interaction.rs","inquire.rs","mod.rs","non_interactive.rs"]]],["mod.rs","prompted_args.rs"]],["os",[["editor",[],["active.rs","mod.rs","prompt_marker.rs"]]],["command.rs","locale.rs","mod.rs","signal.rs","term.rs"]],["parser",[],["mod.rs","prompting.rs"]],["render",[],["md.rs","mod.rs"]]],["fs.rs","lib.rs","maybe_couture.rs","strings.rs","text.rs"]]]]');
-//{"start":19,"fragment_lengths":[473]}

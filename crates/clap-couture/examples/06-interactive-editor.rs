@@ -2,7 +2,7 @@
 //! the notes in your `$EDITOR`.
 //!
 //! ```sh
-//! cargo run -p clap-couture --example 05-interactive-editor --features interactive-editor
+//! cargo run -p clap-couture --example 06-interactive-editor --features interactive-editor
 //! ```
 
 #![expect(clippy::print_stdout, reason = "a runnable demo prints its result")]

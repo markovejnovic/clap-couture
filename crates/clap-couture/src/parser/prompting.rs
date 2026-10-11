@@ -5,6 +5,9 @@
 //! it is given: the previous trial passed, so a failure can only come from the new answer, which
 //! is then asked again with clap's message. For an arg asked one value at a time, each value is
 //! an answer of its own, checked on top of the values before it.
+//!
+//! Confirmations come last, so their questions can name the answers. A declined one fails the
+//! parse; without a terminal to ask on, one left unanswered fails it as a missing required arg.
 
 use core::iter;
 use std::ffi::OsString;
@@ -22,8 +25,8 @@ use crate::interactive::{EditorAttr, EditorPrompt};
 use crate::{
     Messages,
     interactive::{
-        Backend, CommandStyles, ConfirmPrompt, MultiSelectPrompt, PromptError, PromptedArg,
-        PromptedArgTree, SelectPrompt, TextPrompt,
+        Backend, CommandStyles, ConfirmPrompt, MultiSelectPrompt, PromptError, PromptPurpose,
+        PromptedArg, PromptedArgTree, SelectPrompt, TextPrompt,
     },
     os::signal::Signal,
 };
@@ -79,13 +82,7 @@ impl Session<'_> {
             return Ok(None);
         };
         let optional = !self.required(answers, later);
-        let question = prompted_arg.attr.question.as_ref().map_or_else(
-            || {
-                arg.get_help()
-                    .map_or_else(|| prompted_arg.attr.arg_id.to_owned(), ToString::to_string)
-            },
-            |question| question.get().into_owned(),
-        );
+        let question = self.question(prompted_arg);
         // A flag has nothing to edit, so one that slipped past the derive asks as a flag.
         #[cfg(feature = "interactive-editor")]
         if let Some(editor) = prompted_arg
@@ -203,6 +200,34 @@ impl Session<'_> {
         Ok(answer)
     }
 
+    /// Ask whether to go ahead, with each `{id}` in the question filled in from the args as
+    /// passed and answered so far.
+    fn confirm(
+        &self,
+        prompted_arg: &PromptedArg,
+        answers: &[Answer<'_>],
+    ) -> Result<bool, PromptError> {
+        let question = self.question(prompted_arg);
+        let answered = inject(
+            relax(self.cmd.clone(), self.prompted_args),
+            answers.iter().map(|answer| (answer.prompted_arg, answer.values.as_slice())),
+        )
+        .try_get_matches_from(self.argv);
+        let question = match answered
+            .as_ref()
+            .ok()
+            .and_then(|answered| matches_at(answered, &prompted_arg.subcommand_path))
+        {
+            Some(level) => interpolate(&question, level),
+            None => question,
+        };
+        self.backend.confirm(&ConfirmPrompt {
+            default: false,
+            question: &question,
+            styles: CommandStyles(self.cmd.get_styles()),
+        })
+    }
+
     /// Ask for one value at a time until an empty answer, each starting out as the default's
     /// value at its position. Only a required arg's first value may not be empty.
     ///
@@ -276,6 +301,18 @@ impl Session<'_> {
             .is_err_and(|err| err.kind() == ErrorKind::MissingRequiredArgument)
     }
 
+    /// The `= ...` override, else the arg's help text, else its id.
+    fn question(&self, prompted_arg: &PromptedArg) -> String {
+        prompted_arg.attr.question.as_ref().map_or_else(
+            || {
+                arg_at(self.cmd, &prompted_arg.subcommand_path, prompted_arg.attr.arg_id)
+                    .and_then(Arg::get_help)
+                    .map_or_else(|| prompted_arg.attr.arg_id.to_owned(), ToString::to_string)
+            },
+            |question| question.get().into_owned(),
+        )
+    }
+
     /// Parse with `candidate` as `prompted_arg`'s answer on top of the accepted ones.
     fn trial(
         &self,
@@ -325,7 +362,7 @@ where
 {
     let prompted_args = prompted_arg_tree.prompted_args();
     if prompted_args.is_empty() || !backend.is_available() {
-        return super::parse(cmd, argv);
+        return parse_unprompted(cmd, &prompted_args, argv);
     }
     // Help, usage and errors come from the command the user sees, not the relaxed one.
     let Ok(matches) = relax(cmd.clone(), prompted_args.iter()).try_get_matches_from(argv) else {
@@ -334,26 +371,74 @@ where
 
     let session = Session { argv, backend, cmd: &cmd, messages, prompted_args: &prompted_args };
     let mut answers = Vec::new();
-    let pending = pending(&cmd, &matches, &prompted_args);
-    for (index, (prompted_arg, current)) in pending.iter().enumerate() {
+    let mut unanswered = pending(&cmd, &matches, &prompted_args);
+    // Stable, so values and confirmations each keep declaration order.
+    unanswered
+        .sort_by_key(|(prompted_arg, _)| prompted_arg.attr.purpose == PromptPurpose::Confirmation);
+    for (index, (prompted_arg, current)) in unanswered.iter().enumerate() {
         if blocked(&cmd, &matches, prompted_arg, &answers) {
             continue;
         }
         let later: Vec<&PromptedArg> =
-            pending.iter().skip(index.saturating_add(1)).map(|(later, _)| *later).collect();
-        match session.answer(prompted_arg, current, &answers, &later) {
+            unanswered.iter().skip(index.saturating_add(1)).map(|(later, _)| *later).collect();
+        let answer = match prompted_arg.attr.purpose {
+            PromptPurpose::Confirmation => match session.confirm(prompted_arg, &answers) {
+                Ok(false) => return Err(Failure::Declined),
+                confirmed => confirmed.map(|_| Some(Vec::from(["true".to_owned()]))),
+            },
+            PromptPurpose::Value => session.answer(prompted_arg, current, &answers, &later),
+        };
+        match answer {
             Ok(Some(values)) => answers.push(Answer { prompted_arg, values }),
             Ok(None) => {}
             // Backing out counts as Ctrl-C.
             Err(PromptError::Cancelled) => return Err(Failure::Cancelled(Signal::Interrupt)),
             Err(PromptError::Signalled(signal)) => return Err(Failure::Cancelled(signal)),
             Err(PromptError::Io(err)) => return Err(Failure::Io(err)),
-            Err(PromptError::NotATerminal) => return super::parse(cmd, argv),
+            Err(PromptError::NotATerminal) => return parse_unprompted(cmd, &prompted_args, argv),
         }
     }
     let cmd_with_answers =
         inject(cmd, answers.iter().map(|answer| (answer.prompted_arg, answer.values.as_slice())));
     super::parse(cmd_with_answers, argv)
+}
+
+/// Parse as clap would, without asking. A confirmation left unanswered fails the parse with
+/// clap's error for a missing required arg, so only passing its flag gets past it.
+fn parse_unprompted<T>(
+    mut cmd: Command,
+    prompted_args: &[PromptedArg],
+    argv: &[OsString],
+) -> Result<T, Failure>
+where
+    T: FromArgMatches,
+{
+    let confirmations: Vec<_> = prompted_args
+        .iter()
+        .filter(|prompted_arg| prompted_arg.attr.purpose == PromptPurpose::Confirmation)
+        .collect();
+    if confirmations.is_empty() {
+        return super::parse(cmd, argv);
+    }
+    // Kept unbuilt: requiring an arg on the built command makes clap show help instead.
+    let declared = cmd.clone();
+    let mut matches = cmd.try_get_matches_from_mut(argv).map_err(Failure::Clap)?;
+    let unconfirmed = confirmations.iter().any(|confirmation| {
+        let id = confirmation.attr.arg_id;
+        let passed = matches_at(&matches, &confirmation.subcommand_path)
+            .is_none_or(|level| explicit(level, &Id::from(id)));
+        !passed && !blocked(&cmd, &matches, confirmation, &[])
+    });
+    if unconfirmed {
+        // Parsed again only to fail: clap words the error, and the help stays as declared.
+        let required = confirmations.iter().fold(declared, |cmd, confirmation| {
+            with_arg_at(cmd, &confirmation.subcommand_path, confirmation.attr.arg_id, |arg| {
+                arg.required(true)
+            })
+        });
+        return super::parse(required, argv);
+    }
+    T::from_arg_matches_mut(&mut matches).map_err(|err| Failure::Clap(err.format(&mut cmd)))
 }
 
 fn arg_at<'cmd>(cmd: &'cmd Command, path: &[&str], id: &str) -> Option<&'cmd Arg> {
@@ -475,6 +560,41 @@ fn inject<'prompted_arg>(
             |arg| arg.default_values(values.iter().cloned()),
         )
     })
+}
+
+/// `question` with each `{id}` replaced by arg `id`'s values in `matches`, joined with `, `, and
+/// `{{` and `}}` by single braces. A `{id}` naming no arg stays as written.
+fn interpolate(question: &str, matches: &ArgMatches) -> String {
+    let mut interpolated = String::with_capacity(question.len());
+    let mut rest = question;
+    while let Some(brace) = rest.find(['{', '}']) {
+        let (text, tail) = rest.split_at(brace);
+        interpolated.push_str(text);
+        let escaped = tail.strip_prefix("{{").map(|after| ('{', after));
+        if let Some((brace, after)) =
+            escaped.or_else(|| tail.strip_prefix("}}").map(|after| ('}', after)))
+        {
+            interpolated.push(brace);
+            rest = after;
+            continue;
+        }
+        let placeholder = tail.strip_prefix('{').and_then(|inner| inner.split_once('}'));
+        if let Some((values, after)) = placeholder
+            .and_then(|(id, after)| matches.try_get_raw(id).ok().map(|values| (values, after)))
+        {
+            let values: Vec<_> =
+                values.into_iter().flatten().map(|v| v.to_string_lossy()).collect();
+            interpolated.push_str(&values.join(", "));
+            rest = after;
+            continue;
+        }
+        // A lone brace, or a `{id}` naming no arg: keep the brace as written.
+        let (brace, after) = tail.split_at(1);
+        interpolated.push_str(brace);
+        rest = after;
+    }
+    interpolated.push_str(rest);
+    interpolated
 }
 
 fn matches_at<'matches>(

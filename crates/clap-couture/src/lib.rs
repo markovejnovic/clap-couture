@@ -239,6 +239,37 @@
 //! | `Vec<T>`, possible values | `envs: Vec<Env>`        | Multi-picker   | Which envs? **dev, stage**                      |
 //! | `Vec<T>`, arbitrary type  | `tags: Vec<String>`     | Repeated input | Which tags `(<enter> to finish)`: **`<enter>`** |
 //!
+//! ### Confirmation
+//!
+//! `#[couture(confirm = "...")]` on a `bool` flag asks before going ahead. A yes sets the flag, a
+//! no exits with status 1. Passing the flag skips the question, and without a terminal it must be
+//! passed, so a parse that returns always has the flag set. `{arg}` in the question stands for
+//! that arg's value; `{{` and `}}` are literal braces.
+//!
+//! ```
+//! use clap::Parser;
+//! use clap_couture::{Couture, CoutureParser as _};
+//!
+//! #[derive(Parser, Couture)]
+//! struct Cli {
+//!     #[arg(long)]
+//!     name: String,
+//!
+//!     #[arg(long)]
+//!     #[couture(confirm = "Delete {name} for good?")]
+//!     force: bool,
+//! }
+//!
+//! let cli = Cli::couture_parse_from(["delete", "--name", "web", "--force"]);
+//! ```
+//!
+//! An example of this interaction is:
+//!
+//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/05-interactive-confirm-dark.gif" alt="running orbit-destroy with no flags: it asks for the app and the region, then asks whether to destroy web in eu, and goes ahead on a yes" width="600">
+//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/05-interactive-confirm-light.gif" alt="running orbit-destroy with no flags: it asks for the app and the region, then asks whether to destroy web in eu, and goes ahead on a yes" width="600">
+//!
+//! See [`examples/05-interactive-confirm.rs`](https://github.com/markovejnovic/clap-couture/blob/main/crates/clap-couture/examples/05-interactive-confirm.rs).
+//!
 //! ### Backends
 //!
 //! You can pick from three interactive backends:
@@ -621,7 +652,7 @@ pub trait Couture {
     /// The text couture prints itself, from `#[couture(messages = { ... })]`.
     const MESSAGES: Messages = Messages::DEFAULT;
 
-    /// The args marked `#[couture(prompt)]`, and where they sit.
+    /// The args marked `#[couture(prompt)]` or `#[couture(confirm)]`, and where they sit.
     #[cfg(feature = "interactive")]
     #[doc(hidden)]
     const PROMPTED_ARGS: interactive::PromptedArgTree = interactive::PromptedArgTree::EMPTY;

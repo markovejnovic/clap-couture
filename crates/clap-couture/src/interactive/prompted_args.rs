@@ -21,15 +21,28 @@ impl EditorAttr {
         panic!("`#[couture(editor)]` needs clap-couture's `interactive-editor` feature");
 }
 
-/// One `#[couture(prompt)]` or `#[couture(prompt = "...")]`.
+/// One `#[couture(prompt)]` or `#[couture(confirm)]`, with or without `= "..."`.
 #[derive(Debug)]
 pub struct PromptAttr {
     /// The clap id of the arg it is on.
     pub arg_id: &'static str,
     /// `Some` for `#[couture(prompt, editor)]`; only set with the `interactive-editor` feature.
     pub editor: Option<EditorAttr>,
-    /// The `prompt = ...` override; `None` asks the arg's help text.
+    /// What the answer is for.
+    pub purpose: PromptPurpose,
+    /// The `= ...` override; `None` asks the arg's help text.
     pub question: Option<Text>,
+}
+
+/// What a prompt's answer is for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum PromptPurpose {
+    /// `#[couture(confirm)]`: a yes sets the flag, a no aborts the parse. Asked after every
+    /// [`Value`](Self::Value).
+    Confirmation,
+    /// `#[couture(prompt)]`: the answer is the arg's value.
+    Value,
 }
 
 /// An arg to prompt for, and the subcommand path to the command that owns it.

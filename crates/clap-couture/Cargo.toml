@@ -91,7 +91,11 @@ name = "04-interactive-i18n"
 required-features = ["interactive"]
 
 [[example]]
-name = "05-interactive-editor"
+name = "05-interactive-confirm"
+required-features = ["interactive"]
+
+[[example]]
+name = "06-interactive-editor"
 required-features = ["interactive-editor"]
 
 [[example]]

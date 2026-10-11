@@ -28,7 +28,7 @@ pub trait CoutureParser: Parser + Couture {
     ///
     /// When the user cancels a prompt, dies of Ctrl-C's signal, or of the one the editor died of,
     /// so a shell loop around the CLI stops too; exits with status 130 where there are no
-    /// signals. Exits with status 1 when a prompt fails.
+    /// signals. Exits with status 1 when a prompt fails or a confirmation is declined.
     #[must_use]
     fn couture_parse() -> Self {
         Self::couture_parse_from(std::env::args_os())
@@ -49,7 +49,7 @@ pub trait CoutureParser: Parser + Couture {
     ///
     /// # Errors
     /// The [`clap::Error`] clap would report for the same arguments, or one of kind
-    /// [`Io`](clap::error::ErrorKind::Io) when a prompt fails or is cancelled.
+    /// [`Io`](clap::error::ErrorKind::Io) when a prompt fails, is cancelled or is declined.
     fn couture_try_parse() -> Result<Self, clap::Error> {
         Self::couture_try_parse_from(std::env::args_os())
     }
@@ -58,7 +58,7 @@ pub trait CoutureParser: Parser + Couture {
     ///
     /// # Errors
     /// The [`clap::Error`] clap would report for the same arguments, or one of kind
-    /// [`Io`](clap::error::ErrorKind::Io) when a prompt fails or is cancelled.
+    /// [`Io`](clap::error::ErrorKind::Io) when a prompt fails, is cancelled or is declined.
     fn couture_try_parse_from<I, T>(itr: I) -> Result<Self, clap::Error>
     where
         I: IntoIterator<Item = T>,
@@ -99,6 +99,9 @@ pub(crate) enum Failure {
     Cancelled(Signal),
     /// clap rejected the arguments.
     Clap(clap::Error),
+    /// The user answered no to a confirmation.
+    #[cfg(feature = "interactive")]
+    Declined,
     /// A prompt failed: the terminal, the temp file or the editor.
     #[cfg(feature = "interactive")]
     Io(std::io::Error),
@@ -106,12 +109,14 @@ pub(crate) enum Failure {
 
 impl Failure {
     /// Exit the process the way clap would for this failure; die of the signal for a cancelled
-    /// prompt, and exit 1 for a failed one, which is no usage error.
+    /// prompt, and exit 1 for a failed one or a declined confirmation, which is no usage error.
     fn exit(self) -> ! {
         match self {
             #[cfg(feature = "interactive")]
             Self::Cancelled(signal) => signal.die(),
             Self::Clap(err) => err.exit(),
+            #[cfg(feature = "interactive")]
+            Self::Declined => std::process::exit(1),
             #[cfg(feature = "interactive")]
             Self::Io(err) => {
                 // Nothing is left to report a failed print to.
@@ -128,6 +133,10 @@ impl Failure {
                 clap::Error::raw(clap::error::ErrorKind::Io, "prompt cancelled\n")
             }
             Self::Clap(err) => err,
+            #[cfg(feature = "interactive")]
+            Self::Declined => {
+                clap::Error::raw(clap::error::ErrorKind::Io, "confirmation declined\n")
+            }
             #[cfg(feature = "interactive")]
             Self::Io(err) => io_error(&err),
         }

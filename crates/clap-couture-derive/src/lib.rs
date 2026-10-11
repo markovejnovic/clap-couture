@@ -29,6 +29,9 @@ use crate::{couture_impl::CoutureImpl, input::CoutureInput};
 ///   field asks for that arg when the user leaves it out.
 /// - With the `interactive-editor` feature, `#[couture(prompt, editor)]` asks in the user's
 ///   `$EDITOR` instead; `editor(extension = "md")` names the temp file's extension.
+/// - With the `interactive` feature, `#[couture(confirm)]` or `#[couture(confirm = "...")]` on a
+///   `bool` flag asks to go ahead after every prompt, unless the flag is passed. A no, or no
+///   terminal to ask on, fails the parse. `{arg}` in the question stands for that arg's value.
 /// - `#[couture(messages = { usage = ..., options = ..., none = ... })]` replaces the text couture
 ///   prints itself, eg. to localize it; see `clap_couture::Messages` for every key. Any of them may
 ///   be left out. It applies on the type you parse, or the one you pass to `with_couture`.

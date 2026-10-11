@@ -32,6 +32,10 @@
 //! fires, parsing fails with clap's error before anything is asked. Answers are not re-checked
 //! against `requires` and similar rules between args.
 //!
+//! `#[couture(confirm)]` on a `bool` flag the user left out asks whether to go ahead, after every
+//! other prompt, with each `{id}` in the question replaced by arg `id`'s value. A yes sets the
+//! flag; a no fails the parse. Without a terminal, the flag must be passed, as if it were required.
+//!
 //! # Answering in the editor
 //!
 //! With the `interactive-editor` feature, `#[couture(prompt, editor)]` asks in the user's editor
@@ -112,7 +116,9 @@ pub use backend::Inquire;
 pub use backend::{Backend, CommandStyles, DefaultBackend, NonInteractive};
 use clap::builder::PossibleValue;
 #[doc(hidden)]
-pub use prompted_args::{EditorAttr, PromptAttr, PromptedArg, PromptedArgBranch, PromptedArgTree};
+pub use prompted_args::{
+    EditorAttr, PromptAttr, PromptPurpose, PromptedArg, PromptedArgBranch, PromptedArgTree,
+};
 
 pub use crate::os::signal::Signal;
 

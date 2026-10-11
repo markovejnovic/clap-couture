@@ -26,16 +26,16 @@ impl Backend for Dialoguer {
 
     fn multi_select(&self, prompt: &MultiSelectPrompt<'_>) -> Result<Vec<String>, PromptError> {
         let theme = ColorfulTheme::from(prompt.styles);
-        let names: Vec<&str> = prompt.options.iter().map(PossibleValue::get_name).collect();
-        let picked_by_default: Vec<bool> = names
+        let picked_by_default: Vec<bool> = prompt
+            .options
             .iter()
-            .map(|name| prompt.defaults.iter().any(|default| default == name))
+            .map(|option| prompt.defaults.iter().any(|default| default == option.get_name()))
             .collect();
         // dialoguer cannot require a pick, so a required prompt answered with none is asked again.
         loop {
             let picked = MultiSelect::with_theme(&theme)
                 .with_prompt(prompt.question)
-                .items(&names)
+                .items(prompt.options.iter().map(PossibleValue::get_name))
                 .defaults(&picked_by_default)
                 .interact_opt()
                 .map_err(DialoguerError)?
@@ -43,8 +43,8 @@ impl Backend for Dialoguer {
             if prompt.optional || !picked.is_empty() {
                 return Ok(picked
                     .into_iter()
-                    .filter_map(|index| names.get(index))
-                    .map(|name| (*name).to_owned())
+                    .filter_map(|index| prompt.options.get(index))
+                    .map(|option| option.get_name().to_owned())
                     .collect());
             }
         }

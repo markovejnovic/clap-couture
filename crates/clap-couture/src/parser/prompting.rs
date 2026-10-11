@@ -270,14 +270,14 @@ fn blocked(
 }
 
 /// `arg`'s declared default values, split at its value delimiter.
-fn default_values(arg: &Arg) -> Vec<String> {
-    let values = arg.get_default_values().iter().map(|value| value.to_string_lossy().into_owned());
-    match arg.get_value_delimiter() {
-        Some(delimiter) => values
-            .flat_map(|value| value.split(delimiter).map(str::to_owned).collect::<Vec<_>>())
-            .collect(),
-        None => values.collect(),
-    }
+/// Without a delimiter, each default is one value. Defaults are set from strings, so any that
+/// is not UTF-8 is skipped.
+fn default_values(arg: &Arg) -> impl Iterator<Item = &str> {
+    let delimiter = arg.get_value_delimiter();
+    arg.get_default_values()
+        .iter()
+        .filter_map(|value| value.to_str())
+        .flat_map(move |value| value.split(move |char| Some(char) == delimiter))
 }
 
 fn command_at<'cmd>(cmd: &'cmd Command, path: &[&str]) -> Option<&'cmd Command> {
@@ -322,9 +322,8 @@ fn inject<'prompted_arg>(
     answers: impl IntoIterator<Item = (&'prompted_arg PromptedArg, &'prompted_arg [String])>,
 ) -> Command {
     answers.into_iter().fold(cmd, |cmd, (prompted_arg, values)| {
-        let values = values.to_vec();
         with_arg_at(cmd, &prompted_arg.subcommand_path, prompted_arg.attr.arg_id, |arg| {
-            arg.required(false).default_values(values)
+            arg.required(false).default_values(values.iter().cloned())
         })
     })
 }
@@ -356,12 +355,15 @@ fn pending<'prompted_arg>(
             let arg = arg_at(&built, &prompted_arg.subcommand_path, prompted_arg.attr.arg_id)?;
             let level = matches_at(matches, &prompted_arg.subcommand_path)?;
             let id = prompted_arg.attr.arg_id;
-            let defaults = default_values(arg);
             match level.value_source(id) {
-                None if defaults.is_empty() => Some((prompted_arg, defaults)),
+                None if default_values(arg).next().is_none() => Some((prompted_arg, Vec::new())),
                 Some(ValueSource::DefaultValue) => {
                     let current = raw_values(level, id);
-                    (current == defaults).then_some((prompted_arg, current))
+                    current
+                        .iter()
+                        .map(String::as_str)
+                        .eq(default_values(arg))
+                        .then_some((prompted_arg, current))
                 }
                 None | Some(_) => None,
             }

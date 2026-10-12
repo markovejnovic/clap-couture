@@ -48,6 +48,16 @@ pub(crate) trait CommandRenderExt {
     /// the built root's width is every built command's.
     fn help_width(&self) -> Option<usize>;
 
+    /// Check whether clap, wrapping `text` as this command's after-help, leaves it as it is.
+    fn keeps_after_help(&self, text: &str) -> bool;
+
+    /// `render`'s text of this command, each help on the line below its name when clap's wrap of
+    /// an after-help would break the text of clap's usual layout.
+    fn render_for_after_help<F>(&self, render: F) -> String
+    where
+        Self: Sized,
+        F: Fn(Self) -> String;
+
     /// `text` rendered on one line as a prompt's question: styled when this command's color is on
     /// for stderr, else plain.
     #[cfg(feature = "interactive")]
@@ -92,6 +102,27 @@ impl CommandRenderExt for Command {
             |letter: char| help.lines().find(|line| line.starts_with(letter)).map_or(0, str::len);
         let width = first_line('a').max(first_line('b'));
         (width < unwrapped).then_some(width)
+    }
+
+    fn keeps_after_help(&self, text: &str) -> bool {
+        // clap writes an after-help below a blank line, of which its trim of the help keeps one
+        // newline.
+        let rewrapped = self
+            .clone()
+            .help_template("{after-help}")
+            .after_help(text.to_owned())
+            .render_help()
+            .ansi()
+            .to_string();
+        text.is_empty() || rewrapped == format!("\n{}\n", text.trim_end())
+    }
+
+    fn render_for_after_help<F>(&self, render: F) -> String
+    where
+        F: Fn(Self) -> String,
+    {
+        let text = render(self.clone());
+        if self.keeps_after_help(&text) { text } else { render(self.clone().next_line_help(true)) }
     }
 
     #[cfg(feature = "interactive")]
@@ -184,14 +215,24 @@ impl<'cmd> Menu<'cmd> {
     }
 
     /// `parent`'s subcommands as clap lists them under `Commands:`, their abouts rendered by
-    /// `renderer`: none when clap lists none, as when only `help` would show.
-    fn new<R>(parent: &'cmd Command, category_map: CommandCategoryMap, renderer: &R) -> Self
+    /// `renderer`, laid out for an after-help wrapped to `width`: none when clap lists none, as
+    /// when only `help` would show.
+    fn new<R>(
+        parent: &'cmd Command,
+        category_map: CommandCategoryMap,
+        renderer: &R,
+        width: Option<usize>,
+    ) -> Self
     where
         R: TextRenderer,
     {
         let lists_subcommands =
             parent.get_subcommands().any(|sub| sub.get_name() != "help" && !sub.is_hide_set());
-        let rows = if lists_subcommands { Row::all_of(parent, renderer) } else { Vec::new() };
+        let rows = if lists_subcommands {
+            Row::all_of(parent, &Row::listing(parent, renderer, width))
+        } else {
+            Vec::new()
+        };
         Self { category_map, parent, rows }
     }
 }
@@ -204,25 +245,8 @@ struct Row<'cmd> {
 }
 
 impl<'cmd> Row<'cmd> {
-    /// clap's listing of `parent`'s visible subcommands, split into each one's row.
-    fn all_of<R>(parent: &'cmd Command, renderer: &R) -> Vec<Self>
-    where
-        R: TextRenderer,
-    {
-        let listing = parent
-            .clone()
-            .mut_subcommands(|sub| {
-                // clap lists the long about when there is no short one.
-                let about = sub.get_about().or_else(|| sub.get_long_about());
-                let about = about.map(|about| renderer.restyle_line(about));
-                sub.about(Resettable::from(about))
-            })
-            .help_template(format!("{{subcommands}}{}", Menu::LISTING_END))
-            .render_help()
-            .ansi()
-            .to_string();
-        let listing = listing.rsplit_once(Menu::LISTING_END).map_or(&*listing, |(rows, _)| rows);
-        let listing = renderer.restyle_wrapped(listing);
+    /// `listing`, clap's listing of `parent`'s visible subcommands, split into each one's row.
+    fn all_of(parent: &'cmd Command, listing: &str) -> Vec<Self> {
         let mut rows: Vec<Self> = Vec::new();
         for line in listing.split('\n') {
             // A row starts at clap's two-space indent; the lines it wraps onto are indented past.
@@ -241,6 +265,29 @@ impl<'cmd> Row<'cmd> {
             }
         }
         rows
+    }
+
+    /// clap's listing of `parent`'s visible subcommands, their abouts rendered by `renderer`, laid
+    /// out so that clap's wrap of an after-help to `width` keeps it.
+    fn listing<R>(parent: &Command, renderer: &R, width: Option<usize>) -> String
+    where
+        R: TextRenderer,
+    {
+        parent
+            .clone()
+            .mut_subcommands(|sub| {
+                // clap lists the long about when there is no short one.
+                let about = sub.get_about().or_else(|| sub.get_long_about());
+                let about = about.map(|about| renderer.restyle_line(about));
+                sub.about(Resettable::from(about))
+            })
+            .help_template(format!("{{subcommands}}{}", Menu::LISTING_END))
+            .render_for_after_help(|mut listed| {
+                let listing = listed.render_help().ansi().to_string();
+                let listing =
+                    listing.rsplit_once(Menu::LISTING_END).map_or(&*listing, |(rows, _)| rows);
+                Word(&renderer.restyle_wrapped(listing)).with_wide_lines_unstyled(width)
+            })
     }
 
     /// The cells clap gives `cmd`'s name and flags.
@@ -280,13 +327,21 @@ where
         let heading = self.category.heading();
         write!(f, "{header}{heading}{header:#}")?;
         self.category.description.as_ref().map_or(Ok(()), |description| {
-            let col = self.view.layout.description_col;
-            let pad = col.saturating_sub(heading.width());
-            write!(f, "{:pad$}", "")?;
             let mut rendered = String::new();
             self.view.renderer.render_str(&mut rendered, &description.get())?;
             // clap counts the blank line above a heading as a cell of the heading's line.
             let width = self.view.layout.width.map(|width| width.saturating_sub(1));
+            let beside = self.view.layout.description_col;
+            let first_word = rendered.split(' ').next().map_or(0, |word| Word(word).width());
+            let fits_beside = width.is_none_or(|width| beside.saturating_add(first_word) <= width);
+            // As clap puts an about below its name when there is no room for it beside.
+            let col = if fits_beside {
+                write!(f, "{:pad$}", "", pad = beside.saturating_sub(heading.width()))?;
+                beside
+            } else {
+                write!(f, "\n{:col$}", "", col = MenuLayout::NEXT_LINE_COL)?;
+                MenuLayout::NEXT_LINE_COL
+            };
             write!(f, "{}", ColumnText { col, text: &rendered, width })
         })
     }
@@ -301,6 +356,9 @@ struct MenuLayout {
 }
 
 impl MenuLayout {
+    /// Where clap starts a help on the line below its name.
+    const NEXT_LINE_COL: usize = 10;
+
     /// The layout for rows with names and flags `name_widths` cells wide, under `headings`.
     fn measure(
         name_widths: impl Iterator<Item = usize>,
@@ -356,7 +414,7 @@ where
         renderer: R,
         width: Option<usize>,
     ) -> Self {
-        let menu = Menu::new(parent, categories, &renderer);
+        let menu = Menu::new(parent, categories, &renderer, width);
         let layout = MenuLayout::measure(
             menu.rows.iter().map(|row| Row::name_width(row.cmd)),
             menu.categories().map(Category::heading),
@@ -470,7 +528,6 @@ impl<'text> Word<'text> {
 
     /// Lines clap wrapped, each style still open at a line's end closed there and opened again
     /// past the next line's indent, so the indent is never styled.
-    #[cfg(feature = "markdown")]
     fn with_styles_reopened(&self) -> String {
         let mut reopened = String::with_capacity(self.0.len());
         // The escapes in effect at the end of the line so far.
@@ -497,6 +554,26 @@ impl<'text> Word<'text> {
             }
         }
         reopened
+    }
+
+    /// Lines clap wrapped, each one wider than `width` without its styles: clap's wrap of an
+    /// after-help breaks a line it can't fit around its styles, but leaves an unstyled word whole.
+    fn with_wide_lines_unstyled(&self, width: Option<usize>) -> String {
+        let fits = |line: &str| {
+            // clap counts the blank line above a line opening with a style as one of its cells.
+            let blank_line_cell = usize::from(line.starts_with('\u{1b}'));
+            let line_width = Word(line).visible().trim_end().width();
+            width.is_none_or(|width| line_width.saturating_add(blank_line_cell) <= width)
+        };
+        if self.0.split('\n').all(fits) {
+            return self.0.to_owned();
+        }
+        // Each line closes its own styles, so dropping one line's leaves the others'.
+        let reopened = self.with_styles_reopened();
+        let lines = reopened.split('\n').map(|line| {
+            if fits(line) { Cow::Borrowed(line) } else { Cow::Owned(Word(line).visible()) }
+        });
+        lines.collect::<Vec<_>>().join("\n")
     }
 }
 

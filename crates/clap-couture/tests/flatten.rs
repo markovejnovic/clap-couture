@@ -33,6 +33,18 @@ struct BesideForeignArgs {
     verbosity: Verbosity,
 }
 
+#[derive(Parser, Couture)]
+struct ThroughBox {
+    #[command(subcommand)]
+    cmd: Box<Cmd>,
+}
+
+#[derive(Parser, Couture)]
+struct ThroughGeneric<A: Args> {
+    #[command(flatten)]
+    wrap: A,
+}
+
 #[derive(Args, Couture)]
 struct Wrap {
     #[command(subcommand)]
@@ -90,6 +102,8 @@ fn label_of(categories: CommandCategoryMap, command: &str) -> Option<&'static st
 #[case::subcommand_field(Direct::CATEGORIES, "login", Some("b"))]
 #[case::through_args(ThroughArgs::CATEGORIES, "deploy", Some("a"))]
 #[case::through_optional_args(ThroughOptionalArgs::CATEGORIES, "login", Some("b"))]
+#[case::through_box(ThroughBox::CATEGORIES, "login", Some("b"))]
+#[case::through_generic(ThroughGeneric::<Wrap>::CATEGORIES, "deploy", Some("a"))]
 #[case::beside_foreign_args(BesideForeignArgs::CATEGORIES, "sync", Some("b"))]
 fn flattened_commands_keep_their_category(
     #[case] categories: CommandCategoryMap,

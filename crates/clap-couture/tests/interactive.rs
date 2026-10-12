@@ -91,6 +91,30 @@ struct Account {
 }
 
 #[derive(Parser, Couture, Debug)]
+struct Fleet {
+    #[command(subcommand)]
+    cmd: Box<FleetCmd>,
+}
+
+#[derive(Subcommand, Couture, Debug)]
+enum FleetCmd {
+    Login(Box<Login>),
+    Logout(Logout),
+}
+
+#[derive(Args, Couture, Debug)]
+struct Logout {
+    #[command(flatten)]
+    account: Box<Account>,
+}
+
+#[derive(Parser, Couture, Debug)]
+struct Generic<A: Args> {
+    #[command(flatten)]
+    inner: A,
+}
+
+#[derive(Parser, Couture, Debug)]
 struct Repo {
     #[command(subcommand)]
     cmd: RepoCmd,
@@ -486,6 +510,24 @@ fn only_asks_on_the_subcommand_path_taken(#[case] argv: &[&str], #[case] questio
     let orbit = Orbit::couture_try_parse_from_with(&backend, argv);
     assert!(orbit.is_ok(), "{orbit:?}");
     assert_eq!(backend.asked(), [asked(Kind::Text, question, None, &[])]);
+}
+
+#[rstest]
+#[case::boxed_variant(&["fleet", "login"])]
+#[case::boxed_flatten(&["fleet", "logout"])]
+fn asks_through_boxed_args(#[case] argv: &[&str]) {
+    let backend = ScriptedBackend::new([Reply::Text(Some("x"))]);
+    let fleet = Fleet::couture_try_parse_from_with(&backend, argv);
+    assert!(fleet.is_ok(), "{fleet:?}");
+    assert_eq!(backend.asked(), [asked(Kind::Text, "Which user?", None, &[])]);
+}
+
+#[rstest]
+fn asks_through_generic_flattened_args() {
+    let backend = ScriptedBackend::new([Reply::Text(Some("x"))]);
+    let generic = Generic::<Account>::couture_try_parse_from_with(&backend, ["generic"]);
+    assert!(generic.is_ok(), "{generic:?}");
+    assert_eq!(backend.asked(), [asked(Kind::Text, "Which user?", None, &[])]);
 }
 
 #[rstest]

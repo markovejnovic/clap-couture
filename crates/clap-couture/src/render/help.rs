@@ -80,7 +80,7 @@ impl HelpBody {
             .clone()
             .disable_help_subcommand(true)
             .mut_subcommands(|subcommand| subcommand.hide(true))
-            .help_template("{all-args}")
+            .help_template(format!("{{all-args}}{}", Headings::ARGS_END))
             .with_rendered_arg_help();
         let headings = Headings { cmd, messages };
         let short_args = headings.reword(&args_only.clone().render_help());
@@ -103,12 +103,18 @@ impl HelpBody {
 }
 
 impl Headings<'_> {
-    /// `rendered`, clap's `{all-args}`, with its default section headings reworded, its trailing
-    /// newline dropped.
+    /// Ends the `{all-args}` template, so clap's trim of the help leaves the args as clap writes
+    /// them above an after-help: an arg without help keeps its indent.
+    const ARGS_END: &'static str = "\u{E000}";
+
+    /// `rendered`, clap's `{all-args}` and [`Self::ARGS_END`], cut at the marker, with its default
+    /// section headings reworded.
     fn reword(&self, rendered: &StyledStr) -> String {
         let header = self.cmd.get_styles().get_header();
         let styled = |heading: &str| format!("{header}{heading}{header:#}\n");
-        let mut text = rendered.ansi().to_string().trim_end().to_owned();
+        let rendered = rendered.ansi().to_string();
+        let mut text =
+            rendered.rsplit_once(Self::ARGS_END).map_or(&*rendered, |(args, _)| args).to_owned();
         let defaults = Messages::DEFAULT;
         for (default, worded) in [
             (defaults.arguments.get(), self.messages.arguments.get()),

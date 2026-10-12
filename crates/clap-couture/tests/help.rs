@@ -116,6 +116,20 @@ struct Long {
     source: String,
 }
 
+// Its last arg has no help, so `--help` leaves that arg's help indent above the after-help.
+#[derive(Parser, Couture)]
+#[command(name = "copy", after_help = "See the manual.")]
+struct Undocumented {
+    /// Overwrite what is there.
+    ///
+    /// Even read-only files.
+    #[arg(long)]
+    force: bool,
+
+    #[arg(long, help_heading = "Output")]
+    into: Option<String>,
+}
+
 /// The help a command prints, as couture renders it and as clap does.
 struct Helps {
     clap: String,
@@ -312,6 +326,17 @@ fn a_help_template_is_kept() {
     let help = Templated::couture_command().render_help().to_string();
     assert!(help.starts_with("clap-couture <COMMAND>\n"), "{help}");
     assert!(help.contains("Everyday:\n  plan"), "{help}");
+}
+
+#[rstest]
+fn an_arg_without_help_keeps_clap_s_indent_above_the_after_help() {
+    let help = |cmd: clap::Command| {
+        let err = cmd.try_get_matches_from(["copy", "--help"]).err();
+        err.map(|err| err.render()).unwrap_or_default()
+    };
+    let clap = help(Undocumented::command());
+    assert!(clap.to_string().contains("--into <INTO>\n          \n\nSee the manual."), "{clap}");
+    assert_eq!(help(Undocumented::couture_command()).ansi().to_string(), clap.ansi().to_string());
 }
 
 #[rstest]

@@ -39,10 +39,10 @@ class Theme:
     backdrop: Backdrop
 
 
-# Catppuccin on the brand's pink fading to violet: deep for dark pages, pale for light.
+# Catppuccin on GitHub's page background, so the window sits on the README itself.
 THEMES: dict[str, Theme] = {
-    "dark": Theme("Catppuccin Mocha", Backdrop(start="#db2777", end="#7c3aed")),
-    "light": Theme("Catppuccin Latte", Backdrop(start="#f9a8d4", end="#c4b5fd")),
+    "dark": Theme("Catppuccin Mocha", Backdrop(color="#0d1117")),
+    "light": Theme("Catppuccin Latte", Backdrop(color="#ffffff")),
 }
 # `--help` screens: nothing moves, so they get a still of their last frame, not a GIF.
 STILLS = frozenset(

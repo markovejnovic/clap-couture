@@ -39,6 +39,7 @@ use super::EditorPrompt;
 use super::{
     ConfirmPrompt, MultiSelectPrompt, PromptError, SecretPrompt, SelectPrompt, TextPrompt,
 };
+use crate::os::opt_out::PromptOptOut;
 
 /// A command's clap styles, for a backend to build its theme from.
 #[derive(Clone, Copy, Debug)]
@@ -73,9 +74,10 @@ pub trait Backend {
         EditorInteraction::start(self, prompt)?.answer()
     }
 
-    /// Check whether there is a terminal to ask on: stdin and stderr must both be one.
+    /// Check whether there is a terminal to ask on: stdin and stderr must both be one, and
+    /// neither `NO_PROMPT` nor `CI` may turn prompts off.
     fn is_available(&self) -> bool {
-        io::stdin().is_terminal() && io::stderr().is_terminal()
+        PromptOptOut::read().is_none() && io::stdin().is_terminal() && io::stderr().is_terminal()
     }
 
     /// Ask to pick any number of `prompt.options`, returning the picked options' names in

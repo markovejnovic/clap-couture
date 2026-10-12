@@ -158,6 +158,12 @@ There are three backends, controlled through feature flags:
 `interactive-cliclack` (default), `interactive-inquire` and
 `interactive-dialoguer`, using those libraries.
 
+### Scripts & CI
+
+Couture prompts only when stdin and stderr are terminals. Otherwise a missing
+arg gets clap's usual error, and a confirmation needs its flag passed. Set
+`NO_PROMPT=1` or `CI=true` to turn prompts off even at a terminal.
+
 ## Markdown
 
 Markdown is opt-in: with the `markdown` feature (or `full`), doc comments and

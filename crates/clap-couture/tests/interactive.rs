@@ -172,6 +172,85 @@ struct Export {
     out: Option<String>,
 }
 
+/// Conflicts declared by groups: by `remote` and `tuned`, which share `--port`, by `--offline`
+/// against `remote`, and by the `Tls` group derived two flattens down.
+#[derive(Parser, Couture, Debug)]
+#[command(group(
+    ArgGroup::new("remote").args(["host", "port"]).multiple(true).conflicts_with("socket")
+))]
+#[command(group(
+    ArgGroup::new("tuned").args(["port", "retries"]).multiple(true).conflicts_with("fast")
+))]
+struct Dial {
+    #[arg(long)]
+    fast: bool,
+
+    #[arg(long)]
+    host: Option<String>,
+
+    #[arg(long)]
+    insecure: bool,
+
+    #[arg(long, conflicts_with = "remote")]
+    offline: bool,
+
+    #[arg(long)]
+    #[couture(prompt = "Which port?")]
+    port: Option<String>,
+
+    #[arg(long)]
+    retries: Option<String>,
+
+    #[command(flatten)]
+    security: Security,
+
+    #[arg(long)]
+    #[couture(prompt = "Which socket?")]
+    socket: Option<String>,
+}
+
+/// Flattens `Tls`, so clap derives its own group with no args.
+#[derive(Args, Couture, Debug)]
+struct Security {
+    #[arg(long)]
+    #[couture(prompt = "Which pin?")]
+    pin: Option<String>,
+
+    #[command(flatten)]
+    tls: Tls,
+}
+
+#[derive(Args, Couture, Debug)]
+#[group(conflicts_with = "insecure")]
+struct Tls {
+    #[arg(long)]
+    #[couture(prompt = "Which cert?")]
+    cert: Option<String>,
+}
+
+#[derive(Parser, Couture, Debug)]
+struct Mirror {
+    #[command(subcommand)]
+    cmd: MirrorCmd,
+
+    #[arg(long, global = true)]
+    verbose: bool,
+}
+
+#[derive(Subcommand, Couture, Debug)]
+enum MirrorCmd {
+    /// Its `loud` group names the global `--verbose`.
+    #[command(group(ArgGroup::new("loud").args(["verbose", "banner"]).multiple(true).conflicts_with("quiet")))]
+    Sync {
+        #[arg(long)]
+        #[couture(prompt = "Which banner?")]
+        banner: Option<String>,
+
+        #[arg(long)]
+        quiet: bool,
+    },
+}
+
 /// Stands in for an `Args` type from another crate, which cannot implement `Couture`.
 #[derive(Args, Debug)]
 struct Verbosity {
@@ -672,6 +751,50 @@ fn never_asks_for_an_exclusive_prompted_arg_beside_a_passed_arg() {
     let export = Export::couture_try_parse_from_with(&backend, ["export", "--out", "o"]);
     assert_eq!(export.map(|export| export.config).ok(), Some(None));
     assert_eq!(backend.asked(), []);
+}
+
+#[rstest]
+#[case::the_group_of_an_earlier_answer_conflicts(&["dial"], &["Which port?", "Which pin?", "Which cert?"])]
+#[case::the_group_of_a_passed_arg_conflicts(
+    &["dial", "--host", "h"],
+    &["Which port?", "Which pin?", "Which cert?"]
+)]
+#[case::its_group_conflicts_with_a_passed_arg(&["dial", "--socket", "s"], &["Which pin?", "Which cert?"])]
+#[case::a_passed_arg_conflicts_with_its_group(
+    &["dial", "--offline"],
+    &["Which socket?", "Which pin?", "Which cert?"]
+)]
+#[case::another_of_its_groups_conflicts(
+    &["dial", "--fast"],
+    &["Which socket?", "Which pin?", "Which cert?"]
+)]
+#[case::its_group_derived_two_flattens_down_conflicts(
+    &["dial", "--insecure"],
+    &["Which port?", "Which pin?"]
+)]
+fn never_asks_for_a_prompted_arg_that_a_group_conflict_rules_out(
+    #[case] argv: &[&str],
+    #[case] questions: &[&str],
+) {
+    let backend = ScriptedBackend::new(questions.iter().map(|_| Reply::Text(Some("x"))));
+    let dial = Dial::couture_try_parse_from_with(&backend, argv);
+    assert!(dial.is_ok(), "{dial:?}");
+    let asked: Vec<_> = backend.asked().into_iter().map(|asked| asked.question).collect();
+    assert_eq!(asked, questions);
+}
+
+#[rstest]
+#[case::its_group_conflicts_with_a_passed_arg(&["mirror", "sync", "--quiet"], &[])]
+#[case::its_group_does_not_conflict(&["mirror", "sync"], &["Which banner?"])]
+fn asks_a_subcommand_arg_whose_group_names_a_global_where_clap_allows(
+    #[case] argv: &[&str],
+    #[case] questions: &[&str],
+) {
+    let backend = ScriptedBackend::new(questions.iter().map(|_| Reply::Text(Some("x"))));
+    let mirror = Mirror::couture_try_parse_from_with(&backend, argv);
+    assert!(mirror.is_ok(), "{mirror:?}");
+    let asked: Vec<_> = backend.asked().into_iter().map(|asked| asked.question).collect();
+    assert_eq!(asked, questions);
 }
 
 #[rstest]

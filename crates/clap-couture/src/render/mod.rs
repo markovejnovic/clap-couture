@@ -150,7 +150,7 @@ struct Menu<'cmd> {
 
 impl<'cmd> Menu<'cmd> {
     /// Ends the `{subcommands}` template, so clap's trim of the help keeps the last row's padding.
-    const LISTING_END: &str = "\u{E000}";
+    const LISTING_END: &'static str = "\u{E000}";
 
     /// The distinct categories with at least one visible member, in first-appearance order.
     fn categories(&self) -> impl Iterator<Item = &'static Category> {

@@ -49,11 +49,13 @@ jobs:
       rerendered: ${{ steps.render.outputs.rerendered }}
     steps:
       - uses: actions/checkout@v7
+      # The scripts run through `uv run`, in the environment `uv.lock` pins.
+      - uses: astral-sh/setup-uv@v10.3.0
       - name: Find clap's latest release
         id: latest
         run: |
-          python3 scripts/clap_bounds.py bounds | tee -a "$GITHUB_OUTPUT"
-          python3 scripts/clap_bounds.py latest | tee -a "$GITHUB_OUTPUT"
+          uv run scripts/clap-bounds.py bounds | tee -a "$GITHUB_OUTPUT"
+          uv run scripts/clap-bounds.py latest | tee -a "$GITHUB_OUTPUT"
       - name: Decide whether to bump
         id: plan
         env:
@@ -87,15 +89,12 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
       - if: steps.plan.outputs.bump == 'true'
         uses: Swatinem/rust-cache@v2
-      # `ansi-to-html.py` runs through `uv run`, in the environment `uv.lock` pins.
-      - if: steps.plan.outputs.bump == 'true'
-        uses: astral-sh/setup-uv@v10.3.0
       - name: Raise clap's max
         if: steps.plan.outputs.bump == 'true'
         env:
           LATEST: ${{ steps.latest.outputs.latest }}
         run: |
-          python3 scripts/clap_bounds.py set-max "$LATEST"
+          uv run scripts/clap-bounds.py set-max "$LATEST"
           # Moves clap_builder, clap_derive and clap_lex along with it.
           cargo update -p clap --precise "$LATEST"
       # CI's `example assets` job fails if clap changed the examples' `--help`.

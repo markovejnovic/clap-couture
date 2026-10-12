@@ -7,12 +7,19 @@ requires-python = ">=3.12"
 dependencies = [
     "ansi2html==1.9.5",
     "click==8.5.0",
+    "httpx==0.28.1",
     "pillow==11.3.0",
     "pyromark==0.9.14",
+    "semver==3.1.0",
+    "tomlkit==0.15.1",
 ]
 
 [dependency-groups]
-dev = ["pyright==1.1.408", "ruff==0.16.4"]
+dev = [
+    "pyright==1.1.408",
+    "pytest==9.1.1",
+    "ruff==0.16.4",
+]
 
 [tool.uv]
 package = false
@@ -30,6 +37,14 @@ ignore = [
     "D203",   # conflicts with D211: no blank line before a class docstring
     "D213",   # conflicts with D212: the summary starts on the docstring's first line
     "S603",   # every subprocess call takes an argument list, never a shell string
+]
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/tests/**" = [
+    "D103",    # a test's name says what it checks
+    "INP001",  # pytest imports the tests by path
+    "PLR2004", # expected values are the point of a test
+    "S101",    # pytest checks with `assert`
 ]
 
 [tool.ruff.lint.pydocstyle]
@@ -51,3 +66,10 @@ reportPropertyTypeMismatch = "error"
 reportUninitializedInstanceVariable = "error"
 reportUnnecessaryTypeIgnoreComment = "error"
 reportUnusedCallResult = "error"
+
+[tool.pytest.ini_options]
+testpaths = ["scripts/tests"]
+# The tests import `devtools` as the scripts do.
+pythonpath = ["scripts"]
+addopts = ["--strict-markers", "--strict-config", "--import-mode=importlib"]
+xfail_strict = true

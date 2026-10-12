@@ -88,11 +88,11 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: clap-${{ matrix.bound }}
-      - run: python3 scripts/clap_bounds.py self-test
+      - uses: astral-sh/setup-uv@v10.3.0
       - name: Read the clap bounds
         id: bounds
         shell: bash # `-o pipefail`, so a malformed clap line fails the step
-        run: python3 scripts/clap_bounds.py bounds | tee -a "$GITHUB_OUTPUT"
+        run: uv run scripts/clap-bounds.py bounds | tee -a "$GITHUB_OUTPUT"
       # The older `clap_*` crates the min pulls in all fit the MSRV, so the MSRV-aware
       # resolver needs no `CARGO_RESOLVER_INCOMPATIBLE_RUST_VERSIONS` override.
       - name: Lock clap at its ${{ matrix.bound }}
@@ -108,6 +108,20 @@ jobs:
           fi
       - run: cargo tree -i clap -e normal --depth 0
       - run: cargo test --workspace --all-features
+
+  # The Python in `scripts/`, in the environment `uv.lock` pins.
+  scripts:
+    name: scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || '' }}
+      - uses: astral-sh/setup-uv@v10.3.0
+      - run: uv run ruff check scripts
+      - run: uv run ruff format --check scripts
+      - run: uv run pyright
+      - run: uv run pytest
 
   test-windows:
     name: test (windows)

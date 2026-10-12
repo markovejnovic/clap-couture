@@ -13,7 +13,7 @@ use syn::{
 };
 
 use super::messages::Messages;
-use crate::text::TextExpr;
+use crate::{suggest::Suggestion, text::TextExpr};
 
 /// One category of `categories = { ... }`, as written.
 pub(crate) struct CategorySpec {
@@ -159,19 +159,24 @@ impl Parse for Entry {
 }
 
 impl Inheritance {
-    /// Check that a subcommand may name `category` without the enum declaring it.
-    pub(crate) fn check(&self, category: &LitStr) -> darling::Result<()> {
+    /// Check that a subcommand may name `category` without the enum declaring it, suggesting
+    /// the closest of `declared_labels` and the inherited labels when it may not.
+    pub(crate) fn check(&self, category: &LitStr, declared_labels: &[&str]) -> darling::Result<()> {
         let label = category.value();
-        let allowed = match self {
-            Self::Any => true,
-            Self::Nothing => false,
-            Self::Only(labels) => labels.contains(&label),
+        let inherited_labels = match self {
+            Self::Any => return Ok(()),
+            Self::Nothing => &[][..],
+            Self::Only(labels) if labels.contains(&label) => return Ok(()),
+            Self::Only(labels) => labels.as_slice(),
         };
-        if allowed {
-            return Ok(());
-        }
+        let known =
+            declared_labels.iter().copied().chain(inherited_labels.iter().map(String::as_str));
+        let suggestion = Suggestion::closest(&label, known)
+            .map(|suggestion| format!("; {suggestion}"))
+            .unwrap_or_default();
         Err(Error::custom(format!(
-            "category `{label}` is not declared or inherited in this enum's `#[couture(...)]`"
+            "category `{label}` is not declared or inherited in this enum's \
+             `#[couture(...)]`{suggestion}"
         ))
         .with_span(category))
     }

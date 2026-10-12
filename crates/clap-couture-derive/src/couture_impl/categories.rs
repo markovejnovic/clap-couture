@@ -69,6 +69,8 @@ impl Categories {
     /// # Errors
     /// - A category the enum neither declares nor inherits, unless it declares and inherits none.
     /// - A category on a `#[command(flatten)]` variant, which is no command itself.
+    /// - A category on a `#[command(skip)]` or `#[command(external_subcommand)]` variant.
+    /// - A category declared twice.
     pub(crate) fn parse(
         container: &mut ContainerAttrs,
         variants: &[VariantInput],
@@ -81,20 +83,24 @@ impl Categories {
             Inheritance::Nothing
         });
 
-        // The categories the enum declares, in declared order.
-        let declared: Vec<Category> = container
-            .categories
-            .drain(..)
-            .map(|CategorySpec { description, label, title }| Category {
-                description,
-                label: label.value(),
-                title,
-            })
-            .collect();
-        let is_declared =
-            |label: &LitStr| declared.iter().any(|category| category.label == label.value());
-
         let mut errors = Error::accumulator();
+
+        // The categories the enum declares, in declared order, each once.
+        let mut declared: Vec<Category> = Vec::with_capacity(container.categories.len());
+        for CategorySpec { description, label, title } in container.categories.drain(..) {
+            let value = label.value();
+            if declared.iter().any(|category| category.label == value) {
+                errors.push(
+                    Error::custom(format!("category `{value}` is already declared"))
+                        .with_span(&label),
+                );
+                continue;
+            }
+            declared.push(Category { description, label: value, title });
+        }
+        let declared_labels: Vec<&str> =
+            declared.iter().map(|category| category.label.as_str()).collect();
+        let is_declared = |label: &LitStr| declared_labels.contains(&label.value().as_str());
 
         // Each categorized variant's label and subcommand name, in subcommand order.
         let categorized_subcommands: Vec<(&LitStr, ClapName)> = variants
@@ -107,6 +113,19 @@ impl Categories {
                             "`category` on a `#[command(flatten)]` variant files nothing; put it \
                              on the flattened enum's variants",
                         )
+                        .with_span(label),
+                    );
+                    return None;
+                }
+                if let Some(key) = ["skip", "external_subcommand"]
+                    .into_iter()
+                    .find(|key| variant.attrs.has_clap_key(key))
+                {
+                    errors.push(
+                        Error::custom(format!(
+                            "`category` on a `#[command({key})]` variant files nothing; clap \
+                             parses no subcommand of it"
+                        ))
                         .with_span(label),
                     );
                     return None;
@@ -127,7 +146,9 @@ impl Categories {
             .iter()
             .enumerate()
             .filter(|(index, (label, _))| !is_declared(label) && is_first_use(*index, label))
-            .filter_map(|(_, (label, _))| errors.handle(inheritance.check(label)).map(|()| label))
+            .filter_map(|(_, (label, _))| {
+                errors.handle(inheritance.check(label, &declared_labels)).map(|()| label)
+            })
             .map(|label| Category { description: None, label: label.value(), title: None })
             .collect();
 

@@ -17,6 +17,7 @@ clap = "4.6"
 pulldown-cmark = { version = "0.13", default-features = false }
 unicode-width = "0.2"
 darling = "0.24"
+strsim = "0.11"
 rstest = { version = "0.27", default-features = false } # no async tests
 thiserror = "2"
 anstream = { version = "1", default-features = false }

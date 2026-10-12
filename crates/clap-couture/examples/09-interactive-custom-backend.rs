@@ -12,8 +12,7 @@
 //! ```terminal
 //! Deploy and manage your apps from the terminal
 //!
-//! Usage:
-//!   09-interactive-custom-backend <COMMAND>
+//! Usage: 09-interactive-custom-backend <COMMAND>
 //!
 //!   status    Show recent activity
 //!
@@ -29,6 +28,8 @@
 //! Account & sync:
 //!   login     Sign in to your account
 //!   sync      Sync settings across machines
+//!
+//!   help      Print this message or the help of the given subcommand(s)
 //!
 //! Flags:
 //!   -h, --help  Print help
@@ -115,13 +116,16 @@ enum Region {
     Us,
 }
 
-// Nested subcommands are clap's as usual; couture organizes the top-level menu.
-#[derive(Subcommand)]
+// `orbit secrets --help` is couture's too, with the categories of the type that defines it.
+#[derive(Subcommand, Couture)]
+#[couture(categories = { "read" = { title = "Read:" }, "write" = { title = "Write:" } })]
 enum Secrets {
     /// List the secrets.
+    #[couture(category = "read")]
     List,
 
-    /// Set a secret.
+    /// Set a **secret**.
+    #[couture(category = "write")]
     Set,
 }
 

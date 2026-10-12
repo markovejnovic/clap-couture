@@ -1,7 +1,6 @@
 Ship the current project.
 
-[1m[4mUsage:[0m
-  [1minteractive[0m [OPTIONS] [1m--region[0m <REGION>
+[1m[4mUsage:[0m [1minteractive[0m [OPTIONS] [1m--region[0m <REGION>
 
 [1m[4mOptions:[0m
       [1m--follow[0m

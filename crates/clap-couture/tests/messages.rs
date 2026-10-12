@@ -57,7 +57,7 @@ fn help_headings_take_the_messages(
     #[case] options_heading: &str,
 ) {
     let help = cmd.render_help().to_string();
-    for heading in [usage_heading, options_heading] {
-        assert!(help.lines().any(|line| line == heading), "no `{heading}` line in:\n{help}");
-    }
+    let usage_line = format!("{usage_heading} clap-couture <COMMAND>");
+    assert!(help.lines().any(|line| line == usage_line), "no `{usage_line}` line in:\n{help}");
+    assert!(help.lines().any(|line| line == options_heading), "no `{options_heading}` in:\n{help}");
 }

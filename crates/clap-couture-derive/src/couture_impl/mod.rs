@@ -2,6 +2,7 @@
 
 mod categories;
 mod container;
+mod help_tree;
 mod messages;
 mod prompted_args;
 
@@ -11,7 +12,7 @@ use quote::{ToTokens, quote};
 use syn::{GenericParam, Generics, Ident, Path, Type, WherePredicate, parse_quote};
 
 use self::{
-    categories::Categories, container::ContainerAttrs, messages::Messages,
+    categories::Categories, container::ContainerAttrs, help_tree::HelpBranches, messages::Messages,
     prompted_args::PromptedArgTree,
 };
 use crate::{clap_compat::SubcommandNaming, input::CoutureInput, runtime::Runtime};
@@ -22,6 +23,8 @@ pub(crate) struct CoutureImpl {
     categories: Categories,
     /// `#[couture(crate = ...)]`, if the type renames clap-couture.
     crate_path: Option<Path>,
+    /// The commands below the type's, for their help.
+    help_branches: HelpBranches,
     /// The text couture prints itself, if the type sets any.
     messages: Option<Messages>,
     /// The args marked `#[couture(prompt)]`, from the deriving type down.
@@ -37,20 +40,26 @@ impl TryFrom<CoutureInput> for CoutureImpl {
 
     fn try_from(input: CoutureInput) -> darling::Result<Self> {
         let mut container = ContainerAttrs::parse(&input.attrs)?;
-        let (categories, prompted_arg_tree) = match &input.data {
+        let (categories, help_branches, prompted_arg_tree) = match &input.data {
             ast::Data::Enum(variants) => {
                 let naming = SubcommandNaming::from_container(&input.attrs);
                 let categories = Categories::parse(&mut container, variants, &naming)?;
-                (categories, PromptedArgTree::of_variants(variants, &naming)?)
+                let help_branches = HelpBranches::of_variants(variants, &naming);
+                (categories, help_branches, PromptedArgTree::of_variants(variants, &naming)?)
             }
             ast::Data::Struct(fields) => {
                 container.refuse_enum_only_keys()?;
-                (Categories::of_args(&fields.fields), PromptedArgTree::of_fields(&fields.fields)?)
+                (
+                    Categories::of_args(&fields.fields),
+                    HelpBranches::of_fields(&fields.fields),
+                    PromptedArgTree::of_fields(&fields.fields)?,
+                )
             }
         };
         Ok(Self {
             categories,
             crate_path: container.crate_path,
+            help_branches,
             messages: container.messages,
             prompted_arg_tree,
             type_generics: input.generics,
@@ -102,8 +111,8 @@ impl CoutureImpl {
 
 impl ToTokens for CoutureImpl {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
-        let (type_name, categories, prompted_arg_tree) =
-            (&self.type_name, &self.categories, &self.prompted_arg_tree);
+        let (type_name, categories, help_branches, prompted_arg_tree) =
+            (&self.type_name, &self.categories, &self.help_branches, &self.prompted_arg_tree);
         let bounded_generics = self.bounded_generics();
         let (impl_parameters, type_arguments, where_clause) = bounded_generics.split_for_impl();
         let crate_path = self
@@ -115,6 +124,10 @@ impl ToTokens for CoutureImpl {
             .messages
             .as_ref()
             .map(|messages| quote!(const MESSAGES: #Runtime::Messages = #messages;));
+        let own_messages = self.messages.as_ref().map_or_else(
+            || quote!(::core::option::Option::None),
+            |_| quote!(::core::option::Option::Some(<Self as #Runtime::Couture>::MESSAGES)),
+        );
 
         let prompted_arg_tree_const = cfg!(feature = "interactive").then(|| {
             quote! {
@@ -140,6 +153,15 @@ impl ToTokens for CoutureImpl {
                         #categories
                     };
                     #messages_const
+                    const HELP_TREE: #Runtime::__private::HelpTree = {
+                        use #Runtime::__private::NotCouture as _;
+
+                        #Runtime::__private::HelpTree {
+                            branches: #help_branches,
+                            categories: <Self as #Runtime::Couture>::CATEGORIES,
+                            messages: #own_messages,
+                        }
+                    };
                     #prompted_arg_tree_const
                 }
             };

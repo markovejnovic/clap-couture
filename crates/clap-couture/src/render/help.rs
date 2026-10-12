@@ -33,8 +33,8 @@ pub(crate) trait HelpTemplates {
         "{before-help}{about-with-newline}\n{usage-heading} {usage}{after-help}",
     ];
 
-    /// couture's template: clap's, with the usage under a heading of its own, and everything
-    /// below it at `{after-help}`.
+    /// couture's template: clap's, with the usage heading from `messages`, and everything below
+    /// the usage at `{after-help}`.
     fn couture_template(&self, messages: &Messages) -> String;
 
     /// Check whether `--help` shows more than `-h`, as clap decides it
@@ -57,6 +57,7 @@ impl HelpBody {
             let template = cmd.couture_template(messages);
             cmd.help_template(template)
         };
+        let cmd = cmd.with_rendered_about();
         // An empty after-help would still print its blank line.
         let cmd = if self.short.is_empty() { cmd } else { cmd.after_help(self.short) };
         match self.long {
@@ -65,19 +66,25 @@ impl HelpBody {
         }
     }
 
-    /// The body for `cmd`, its subcommands filed by `categories`, its headings worded by
-    /// `messages`.
-    pub(crate) fn new(cmd: &Command, categories: CommandCategoryMap, messages: &Messages) -> Self {
+    /// The body for `cmd`, its subcommands filed by `categories` and wrapped to `width`, its
+    /// headings worded by `messages`.
+    pub(crate) fn new(
+        cmd: &Command,
+        categories: CommandCategoryMap,
+        messages: &Messages,
+        width: Option<usize>,
+    ) -> Self {
         let mut menu = StyledStr::new();
         // `StyledStr`'s `fmt::Write` is infallible.
-        cmd.write_command_sections(&mut menu, categories).ok();
+        cmd.write_command_sections(&mut menu, categories, width).ok();
         let menu = menu.ansi().to_string();
 
         let mut args_only = cmd
             .clone()
             .disable_help_subcommand(true)
             .mut_subcommands(|subcommand| subcommand.hide(true))
-            .help_template("{all-args}");
+            .help_template("{all-args}")
+            .with_rendered_arg_help();
         let headings = Headings { cmd, messages };
         let short_args = headings.reword(&args_only.clone().render_help());
         let long_args = headings.reword(&args_only.render_long_help());
@@ -134,7 +141,7 @@ impl HelpTemplates for Command {
         let usage_heading = messages.usage.get();
         // clap's `{usage-heading}` is always English, so the heading is written out.
         format!(
-            "{{before-help}}{{about-with-newline}}\n{usage}{usage_heading}{usage:#}\n  \
+            "{{before-help}}{{about-with-newline}}\n{usage}{usage_heading}{usage:#} \
              {{usage}}{{after-help}}"
         )
     }

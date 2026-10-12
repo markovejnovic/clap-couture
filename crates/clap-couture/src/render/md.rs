@@ -3,7 +3,7 @@ use core::{
     ops::Range,
 };
 
-use clap::builder::{Styles, styling::Style};
+use clap::builder::{StyledStr, Styles, styling::Style};
 use pulldown_cmark::{CowStr, Event, LinkType, Parser, Tag, TagEnd};
 
 use super::TextRenderer;
@@ -31,13 +31,32 @@ impl TextRenderer for MdTextRenderer<'_> {
     where
         W: fmt::Write,
     {
-        let mut line = LineWriter::new(out, text, self.styles.get_literal());
+        self.render_blocks(out, text, false)
+    }
+
+    fn restyle(&self, text: &StyledStr) -> StyledStr {
+        let mut rendered = StyledStr::new();
+        // `StyledStr`'s `fmt::Write` is infallible.
+        self.render_blocks(&mut rendered, &text.to_string(), true).ok();
+        rendered
+    }
+}
+
+impl MdTextRenderer<'_> {
+    /// Writes `text`, keeping paragraphs and list items apart when `keep_blocks`, else on one line.
+    fn render_blocks<W>(&self, out: &mut W, text: &str, keep_blocks: bool) -> fmt::Result
+    where
+        W: fmt::Write,
+    {
+        let mut line = LineWriter::new(out, text, self.styles.get_literal(), keep_blocks);
         Parser::new(text).into_offset_iter().try_for_each(|(event, span)| line.write(event, span))
     }
 }
 
 /// Writes markdown events as one line of styled text, keeping every character a reader needs.
 struct LineWriter<'out, 'src, W> {
+    /// What the pending break writes instead of a space, after a paragraph or list item.
+    block_break: Option<&'static str>,
     /// Whether a block or line break awaits a space before the next text.
     break_pending: bool,
     /// Whether text is a code block's.
@@ -45,8 +64,12 @@ struct LineWriter<'out, 'src, W> {
     /// Each open link's or image's destination, `None` when its text already shows it.
     destinations: Vec<Option<CowStr<'src>>>,
     emphasis: usize,
+    /// What ends a list item: a newline when blocks are kept, else a space.
+    item_break: &'static str,
     literal: Style,
     out: &'out mut W,
+    /// What ends a paragraph or heading: a blank line when blocks are kept, else a space.
+    paragraph_break: &'static str,
     source: &'src str,
     strong: usize,
     written: bool,
@@ -75,12 +98,18 @@ where
                 self.break_pending = true;
                 Ok(())
             }
-            TagEnd::Paragraph
-            | TagEnd::Heading(_)
-            | TagEnd::BlockQuote(_)
+            TagEnd::Paragraph | TagEnd::Heading(_) | TagEnd::Item => {
+                self.break_pending = true;
+                self.block_break = Some(if matches!(tag, TagEnd::Item) {
+                    self.item_break
+                } else {
+                    self.paragraph_break
+                });
+                Ok(())
+            }
+            TagEnd::BlockQuote(_)
             | TagEnd::HtmlBlock
             | TagEnd::List(_)
-            | TagEnd::Item
             | TagEnd::FootnoteDefinition
             | TagEnd::DefinitionList
             | TagEnd::DefinitionListTitle
@@ -97,14 +126,17 @@ where
         }
     }
 
-    const fn new(out: &'out mut W, source: &'src str, literal: &Style) -> Self {
+    const fn new(out: &'out mut W, source: &'src str, literal: &Style, keep_blocks: bool) -> Self {
         Self {
+            block_break: None,
             break_pending: false,
             code_block: false,
             destinations: Vec::new(),
             emphasis: 0,
+            item_break: if keep_blocks { "\n" } else { " " },
             literal: *literal,
             out,
+            paragraph_break: if keep_blocks { "\n\n" } else { " " },
             source,
             strong: 0,
             written: false,
@@ -195,8 +227,9 @@ where
                 return Ok(());
             }
             if self.break_pending && self.written {
-                self.out.write_char(' ')?;
+                self.out.write_str(self.block_break.unwrap_or(" "))?;
             }
+            self.block_break = None;
             self.break_pending = false;
             self.written = true;
             self.write_styled(line, base)
@@ -268,6 +301,17 @@ mod tests {
     #[case::trailing_newline("Ship it\n", "Ship it")]
     fn renders_on_one_line_without_losing_text(#[case] text: &str, #[case] expected: &str) {
         assert_eq!(rendered(text), expected);
+    }
+
+    #[rstest]
+    #[case::paragraphs("First para.\n\nSecond para.", "First para.\n\nSecond para.")]
+    #[case::heading("# Title\nBody", "Title\n\nBody")]
+    #[case::bullet_list("- one\n- two", "- one\n- two")]
+    #[case::soft_break("One\ntwo", "One two")]
+    fn restyle_keeps_paragraphs_and_items_apart(#[case] text: &str, #[case] expected: &str) {
+        let styles = Styles::plain();
+        let restyled = MdTextRenderer::new(&styles).restyle(&StyledStr::from(text.to_owned()));
+        assert_eq!(restyled.to_string(), expected);
     }
 
     #[rstest]

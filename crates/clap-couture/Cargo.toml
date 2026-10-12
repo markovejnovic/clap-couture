@@ -124,7 +124,7 @@ name = "11-interactive-dash"
 required-features = ["interactive"]
 
 [dev-dependencies]
-clap = { workspace = true, features = ["derive", "env"] }
+clap = { workspace = true, features = ["derive", "env", "wrap_help"] }
 rstest = { workspace = true }
 
 [lints]

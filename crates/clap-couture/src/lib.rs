@@ -445,6 +445,7 @@ extern crate alloc;
 pub mod __private;
 #[cfg(feature = "interactive-editor")]
 mod fs;
+mod help_tree;
 #[cfg(feature = "interactive")]
 pub mod interactive;
 mod maybe_couture;
@@ -463,6 +464,8 @@ use clap::Command;
 pub use clap_couture_derive::Couture;
 pub use parser::{CoutureParser, ParseError};
 pub use text::Text;
+
+use crate::render::CommandRenderExt as _;
 
 /// A clap subcommand name, eg. `foo` in `app foo`.
 pub struct CommandName(&'static str);
@@ -483,7 +486,8 @@ impl CommandName {
 
 /// The text couture prints itself, for localizing it.
 ///
-/// Set any of it with `#[couture(messages = { ... })]` on the type you parse; each value takes an
+/// Set any of it with `#[couture(messages = { ... })]` on the type you parse, and on a nested type
+/// to reword the help of the commands it defines and those below them; each value takes an
 /// expression like [`Text`]. A heading message includes its trailing colon, since languages
 /// punctuate it differently: `Usage:`, `用法：`, `Utilisation :`.
 ///
@@ -887,6 +891,12 @@ pub trait Couture {
     /// Each command paired with the category it belongs to.
     const CATEGORIES: CommandCategoryMap = CommandCategoryMap::EMPTY;
 
+    /// This type's categories and own messages, and those of the commands below it, for their
+    /// help.
+    #[doc(hidden)]
+    const HELP_TREE: __private::HelpTree =
+        __private::HelpTree { branches: &[], categories: Self::CATEGORIES, messages: None };
+
     /// The text couture prints itself, from `#[couture(messages = { ... })]`.
     const MESSAGES: Messages = Messages::DEFAULT;
 
@@ -899,6 +909,7 @@ pub trait Couture {
 /// A boxed type's consts are the type's, so a boxed subcommand or flattened `Args` keeps them.
 impl<T: Couture> Couture for Box<T> {
     const CATEGORIES: CommandCategoryMap = T::CATEGORIES;
+    const HELP_TREE: __private::HelpTree = T::HELP_TREE;
     const MESSAGES: Messages = T::MESSAGES;
     #[cfg(feature = "interactive")]
     const PROMPTED_ARGS: __private::PromptedArgTree = T::PROMPTED_ARGS;
@@ -907,7 +918,7 @@ impl<T: Couture> Couture for Box<T> {
 /// Extension trait adding categorized help to a [`clap::Command`].
 pub trait CommandExt {
     /// Group this command's `--help` subcommand listing by `T`'s categories, with `T`'s
-    /// [`Messages`].
+    /// [`Messages`], and each nested subcommand's by those of the type that defines it.
     ///
     /// clap renders the arg sections as it always does, positionals and `help_heading`s included.
     /// Everything below the usage goes in the command's [`after_help`](Command::after_help), after
@@ -953,6 +964,11 @@ impl CommandExt for Command {
     where
         T: Couture,
     {
-        render::HelpBody::new(&self, T::CATEGORIES, &T::MESSAGES).install(self, &T::MESSAGES)
+        // Built as clap builds it to parse, so each help lists what clap propagates down.
+        let mut built = self.clone();
+        built.build();
+        // Probed once: every built command wraps to the root's width.
+        let width = built.help_width();
+        T::HELP_TREE.install(self, &built, T::CATEGORIES, &T::MESSAGES, width)
     }
 }

@@ -459,6 +459,8 @@ pub struct EditorPrompt<'prompt> {
     pub returned_early: &'prompt str,
     /// The command's styles, for backends that theme themselves.
     pub styles: CommandStyles<'prompt>,
+    /// The error the file reopens with while it still holds the U+FFFD marking unreadable text.
+    pub unreadable: &'prompt str,
     /// The hint shown while the editor is open; empty shows none.
     pub waiting: &'prompt str,
 }

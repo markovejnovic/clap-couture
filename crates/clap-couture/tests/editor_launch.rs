@@ -164,23 +164,7 @@ fn the_default_backend_spawns_the_editor_itself() {
     assert_eq!(notes.as_deref(), Ok("Second try."));
     assert_eq!(backend.asked.take(), ["Your editor returned right away. Done editing the file?"]);
 
-    // Saved as Latin-1, the file reopens with what could be read and the error in its header;
-    // this editor then keeps the error line as the answer.
-    let reopened = dir.join("reopened");
-    let latin1 = script(
-        dir,
-        "latin1",
-        &format!(
-            "if [ -e '{0}' ]; then sed 's/^#| error: /error: /' \"$1\" > \"$1.new\" && mv \
-             \"$1.new\"              \"$1\"; else touch '{0}'; printf 'caf\\351\\n' > \"$1\"; fi",
-            reopened.display()
-        ),
-    );
-    let notes = notes_with(&latin1.display().to_string(), &quiet());
-    assert_eq!(
-        notes.as_deref(),
-        Ok("caf\u{FFFD}\n\nerror: The file is not UTF-8. Save it as UTF-8.")
-    );
+    unreadable_text_is_never_taken(dir);
 
     signals_are_left_to_the_editor(dir);
 
@@ -198,6 +182,52 @@ fn the_default_backend_spawns_the_editor_itself() {
         "{missing}"
     );
     fs::remove_dir_all(&editors).ok();
+}
+
+/// An editor that runs `runs[n]` its `n`th time, and keeps a copy of the file it was given.
+fn editor_by_run(dir: &Path, name: &str, runs: &[&str]) -> (PathBuf, PathBuf) {
+    let (count, given) = (dir.join(format!("{name}-runs")), dir.join(format!("{name}-given")));
+    let cases =
+        runs.iter().zip(1u8..).map(|(run, n)| format!("{n}) {run} ;; ")).collect::<Vec<_>>();
+    let body = format!(
+        "n=$(($(cat '{0}' 2>/dev/null || echo 0) + 1)); echo $n > '{0}'; cp \"$1\" '{1}'; case $n \
+         in {2}*) exit 1 ;; esac",
+        count.display(),
+        given.display(),
+        cases.concat()
+    );
+    (script(dir, name, &body), given)
+}
+
+/// Text that couldn't be read reopens with what could be, marked U+FFFD; the marks are never
+/// taken as the answer, though a U+FFFD the user wrote is.
+fn unreadable_text_is_never_taken(dir: &Path) {
+    let quiet = DefaultEditor::default;
+
+    // Saved as Latin-1, the file reopens with the unreadable byte marked and the error in its
+    // header; saved again with the mark left in, it reopens again; retyped, it is taken.
+    let (latin1, given) = editor_by_run(dir, "latin1", &[
+        r#"printf 'caf\351\n' > "$1""#,
+        r#"printf 'More.\n' >> "$1""#,
+        r#"printf 'caf\303\251\n' > "$1""#,
+    ]);
+    let notes = notes_with(&latin1.display().to_string(), &quiet());
+    assert_eq!(notes.as_deref(), Ok("caf\u{e9}"), "the marked text was taken");
+    let given = fs::read_to_string(&given).unwrap_or_default();
+    assert!(
+        given.starts_with("caf\u{FFFD}\n\nMore.\n")
+            && given
+                .contains("#| error: Text that could not be read shows as \u{FFFD}. Retype it."),
+        "{given}"
+    );
+
+    // A U+FFFD that was in the file all along is the user's own, and is kept.
+    let (own_mark, _) = editor_by_run(dir, "own-mark", &[
+        r#"printf '\357\277\275 caf\351\n' > "$1""#,
+        r#"printf '\357\277\275 caf\303\251\n' > "$1""#,
+    ]);
+    let notes = notes_with(&own_mark.display().to_string(), &quiet());
+    assert_eq!(notes.as_deref(), Ok("\u{FFFD} caf\u{e9}"), "the user's own U+FFFD was refused");
 }
 
 /// Ctrl-C and a hang-up reach the CLI and the editor alike; the CLI leaves them to the editor,

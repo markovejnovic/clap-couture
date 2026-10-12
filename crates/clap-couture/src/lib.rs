@@ -562,6 +562,7 @@ pub struct Messages {
     pub(crate) editor_instructions_optional: Text,
     pub(crate) editor_not_utf8: Text,
     pub(crate) editor_returned_early: Text,
+    pub(crate) editor_unreadable: Text,
     pub(crate) editor_waiting: Text,
     pub(crate) environment: Text,
     pub(crate) finish_hint: Text,
@@ -585,6 +586,9 @@ impl Messages {
         editor_not_utf8: Text::Literal("The file is not UTF-8. Save it as UTF-8."),
         editor_returned_early: Text::Literal(
             "Your editor returned right away. Done editing the file?",
+        ),
+        editor_unreadable: Text::Literal(
+            "Text that could not be read shows as \u{FFFD}. Retype it.",
         ),
         editor_waiting: Text::Literal("hint: Waiting for your editor to close the file..."),
         environment: Text::Literal("Environment:"),
@@ -636,6 +640,14 @@ impl Messages {
     #[must_use]
     pub const fn with_editor_returned_early(self, text: Text) -> Self {
         Self { editor_returned_early: text, ..self }
+    }
+
+    /// The error a `#[couture(prompt, editor)]` file reopens with while it still holds the U+FFFD
+    /// marking text that couldn't be read. The default is `"Text that could not be read shows as
+    /// \u{FFFD}. Retype it."`.
+    #[must_use]
+    pub const fn with_editor_unreadable(self, text: Text) -> Self {
+        Self { editor_unreadable: text, ..self }
     }
 
     /// Shown while the editor is open; empty shows nothing. The default is `"hint: Waiting for your

@@ -930,7 +930,9 @@ pub trait CommandExt {
     /// any it already has; a [`before_help`](Command::before_help) is kept. A
     /// [`help_template`](Command::help_template) set before this call is kept too: place
     /// `{after-help}` in it rather than `{all-args}` or `{subcommands}`. Add args and subcommands
-    /// before this call, as the listing is rendered here.
+    /// before this call, as the listing is rendered here. A command set to
+    /// [`flatten_help`](Command::flatten_help) keeps clap's help, which lists its subcommands
+    /// among the args.
     ///
     /// Leaves `#[couture(secret)]` args unguarded; take the command from
     /// [`CoutureParser::couture_command`] to refuse them on the command line.

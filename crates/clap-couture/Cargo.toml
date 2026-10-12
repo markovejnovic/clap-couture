@@ -127,5 +127,8 @@ required-features = ["interactive"]
 clap = { workspace = true, features = ["derive", "env", "wrap_help"] }
 rstest = { workspace = true }
 
+[target.'cfg(unix)'.dev-dependencies]
+libc = { workspace = true }
+
 [lints]
 workspace = true

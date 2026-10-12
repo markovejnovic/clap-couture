@@ -1,0 +1,515 @@
+>
+────────────────────────────────────────────────────────────────────────────────
+> orbit --help
+────────────────────────────────────────────────────────────────────────────────
+> orbit --help
+Deploy and manage your apps from the terminal
+
+Usage: orbit <COMMAND>
+
+  logs      Tail live logs
+  status    Show recent activity
+
+Ship:     Get code to production
+  rollback  Roll back to a previous release
+  deploy    Ship the current project
+
+Account:  Who you are, and what you keep
+  login     Sign in to your account
+  secrets   Manage environment secrets
+
+  help      Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help  Print help
+>
+────────────────────────────────────────────────────────────────────────────────
+> orbit --help
+Deploy and manage your apps from the terminal
+
+Usage: orbit <COMMAND>
+
+  logs      Tail live logs
+  status    Show recent activity
+
+Ship:     Get code to production
+  rollback  Roll back to a previous release
+  deploy    Ship the current project
+
+Account:  Who you are, and what you keep
+  login     Sign in to your account
+  secrets   Manage environment secrets
+
+  help      Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help  Print help
+> clear
+────────────────────────────────────────────────────────────────────────────────
+>
+────────────────────────────────────────────────────────────────────────────────
+> orbit deploy
+────────────────────────────────────────────────────────────────────────────────
+> orbit deploy
+◆  Application name
+│
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit deploy
+◆  Application name
+│  web
+└
+────────────────────────────────────────────────────────────────────────────────
+## Changes
+
+
+#| Release notes
+#|
+#| These lines are removed. Leave the file empty to leave it unset.
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+<028dy_91h40000gn/T/99-full-example-BVs5us/orbit-deploy-notes.md" 6L, 101B
+────────────────────────────────────────────────────────────────────────────────
+## Changes
+
+
+
+#| Release notes
+#|
+#| These lines are removed. Leave the file empty to leave it unset.
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+-- INSERT --
+────────────────────────────────────────────────────────────────────────────────
+## Changes
+- Ships the new billing page.
+
+
+#| Release notes
+#|
+#| These lines are removed. Leave the file empty to leave it unset.
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+-- INSERT --
+────────────────────────────────────────────────────────────────────────────────
+## Changes
+- Ships the new billing page.
+
+
+#| Release notes
+#|
+#| These lines are removed. Leave the file empty to leave it unset.
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+                                                                           ^[
+────────────────────────────────────────────────────────────────────────────────
+## Changes
+- Ships the new billing page.
+
+
+#| Release notes
+#|
+#| These lines are removed. Leave the file empty to leave it unset.
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+~
+:wq
+────────────────────────────────────────────────────────────────────────────────
+> orbit deploy
+◇  Application name
+│  web
+│
+◇  Release notes
+│  ## Changes…
+│
+◆  Which region?
+│  ● apac
+│  ○ eu
+│  ○ us
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit deploy
+◇  Application name
+│  web
+│
+◇  Release notes
+│  ## Changes…
+│
+◆  Which region?
+│  ○ apac
+│  ● eu
+│  ○ us
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit deploy
+◇  Application name
+│  web
+│
+◇  Release notes
+│  ## Changes…
+│
+◇  Which region?
+│  eu
+│
+◆  How many replicas?
+│  2 (default)
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit deploy
+◇  Application name
+│  web
+│
+◇  Release notes
+│  ## Changes…
+│
+◇  Which region?
+│  eu
+│
+◆  How many replicas?
+│  abc
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit deploy
+◇  Application name
+│  web
+│
+◇  Release notes
+│  ## Changes…
+│
+◇  Which region?
+│  eu
+│
+◇  How many replicas?
+│  abc
+│
+■  invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+│
+◆  How many replicas?
+│  2 (default)
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit deploy
+◇  Application name
+│  web
+│
+◇  Release notes
+│  ## Changes…
+│
+◇  Which region?
+│  eu
+│
+◇  How many replicas?
+│  abc
+│
+■  invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+│
+◆  How many replicas?
+│  3
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit deploy
+◇  Application name
+│  web
+│
+◇  Release notes
+│  ## Changes…
+│
+◇  Which region?
+│  eu
+│
+◇  How many replicas?
+│  abc
+│
+■  invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+│
+◇  How many replicas?
+│  3
+│
+◆  Which sidecars?
+│  ◻ logging
+│  ◻ metrics
+│  ◻ proxy
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit deploy
+◇  Application name
+│  web
+│
+◇  Release notes
+│  ## Changes…
+│
+◇  Which region?
+│  eu
+│
+◇  How many replicas?
+│  abc
+│
+■  invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+│
+◇  How many replicas?
+│  3
+│
+◆  Which sidecars?
+│  ◼ logging
+│  ◻ metrics
+│  ◻ proxy
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit deploy
+◇  Application name
+│  web
+│
+◇  Release notes
+│  ## Changes…
+│
+◇  Which region?
+│  eu
+│
+◇  How many replicas?
+│  abc
+│
+■  invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+│
+◇  How many replicas?
+│  3
+│
+◆  Which sidecars?
+│  ◼ logging
+│  ◻ metrics
+│  ◼ proxy
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit deploy
+◇  Application name
+│  web
+│
+◇  Release notes
+│  ## Changes…
+│
+◇  Which region?
+│  eu
+│
+◇  How many replicas?
+│  abc
+│
+■  invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+│
+◇  How many replicas?
+│  3
+│
+◇  Which sidecars?
+│  logging
+│  proxy
+│
+◆  Deploy token
+│
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit deploy
+◇  Application name
+│  web
+│
+◇  Release notes
+│  ## Changes…
+│
+◇  Which region?
+│  eu
+│
+◇  How many replicas?
+│  abc
+│
+■  invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+│
+◇  How many replicas?
+│  3
+│
+◇  Which sidecars?
+│  logging
+│  proxy
+│
+◆  Deploy token
+│  ▪▪▪▪▪▪▪
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit deploy
+◇  Application name
+│  web
+│
+◇  Release notes
+│  ## Changes…
+│
+◇  Which region?
+│  eu
+│
+◇  How many replicas?
+│  abc
+│
+■  invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+│
+◇  How many replicas?
+│  3
+│
+◇  Which sidecars?
+│  logging
+│  proxy
+│
+◇  Deploy token
+│  ▪▪▪▪▪▪▪
+│
+◆  Deploy web to eu?
+│  ○ Yes  / ● No
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit deploy
+◇  Application name
+│  web
+│
+◇  Release notes
+│  ## Changes…
+│
+◇  Which region?
+│  eu
+│
+◇  How many replicas?
+│  abc
+│
+■  invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
+│
+◇  How many replicas?
+│  3
+│
+◇  Which sidecars?
+│  logging
+│  proxy
+│
+◇  Deploy token
+│  ▪▪▪▪▪▪▪
+│
+◇  Deploy web to eu?
+│  Yes
+│
+deploying web to Eu with 3 replicas and [Logging, Proxy]
+## Changes
+- Ships the new billing page.
+>
+────────────────────────────────────────────────────────────────────────────────

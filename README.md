@@ -9,7 +9,9 @@
 
 <p>
   <strong>Haute couture for your command line.</strong><br>
-  Categorized <code>--help</code>, interactive prompts, and markdown for your <a href="https://docs.rs/clap"><code>clap</code></a> CLI, with only a few derive attributes.
+  Categorized <code>--help</code>, interactive prompts, and markdown for your
+  <a href="https://docs.rs/clap"><code>clap</code></a> CLI, with only a few
+  derive attributes.
 </p>
 
 <p>
@@ -23,38 +25,22 @@
 
 </div>
 
-`clap-couture` helps you organize your CLIs to be less intimidating!
-
-<table>
-  <tr>
-    <td align="center"><b>clap</b></td>
-    <td align="center"><b>clap + couture</b></td>
-  </tr>
-  <tr>
-    <td valign="top">
-      <picture>
-        <source media="(prefers-color-scheme: light)" srcset="assets/01-orbit-disorganized-light.png">
-        <img src="assets/01-orbit-disorganized-dark.png" alt="clap's default --help: one long, flat list of commands" width="466">
-      </picture>
-    </td>
-    <td valign="top">
-      <picture>
-        <source media="(prefers-color-scheme: light)" srcset="assets/01-orbit-organized-light.png">
-        <img src="assets/01-orbit-organized-dark.png" alt="the same CLI with clap-couture: commands grouped into categories" width="346">
-      </picture>
-    </td>
-  </tr>
-</table>
-
-And it allows you to fashionably ask the user for input if they don't provide
-it from the CLI.
+`clap-couture` helps you beautify your `clap`.
 
 <div align="center">
 <picture>
-  <source media="(prefers-color-scheme: light)" srcset="assets/03-interactive-light.gif">
-  <img src="assets/03-interactive-dark.gif" alt="running orbit-deploy with no flags: it asks for the app as text, whether to tail the logs as yes/no, the region from a list, the replicas again after an answer that isn't a number, the sidecars from a multi-select, and environment variables one at a time" width="846">
+  <source media="(prefers-color-scheme: light)" srcset="assets/99-full-example-light.gif">
+  <img src="assets/99-full-example-dark.gif" alt="orbit --help listing its commands under Ship and Account headings, then orbit deploy asking for the app, release notes in vim, the region from a list, the replicas again after an answer that isn't a number, the sidecars from a multi-select, a masked deploy token, and a confirmation" width="846">
 </picture>
 </div>
+
+With `clap-couture`, you can:
+
+- Organize your subcommands in **categories**.
+- Ask for **interactive input** when the user doesn't pass required CLI flags.
+  - The user can pass `--flag -` to read interactively (or from stdin).
+  - You can ask for input on `$EDITOR`.
+- Decorate your CLI help with markdown.
 
 # Getting Started
 
@@ -79,9 +65,9 @@ Import `clap_couture`, add the `Couture` derive, and swap out `parse` for `coutu
 +let cli = Cli::couture_parse();
 ```
 
-## Features
+## Tour
 
-`clap-couture` aims to make your `clap` more friendly to your users.
+The aim of `clap-couture` is to help you make your CLI as friendly as humanly possible.
 
 ### Categories
 
@@ -100,7 +86,7 @@ five commands, and a wall of text with thirty. Couture lets you group them:
 enum Cmd {
     #[couture(category = "deploy")]  Deploy,
     #[couture(category = "account")] Login,
-    Logs, // no category: listed first, under no heading
+    Logs, // uncategorized lists at the top, without a category
     #[couture(category = "deploy")]  Rollback,
     Search,
     #[couture(category = "deploy")]  Secrets,
@@ -111,29 +97,48 @@ enum Cmd {
 
 ## Prompts
 
-Clap isn't really interactive. clap-couture fills that gap! Mark an arg with
-`#[couture(prompt)]`, and when the user leaves it out, couture asks for it
-(that's the GIF up top):
+Clap isn't really interactive. clap-couture fills that gap--mark an arg with
+`#[couture(prompt)]`, and when the user leaves it out, couture asks for it.
 
 ```rust
 #[derive(Parser, Couture)]
 struct Cli {
     /// Application name.
     #[arg(long)]
-    #[couture(prompt)] // asks the doc comment
+    #[couture(prompt)] // asks the user if they don't pass --app
     app: String,
 
     #[arg(long)]
+    // you can tweak the prompt!
     #[couture(prompt = "Tail the logs afterwards?")]
     follow: bool,
 
     #[arg(long, value_enum)]
+    // multi-choice questions!
     #[couture(prompt = "Which region?")]
     region: Region,
 
+    // we'll pre-fill the default value from clap in the input form!
     #[arg(long, default_value_t = 2)]
-    #[couture(prompt = "How many replicas?")] // pre-filled with 2
+    #[couture(prompt = "How many replicas?")]
     replicas: u16,
+
+    // secret support is built-in too and it uses secrecy.
+    #[arg(long)]
+    #[couture(secret)]
+    password: SecretString,
+
+    // the user can pass --user - and couture will ask them for the username
+    // (or read from stdin if there's no terminal)
+    #[arg(long)]
+    #[couture(stdin)]
+    username: String,
+
+    // passing --flair-type - asks the user interactively (but this one doesn't
+    // fall back to the pipe).
+    #[arg(long)]
+    #[couture(dash)]
+    flair_type: String,
 }
 ```
 
@@ -144,70 +149,14 @@ The prompt fits the field's type:
 | `bool`                         | yes/no                                   |
 | a `ValueEnum`                  | picker                                   |
 | `Vec` of a `ValueEnum`         | multi-picker                             |
-| `Vec<T>`                       | one value at a time, until an empty line |
+| `Vec<T>`                       | one value at a time                      |
 | `Option<T>`                    | skippable                                |
 | `SecretString`, with `secret`  | masked, like `sudo`                      |
 | any one value, with `editor`   | your `$EDITOR`, like `git commit`        |
-| anything clap can parse        | text, parsed by clap's own parser        |
 
-Answers go through clap's value parser, so a bad answer gets clap's error message and the question
-again.
-
-### Confirmations
-
-`#[couture(confirm = "...")]` on a `bool` asks before doing something you can't
-revert.
-
-```rust
-#[arg(long)]
-#[couture(confirm = "Delete {name} for good?")]
-force: bool,
-```
-
-<picture>
-  <source media="(prefers-color-scheme: light)" srcset="assets/05-interactive-confirm-light.gif">
-  <img src="assets/05-interactive-confirm-dark.gif" alt="running orbit-destroy with no flags: it asks for the app and the region, then asks whether to destroy web in eu, and goes ahead on a yes" width="623">
-</picture>
-
-### Piped input
-
-`#[couture(stdin)]` reads stdin into an arg passed `-`, so `post --message -`
-takes the message from a pipe or a file. `#[couture(stdin(piped))]` also takes a
-pipe unasked, so `echo hi | post` works like `post --message hi`, but a pipe
-nobody writes to, as under `ssh host post`, then hangs the CLI: prefer `stdin`.
-
-```rust
-#[arg(long)]
-#[couture(prompt, stdin(piped))]
-message: String,
-```
-
-<picture>
-  <source media="(prefers-color-scheme: light)" srcset="assets/10-interactive-stdin-light.gif">
-  <img src="assets/10-interactive-stdin-dark.gif" alt="piping release notes into orbit-release, which takes them without asking, then running orbit-release alone, which asks for the notes" width="623">
-</picture>
-
-You can only set it on one field!
-
-### Dash inputs
-
-`#[couture(prompt(dash))]` asks for an argument interactively if the user
-passes `-` as the command line flag.
-
-```rust
-#[arg(short, long)]
-#[couture(prompt(dash), editor)] // `commit -m -` opens your $EDITOR
-message: Option<String>,
-
-#[arg(long)]
-#[couture(prompt, secret, stdin)] // `login --password -` reads stdin
-password: SecretString,
-```
-
-<picture>
-  <source media="(prefers-color-scheme: light)" srcset="assets/11-interactive-dash-light.gif">
-  <img src="assets/11-interactive-dash-dark.gif" alt="running orbit-release --title -, which asks for the title, then piping release notes into orbit-release --notes -, which reads them from stdin" width="623">
-</picture>
+There are three backends, controlled through feature flags:
+`interactive-cliclack` (default), `interactive-inquire` and
+`interactive-dialoguer`, using those libraries.
 
 ## Markdown
 
@@ -232,15 +181,15 @@ enum Cmd {
 
 # Learn more
 
-- [The docs](https://docs.rs/clap-couture), with a tour of every feature.
+- [The docs](https://docs.rs/clap-couture) go into a lot more detail!
 - [The examples](crates/clap-couture/examples), each runnable with
   `cargo run -p clap-couture --example <name>`.
 
 # Donationware
 
 **`clap-couture` is donationware.** That means that if you like `clap-couture`,
-if you like my work and if you want to support clap-couture or me, you *should*
-donate. Here are some institutions you can consider:
+if you like my work and if you want to support `clap-couture` or me, you
+*should* donate. Here are some institutions you can consider:
 
 - 🌍 [United World College](https://uwc.org/support-us/) transformed my life by
   taking me from a small town and opening my eyes to different cultures,
@@ -249,23 +198,17 @@ donate. Here are some institutions you can consider:
   transforming the world.
 - 🇮🇷 [Children of Persia](https://www.childrenofpersia.org/) is a fund which
   provides sustainable healthcare and education support to children in Iran.
-  With the ongoing war, **children need our support more than ever**. Iran is
-  is one of the west's most important cultures and the hell children have to
-  experience in Iran is a disgrace and an insult to Persia's **critical
-  impact** to the Greco-Roman legacy. **Help kids in Iran have the opportunity
-  to survive.** (_Note this is one of the few charities which directly supports
-  Iran and that UN donors can donate to._)
+  With the ongoing war, **children need our support more than ever**. **Help
+  kids in Iran have a better chance at life.** (_Note this is one of the few
+  charities which directly supports Iran and that US donors can donate to._)
 - 🇵🇸 [Palestine Children's Relief Fund](https://www.pcrf.net/) provides medical
   care to injured and ill children who need access to medical care. **Help kids
-  survive war.** The ugly reality is many won't and we have to help as many as
-  we can. If you care about _basic survival for kids in war_, this is your best
-  donation place.
+  survive adversity.**
 - 🇺🇳 [UNICEF Early Childhood Development
   Kit](https://www.unicef.org/supply/early-childhood-development-ecd-kit)
   provides toys across the world to reduce the severity of developmental issues
-  to kids caught in conflicts. For many of its faults, UNICEF has helped the
-  war-torn country I found myself growing up in. **Help toddlers and very young
-  children develop.**
+  to kids caught in conflicts. **Help toddlers and very young children
+  develop.**
 - 🇺🇸 [Donors Choose](https://www.donorschoose.org/) is [empirically
   proven](https://news.umich.edu/even-small-crowdsourced-projects-from-teachers-make-a-difference-for-students/)
   to improve kids scores in US schools by about 1%. **If you care about
@@ -279,13 +222,6 @@ delay](https://www.sciencedirect.com/science/article/pii/S014759671930023X?via%3
   developmental delays and improve education** For any Chinese natives, please
   reach out to me if you know of a better charity that suits China's needs
   better.
-
-Our future is, by definition, in the hands of our children. The only effective
-way towards peace and escape from the ecological damnation is if we pour
-everything we can into our future. **Email me your receipt for any of the
-aforementioned and I will match with a total cap of up to $1K/mo.** Hopefully I
-can figure out a better way to handle matching, but email is the best way for
-now.
 
 # License
 

@@ -1,6 +1,7 @@
 # `orbit-create` asking which engine only after a yes to a database. See `scripts/record-examples.py`.
 
-Set Height 440
+Set Width 1246
+Set Height 824
 
 Hide
 Type "alias orbit-create=08-interactive-prompter && clear" Enter

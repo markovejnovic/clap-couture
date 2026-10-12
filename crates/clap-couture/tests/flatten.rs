@@ -33,6 +33,18 @@ struct BesideForeignArgs {
     verbosity: Verbosity,
 }
 
+#[derive(Parser, Couture)]
+struct ThroughBox {
+    #[command(subcommand)]
+    cmd: Box<Cmd>,
+}
+
+#[derive(Parser, Couture)]
+struct ThroughGeneric<A: Args> {
+    #[command(flatten)]
+    wrap: A,
+}
+
 #[derive(Args, Couture)]
 struct Wrap {
     #[command(subcommand)]
@@ -52,7 +64,7 @@ enum Cmd {
     #[command(flatten)]
     Account(Account),
     /// Ship it.
-    #[category("a")]
+    #[couture(category = "a")]
     Deploy,
 }
 
@@ -60,7 +72,7 @@ enum Cmd {
 #[couture(categories = { "b" = { title = "Child title:" } })]
 enum Account {
     /// Log in.
-    #[category("b")]
+    #[couture(category = "b")]
     Login,
     /// Log out.
     Logout,
@@ -71,12 +83,15 @@ enum Account {
 #[derive(Subcommand, Couture)]
 enum Nested {
     /// Sync settings.
-    #[category("b")]
+    #[couture(category = "b")]
     Sync,
 }
 
 fn label_of(categories: CommandCategoryMap, command: &str) -> Option<&'static str> {
-    categories.iter().find(|(name, _)| name.as_str() == command).map(|(_, category)| category.label)
+    categories
+        .iter()
+        .find(|(name, _)| name.as_str() == command)
+        .map(|(_, category)| category.label())
 }
 
 #[rstest]
@@ -87,6 +102,8 @@ fn label_of(categories: CommandCategoryMap, command: &str) -> Option<&'static st
 #[case::subcommand_field(Direct::CATEGORIES, "login", Some("b"))]
 #[case::through_args(ThroughArgs::CATEGORIES, "deploy", Some("a"))]
 #[case::through_optional_args(ThroughOptionalArgs::CATEGORIES, "login", Some("b"))]
+#[case::through_box(ThroughBox::CATEGORIES, "login", Some("b"))]
+#[case::through_generic(ThroughGeneric::<Wrap>::CATEGORIES, "deploy", Some("a"))]
 #[case::beside_foreign_args(BesideForeignArgs::CATEGORIES, "sync", Some("b"))]
 fn flattened_commands_keep_their_category(
     #[case] categories: CommandCategoryMap,
@@ -94,7 +111,7 @@ fn flattened_commands_keep_their_category(
     #[case] expected_label: Option<&str>,
 ) {
     assert_eq!(label_of(categories, command), expected_label);
-    assert_eq!(categories.find(command).map(|category| category.label), expected_label);
+    assert_eq!(categories.find(command).map(clap_couture::Category::label), expected_label);
 }
 
 #[rstest]

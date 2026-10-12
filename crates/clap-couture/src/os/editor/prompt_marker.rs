@@ -10,19 +10,36 @@ const HEADER: &str = "#|";
 pub(crate) struct PromptMarker(String);
 
 impl PromptMarker {
+    /// Where the header written for `prompt` starts in `lines`: at its last copy of the header's
+    /// first line, else, when the user edited that line, at the marked lines ending the file.
+    fn header_start(&self, lines: &[&str], prompt: &str) -> usize {
+        let first = format!("{} {}", self.0, prompt.lines().next().unwrap_or_default());
+        lines.iter().rposition(|line| line.trim() == first.trim()).unwrap_or_else(|| {
+            let is_answer = |line: &&str| !line.trim().is_empty() && !self.marks(line);
+            lines.iter().rposition(is_answer).map_or(0, |last| last.saturating_add(1))
+        })
+    }
+
+    /// Whether `line` starts with the marker, past any indentation an editor added.
+    fn marks(&self, line: &str) -> bool {
+        line.trim_start().starts_with(self.0.as_str())
+    }
+
     pub(crate) fn new(marker: impl Into<String>) -> Self {
         Self(marker.into())
     }
 
-    /// The answer in `file`: the header lines and the blank lines around the rest dropped. `None`
-    /// when nothing is left.
-    pub(crate) fn strip(&self, file: &str) -> Option<String> {
+    /// The answer in `file`, opened with `prompt`: the header lines and the blank lines around the
+    /// rest dropped. `None` when nothing is left.
+    pub(crate) fn strip(&self, file: &str, prompt: Option<&str>) -> Option<String> {
         let is_blank = |line: &&str| line.trim().is_empty();
-        let mut kept: Vec<&str> = file
-            .lines()
-            .filter(|line| !line.starts_with(self.0.as_str()))
-            .skip_while(is_blank)
-            .collect();
+        let lines: Vec<&str> = file.lines().collect();
+        let header_start = prompt.map_or(lines.len(), |prompt| self.header_start(&lines, prompt));
+        let (answer, header) = lines.split_at(header_start);
+        // Lines typed into the header, or unmarked there, are the user's too.
+        let typed_in_header = header.iter().filter(|line| !self.marks(line));
+        let mut kept: Vec<&str> =
+            answer.iter().chain(typed_in_header).copied().skip_while(is_blank).collect();
         while kept.last().is_some_and(is_blank) {
             kept.pop();
         }
@@ -84,7 +101,7 @@ mod tests {
     fn strip_round_trips_a_rendered_answer() {
         let answer = "# Heading\n\n  indented: yes  \n\nlast";
         assert_eq!(
-            PromptMarker::default().strip(&rendered(answer, Some(PROMPT))).as_deref(),
+            PromptMarker::default().strip(&rendered(answer, Some(PROMPT)), Some(PROMPT)).as_deref(),
             Some(answer)
         );
     }
@@ -99,11 +116,37 @@ mod tests {
         "## Notes\n#!/bin/sh\n#|x\n",
         Some("## Notes\n#!/bin/sh")
     )]
+    #[case::users_marker_lines_stay(
+        "#|> quoted\nbody\n  #| Release notes",
+        Some("#|> quoted\nbody")
+    )]
+    #[case::marker_lines_between_users_lines_stay("a\n#| b\nc\n", Some("a\n#| b\nc"))]
+    #[case::indented_header_goes("body\n\n  #| Release notes\n\t#|\n", Some("body"))]
+    #[case::typed_below_the_header_stays(
+        &format!("{}More.\n", rendered("Fixed it.", Some(PROMPT))),
+        Some("Fixed it.\n\nMore.")
+    )]
+    #[case::unmarked_header_line_stays(
+        "Fixed it.\n\n#| Release notes\nerror: kept\n#| Leave the file empty to cancel.\n",
+        Some("Fixed it.\n\nerror: kept")
+    )]
+    #[case::quoted_question_above_the_header_stays(
+        &format!("#| Release notes\nbody\n{}", rendered("", Some(PROMPT))),
+        Some("#| Release notes\nbody")
+    )]
     fn strip_drops_only_header_and_surrounding_blanks(
         #[case] file: &str,
         #[case] expected: Option<&str>,
     ) {
-        assert_eq!(PromptMarker::default().strip(file).as_deref(), expected);
+        assert_eq!(PromptMarker::default().strip(file, Some(PROMPT)).as_deref(), expected);
+    }
+
+    #[test]
+    fn strip_without_a_prompt_keeps_marked_lines() {
+        assert_eq!(
+            PromptMarker::default().strip("body\n#| mine\n", None).as_deref(),
+            Some("body\n#| mine")
+        );
     }
 
     #[test]
@@ -114,6 +157,6 @@ mod tests {
         let file = String::from_utf8(file).unwrap_or_default();
         assert!(written.is_ok(), "writing to a `Vec` can't fail");
         assert_eq!(file, "Fixed it.\n\n// Release notes\n//\n// Leave the file empty to cancel.\n");
-        assert_eq!(marker.strip(&file).as_deref(), Some("Fixed it."));
+        assert_eq!(marker.strip(&file, Some(PROMPT)).as_deref(), Some("Fixed it."));
     }
 }

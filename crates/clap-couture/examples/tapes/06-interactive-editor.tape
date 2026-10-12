@@ -1,6 +1,7 @@
 # `deploy` asking for its release notes in `$EDITOR`. See `scripts/record-examples.py`.
 
-Set Height 620
+Set Width 1692
+Set Height 1210
 
 Hide
 Type "unset VISUAL && export EDITOR=vim && alias deploy=06-interactive-editor && clear" Enter
@@ -14,8 +15,8 @@ Type "y"
 
 Wait+Screen /These lines are removed/
 Sleep 1.5s
-# Writes above the instructions, which are dropped on save.
-Type "ggO" Sleep 300ms Type "Ships the new billing page." Sleep 600ms Escape
+# Writes under the initial heading; the instructions are dropped on save.
+Type "ggo" Sleep 300ms Type "- Ships the new billing page." Sleep 600ms Escape
 Sleep 600ms
 Type ":wq" Sleep 400ms Enter
 

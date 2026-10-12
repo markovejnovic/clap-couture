@@ -4,7 +4,8 @@
 //! validates it exactly like a typed value. Each answer is checked with a trial parse as soon as
 //! it is given: the previous trial passed, so a failure can only come from the new answer, which
 //! is then asked again with clap's message. For an arg asked one value at a time, each value is
-//! an answer of its own, checked on top of the values before it.
+//! an answer of its own, checked on top of the values before it. clap holds no default to
+//! `num_args`, so the answer is held to it here, as one time the arg is passed.
 //!
 //! Confirmations come last, so their questions can name the answers. A declined one fails the
 //! parse; without a terminal to ask on, one left unanswered fails it as a missing required arg.
@@ -12,34 +13,45 @@
 //! A secret's answer goes into a vault instead, and clap gets a placeholder that the secret's
 //! value parser swaps back. It skips the trial parse: that parser takes any string, so there is
 //! nothing to ask again.
+//!
+//! An arg passed `-` that `dash` makes ask is asked like one left out, but its answer fills the
+//! `-` through its value parser instead, as the command line beats a default.
+//!
+//! Before any of it, the `#[couture(stdin)]` arg on the path the user took takes stdin: all of it
+//! when passed `-`, else what is piped, if it got no value. It is then no longer asked.
 
 use core::iter;
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 
 use clap::{
     Arg, ArgAction, ArgGroup, ArgMatches, Command, FromArgMatches, Id,
-    builder::{PossibleValue, Resettable},
-    error::ErrorKind,
+    builder::{PossibleValue, Resettable, ValueRange},
+    error::{ContextKind, ContextValue, ErrorKind},
     parser::ValueSource,
 };
 
 use super::{
-    Failure,
-    secrets::{self, Vault},
+    ParseError,
+    dash::{DashArgs, Dashed},
+    secrets::{self, SecretRequirement as _, Vault},
+    stdin::{StdinArgs, StdinValue},
 };
-#[cfg(feature = "interactive-editor")]
-use crate::interactive::{EditorAttr, EditorPrompt};
 use crate::{
     Messages,
     interactive::{
         Backend, CommandStyles, ConfirmPrompt, MultiSelectPrompt, PromptError, PromptPurpose,
         PromptedArg, PromptedArgTree, SecretPrompt, SelectPrompt, TextPrompt,
     },
-    os::signal::Signal,
+    os::{signal::Signal, stdin::Stdin},
+};
+#[cfg(feature = "interactive-editor")]
+use crate::{
+    Text,
+    interactive::{EditorAttr, EditorPrompt},
 };
 
 /// A prompted arg's accepted answer.
-struct Answer<'prompted_arg> {
+pub(super) struct Answer<'prompted_arg> {
     /// What clap gets as the arg's defaults: the answer itself, or a secret's placeholder. One
     /// value, or any number for an arg that takes many.
     injected_values: Vec<String>,
@@ -65,15 +77,50 @@ struct Rejected {
     value: String,
 }
 
+/// [`Command`], named after the binary that runs it.
+trait BinNamed {
+    /// `self` with the bin name clap takes from `argv[0]`, so couture's own errors show it too.
+    fn bin_named(self, argv: &[OsString]) -> Self;
+}
+
+impl BinNamed for Command {
+    fn bin_named(self, argv: &[OsString]) -> Self {
+        // As clap's own parse names it: a multicall command or one set without a binary name is
+        // named by clap alone, and a name set already is kept.
+        if self.is_multicall_set() || self.is_no_binary_name_set() || self.get_bin_name().is_some()
+        {
+            return self;
+        }
+        let program_name = argv.first().and_then(|called| crate::os::program_name(called));
+        match program_name.and_then(OsStr::to_str) {
+            Some(bin_name) => self.bin_name(bin_name.to_owned()),
+            None => self,
+        }
+    }
+}
+
 /// One parse: the command, its argv, its prompted args, who to ask and where secrets go.
 struct Session<'run> {
     argv: &'run [OsString],
     backend: &'run dyn Backend,
     cmd: &'run Command,
+    /// The args that take `-`; an answer to one passed `-` fills its slot.
+    dash_args: &'run DashArgs,
+    /// The args passed `-` to be asked for.
+    dashed: &'run Dashed<'run>,
     messages: &'run Messages,
     prompted_args: &'run [PromptedArg],
+    /// Every secret arg, asked or not; a confirmation masks their values.
+    secret_args: &'run [PromptedArg],
     /// Holds the secret answers; `cmd` resolves their placeholders from it.
     vault: &'run Vault,
+}
+
+/// How many values one answer to an arg may hold: its `num_args`, as for one time it is passed.
+#[derive(Clone, Copy)]
+struct ValueCount<'arg> {
+    arg: &'arg Arg,
+    range: ValueRange,
 }
 
 impl Session<'_> {
@@ -92,7 +139,9 @@ impl Session<'_> {
         else {
             return Ok(None);
         };
-        let optional = !self.required(answers, later);
+        // An arg passed `-` was asked for by the user, so it takes an answer.
+        let dashed = self.dashed.asks(&prompted_arg.subcommand_path, prompted_arg.attr.arg_id);
+        let optional = !dashed && !self.required(answers, later);
         let question = self.question(prompted_arg);
         if prompted_arg.attr.secret.is_some() {
             // clap has nothing to reject in a string, so a secret skips the trial parse; the vault
@@ -103,7 +152,12 @@ impl Session<'_> {
                 question: &question,
                 styles: CommandStyles(self.cmd.get_styles()),
             })?;
-            return Ok(secret.map(|secret| vec![self.vault.store(secret)]));
+            let placeholder = secret.map(|secret| vec![self.vault.store(secret)]);
+            // Every other answer fills its `-` in its trial parse, which a secret skips.
+            if let Some(placeholder) = &placeholder {
+                self.dash_args.fill(prompted_arg, placeholder);
+            }
+            return Ok(placeholder);
         }
         // A flag has nothing to edit, so one that slipped past the derive asks as a flag.
         #[cfg(feature = "interactive-editor")]
@@ -124,16 +178,19 @@ impl Session<'_> {
         }
         let options: Vec<PossibleValue> =
             arg.get_possible_values().into_iter().filter(|value| !value.is_hide_set()).collect();
+        let count = ValueCount::of(arg);
         if !takes_many(arg) {
-            return self.until_accepted(answers, prompted_arg, || {
+            return self.until_accepted(answers, prompted_arg, count, || {
                 let value = self.ask(arg, &question, &options, current.first(), optional)?;
                 Ok(value.map(|value| vec![value]))
             });
         }
         if options.is_empty() {
-            return self.each_value(&question, prompted_arg, current, answers, optional).map(Some);
+            return self
+                .each_value(&question, prompted_arg, current, answers, optional, count)
+                .map(Some);
         }
-        self.until_accepted(answers, prompted_arg, || {
+        self.until_accepted(answers, prompted_arg, count, || {
             self.backend
                 .multi_select(&MultiSelectPrompt {
                     defaults: current,
@@ -180,7 +237,8 @@ impl Session<'_> {
         })
     }
 
-    /// Ask in the user's editor, starting from the rejected answer if there is one. An empty
+    /// Ask in the user's editor, starting from the rejected answer, else the arg's default, else
+    /// the editor's `initial` text. An empty
     /// answer to a required arg aborts, as git aborts on an empty commit message, and so does one
     /// to an arg with a default, which an empty answer would quietly bring back.
     #[cfg(feature = "interactive-editor")]
@@ -198,8 +256,12 @@ impl Session<'_> {
         } else {
             self.messages.editor_instructions.get()
         };
+        let initial = editor.initial.as_ref().map(Text::get);
         let answer = self.backend.editor(&EditorPrompt {
-            default: rejected.map_or(current, |rejected| Some(rejected.value.as_str())),
+            initial: rejected
+                .map(|rejected| rejected.value.as_str())
+                .or(current)
+                .or(initial.as_deref()),
             error: rejected.map(|rejected| rejected.error.as_str()),
             extension: editor.extension,
             file_stem: &iter::once(self.cmd.get_name())
@@ -213,6 +275,7 @@ impl Session<'_> {
             question,
             returned_early: &self.messages.editor_returned_early.get(),
             styles,
+            unreadable: &self.messages.editor_unreadable.get(),
             waiting: &self.messages.editor_waiting.get(),
         })?;
         if answer.is_none() && !optional {
@@ -240,7 +303,18 @@ impl Session<'_> {
             .ok()
             .and_then(|answered| matches_at(answered, &prompted_arg.subcommand_path))
         {
-            Some(level) => interpolate(&question, level),
+            Some(level) => interpolate(&question, |id| {
+                let path = &prompted_arg.subcommand_path;
+                let values = self
+                    .dashed
+                    .text(path, id)
+                    .map(|text| vec![text])
+                    .or_else(|| level.try_get_raw(id).ok().map(|_| raw_values(level, id)))?;
+                if self.is_secret(path, id) {
+                    return Some(values.iter().map(|_| secrets::MASKED.to_owned()).collect());
+                }
+                Some(values)
+            }),
             None => question,
         };
         self.backend.confirm(&ConfirmPrompt {
@@ -250,8 +324,9 @@ impl Session<'_> {
         })
     }
 
-    /// Ask for one value at a time until an empty answer, each starting out as the default's
-    /// value at its position. Only a required arg's first value may not be empty.
+    /// Ask for one value at a time until an empty answer or `count`'s most, each starting out as
+    /// the default's value at its position. Only a required arg's first value may not be empty,
+    /// and an empty answer short of `count`'s least is asked again with clap's message.
     ///
     /// The default goes in as initial text rather than as the answer Enter accepts, so clearing it
     /// still finishes the list.
@@ -262,21 +337,29 @@ impl Session<'_> {
         current: &[String],
         answers: &[Answer<'_>],
         optional: bool,
+        count: Option<ValueCount<'_>>,
     ) -> Result<Vec<String>, PromptError> {
         let finish_hint = self.messages.finish_hint.get();
         let mut values = Vec::new();
         loop {
+            if count.is_some_and(|count| !count.has_room(values.len())) {
+                return Ok(values);
+            }
+            let short = count.and_then(|count| count.check(&values).err());
             let optional = !values.is_empty() || optional;
             let Some(value) = self.backend.text(&TextPrompt {
                 default: None,
-                hint: optional.then_some(&*finish_hint),
+                hint: (optional && short.is_none()).then_some(&*finish_hint),
                 initial: current.get(values.len()).map(String::as_str),
                 optional,
                 question,
                 styles: CommandStyles(self.cmd.get_styles()),
             })?
             else {
-                return Ok(values);
+                let Some(err) = short else { return Ok(values) };
+                self.backend
+                    .report(&summary(&err, &values), CommandStyles(self.cmd.get_styles()))?;
+                continue;
             };
             values.push(value);
             if let Err(err) = self.trial(answers, prompted_arg, &values) {
@@ -312,6 +395,13 @@ impl Session<'_> {
         }
     }
 
+    /// Check whether arg `id` at `path` is a secret, its own or a global one from a level above.
+    fn is_secret(&self, path: &[&str], id: &str) -> bool {
+        self.secret_args.iter().any(|secret_arg| {
+            secret_arg.attr.arg_id == id && path.starts_with(&secret_arg.subcommand_path)
+        })
+    }
+
     /// The `= ...` override, else the arg's help text, else its id.
     fn question(&self, prompted_arg: &PromptedArg) -> String {
         prompted_arg.attr.question.as_ref().map_or_else(
@@ -345,23 +435,28 @@ impl Session<'_> {
     ) -> Result<(), clap::Error> {
         let accepted =
             answers.iter().map(|answer| (answer.prompted_arg, answer.injected_values.as_slice()));
-        let cmd = inject(
-            relax(self.cmd.clone(), self.prompted_args.iter()),
-            accepted.chain(iter::once((prompted_arg, candidate))),
-        );
+        let with_candidate: Vec<_> =
+            accepted.chain(iter::once((prompted_arg, candidate))).collect();
+        for (answered, values) in &with_candidate {
+            self.dash_args.fill(answered, values);
+        }
+        let cmd = inject(relax(self.cmd.clone(), self.prompted_args.iter()), with_candidate);
         cmd.try_get_matches_from(self.argv).map(drop)
     }
 
-    /// Call `ask` until clap accepts its answer, showing clap's complaint before each retry.
+    /// Call `ask` until clap accepts its answer and it fits `count`, showing clap's complaint
+    /// before each retry.
     fn until_accepted(
         &self,
         answers: &[Answer<'_>],
         prompted_arg: &PromptedArg,
+        count: Option<ValueCount<'_>>,
         mut ask: impl FnMut() -> Result<Option<Vec<String>>, PromptError>,
     ) -> Result<Option<Vec<String>>, PromptError> {
         loop {
             let Some(values) = ask()? else { return Ok(None) };
-            match self.trial(answers, prompted_arg, &values) {
+            let fits = count.map_or(Ok(()), |count| count.check(&values));
+            match fits.and_then(|()| self.trial(answers, prompted_arg, &values)) {
                 Ok(()) => return Ok(Some(values)),
                 Err(err) => {
                     let error = summary(&err, &values);
@@ -372,52 +467,163 @@ impl Session<'_> {
     }
 }
 
-/// Parse `argv` against `cmd`, asking `backend` for the prompted args in `prompted_arg_tree` that
-/// got no value.
+impl<'arg> ValueCount<'arg> {
+    /// Check `values` as clap checks them typed after the arg once; no values leave it unset.
+    fn check(self, values: &[String]) -> Result<(), clap::Error> {
+        let (min, max) = (self.range.min_values(), self.range.max_values());
+        if let Some(surplus) = values.get(max) {
+            return Err(self.error(ErrorKind::TooManyValues, [(
+                ContextKind::InvalidValue,
+                ContextValue::String(surplus.clone()),
+            )]));
+        }
+        if values.is_empty() || values.len() >= min {
+            return Ok(());
+        }
+        let number =
+            |count: usize| ContextValue::Number(isize::try_from(count).unwrap_or(isize::MAX));
+        let actual = (ContextKind::ActualNumValues, number(values.len()));
+        // clap's own wording: an exact count when there is one, else the least it takes.
+        Err(if min == max {
+            self.error(ErrorKind::WrongNumberOfValues, [
+                actual,
+                (ContextKind::ExpectedNumValues, number(min)),
+            ])
+        } else {
+            self.error(ErrorKind::TooFewValues, [actual, (ContextKind::MinValues, number(min))])
+        })
+    }
+
+    /// clap's `kind` of error about the arg, with `context` filled in.
+    fn error(
+        self,
+        kind: ErrorKind,
+        context: impl IntoIterator<Item = (ContextKind, ContextValue)>,
+    ) -> clap::Error {
+        let mut err = clap::Error::new(kind);
+        err.insert(ContextKind::InvalidArg, ContextValue::String(self.arg.to_string()));
+        for (kind, value) in context {
+            err.insert(kind, value);
+        }
+        err
+    }
+
+    /// Check whether `count` values leave room for another.
+    fn has_room(self, count: usize) -> bool {
+        count < self.range.max_values()
+    }
+
+    /// `arg`'s `num_args`; `None` when it takes one value each time and may be passed again, as a
+    /// plain `Vec` does, so any number of values is one it could be typed with.
+    fn of(arg: &'arg Arg) -> Option<Self> {
+        let range = arg.get_num_args()?;
+        let repeats_single_values =
+            matches!(arg.get_action(), ArgAction::Append) && range.max_values() <= 1;
+        (!repeats_single_values).then_some(Self { arg, range })
+    }
+}
+
+/// Parse `argv` against `cmd`, filling its stdin arg from `stdin`, asking `backend` for the
+/// prompted args that got no value, and standing in for each `-` a dash arg got what was asked or
+/// read for it.
 pub(super) fn parse<T>(
     cmd: Command,
     prompted_arg_tree: &'static PromptedArgTree,
     messages: &Messages,
     argv: &[OsString],
     backend: &dyn Backend,
-) -> Result<T, Failure>
+    stdin: &impl Stdin,
+) -> Result<T, ParseError>
 where
     T: FromArgMatches,
 {
-    let prompted_args = prompted_arg_tree.prompted_args();
-    if prompted_args.is_empty() || !backend.is_available() {
+    let cmd = cmd.bin_named(argv);
+    let mut prompted_args = prompted_arg_tree.prompted_args();
+    let stdin_args = StdinArgs::of(prompted_arg_tree);
+    let dash_args = DashArgs::of(&prompted_args, &stdin_args);
+    let nothing_to_ask = prompted_args.is_empty() || !backend.is_available();
+    if nothing_to_ask && stdin_args.is_empty() && dash_args.is_empty() {
         return parse_unprompted(cmd, &prompted_args, argv);
     }
     // Re-guarded with the vault this parse's answers go into; trial and final parses share it.
     let vault = Vault::default();
-    let cmd = secrets::guard(cmd, &prompted_args, &vault, &messages.environment.get());
+    let mut cmd = secrets::guard(cmd, &prompted_args, &vault, &messages.environment.get());
+    let relaxed = stdin_args.unrequired(relax(dash_args.checking(cmd.clone()), &prompted_args));
+    // Prompts read the terminal, so a `-` that may ask or read stdin reads it when it is no
+    // terminal, as when piped.
+    let can_ask = stdin.is_terminal() && backend.is_available();
+    // Help, usage and errors come from clap, with `-` let through.
+    let Ok(matches) = relaxed.try_get_matches_from(argv) else {
+        return super::parse(dash_args.checking(cmd), argv);
+    };
+    let dashed = dash_args.passed(&matches, can_ask);
+    // `-` is the only way to ask a `prompt(dash)` arg.
+    prompted_args.retain(|prompted_arg| {
+        prompted_arg.attr.dash.is_none()
+            || dashed.asks(&prompted_arg.subcommand_path, prompted_arg.attr.arg_id)
+    });
+    if let Some(asked) = dashed.first_asked().filter(|_| !backend.is_available()) {
+        return Err(asked.unaskable(&cmd));
+    }
+    let checking = dash_args.checking(cmd.clone());
+    if let Some(StdinValue { stdin_arg, text }) =
+        stdin_args.read(&checking, &prompted_args, &dashed, argv, stdin)?
+    {
+        let (path, id) = (stdin_arg.subcommand_path.as_slice(), stdin_arg.attr.arg_id);
+        let is_stdin_arg = |prompted_arg: &PromptedArg| {
+            prompted_arg.subcommand_path == path && prompted_arg.attr.arg_id == id
+        };
+        let secret = prompted_args
+            .iter()
+            .any(|prompted| is_stdin_arg(prompted) && prompted.attr.secret.is_some());
+        let text = if secret { vault.store(text.into()) } else { text };
+        if !dashed.fill_read(path, id, text.clone()) {
+            cmd = inject_at(cmd, path, id, &[text]);
+        }
+        prompted_args.retain(|prompted_arg| !is_stdin_arg(prompted_arg));
+    }
+    if prompted_args.is_empty() || !backend.is_available() {
+        return parse_unprompted(dash_args.typed(cmd), &prompted_args, argv);
+    }
+    let checking = dash_args.checking(cmd.clone());
+    // Taken before any were dropped from `prompted_args`: a secret read from stdin is masked too.
+    let secret_args: Vec<PromptedArg> = prompted_arg_tree
+        .prompted_args()
+        .into_iter()
+        .filter(|prompted_arg| prompted_arg.attr.secret.is_some())
+        .collect();
     // Help, usage and errors come from the command the user sees, not the relaxed one.
-    let Ok(matches) = relax(cmd.clone(), prompted_args.iter()).try_get_matches_from(argv) else {
-        return super::parse(cmd, argv);
+    let Ok(matches) = relax(checking.clone(), prompted_args.iter()).try_get_matches_from(argv)
+    else {
+        return super::parse(checking, argv);
     };
 
     let session = Session {
         argv,
         backend,
-        cmd: &cmd,
+        cmd: &checking,
+        dash_args: &dash_args,
+        dashed: &dashed,
         messages,
         prompted_args: &prompted_args,
+        secret_args: &secret_args,
         vault: &vault,
     };
     let mut answers = Vec::new();
-    let mut unanswered = pending(&cmd, &matches, &prompted_args);
+    let mut unanswered = pending(&checking, &matches, &prompted_args, &dashed);
     // Stable, so values and confirmations each keep declaration order.
     unanswered
         .sort_by_key(|(prompted_arg, _)| prompted_arg.attr.purpose == PromptPurpose::Confirmation);
     for (index, (prompted_arg, current)) in unanswered.iter().enumerate() {
-        if blocked(&cmd, &matches, prompted_arg, &answers) {
+        let (path, id) = (prompted_arg.subcommand_path.as_slice(), prompted_arg.attr.arg_id);
+        if blocked(&checking, &matches, path, id, &answers) {
             continue;
         }
         let later: Vec<&PromptedArg> =
             unanswered.iter().skip(index.saturating_add(1)).map(|(later, _)| *later).collect();
         let answer = match prompted_arg.attr.purpose {
             PromptPurpose::Confirmation => match session.confirm(prompted_arg, &answers) {
-                Ok(false) => return Err(Failure::Declined),
+                Ok(false) => return Err(ParseError::Declined),
                 confirmed => confirmed.map(|_| Some(Vec::from(["true".to_owned()]))),
             },
             PromptPurpose::Value => session.answer(prompted_arg, current, &answers, &later),
@@ -426,17 +632,22 @@ where
             Ok(Some(injected_values)) => answers.push(Answer { injected_values, prompted_arg }),
             Ok(None) => {}
             // Backing out counts as Ctrl-C.
-            Err(PromptError::Cancelled) => return Err(Failure::Cancelled(Signal::Interrupt)),
-            Err(PromptError::Signalled(signal)) => return Err(Failure::Cancelled(signal)),
-            Err(PromptError::Io(err)) => return Err(Failure::Io(err)),
-            Err(PromptError::NotATerminal) => return parse_unprompted(cmd, &prompted_args, argv),
+            Err(PromptError::Cancelled) => return Err(ParseError::Cancelled(Signal::Interrupt)),
+            Err(PromptError::Signalled(signal)) => return Err(ParseError::Cancelled(signal)),
+            Err(PromptError::Io(err)) => return Err(ParseError::Io(err)),
+            Err(PromptError::NotATerminal) => {
+                if let Some(asked) = dashed.first_asked() {
+                    return Err(asked.unaskable(&cmd));
+                }
+                return parse_unprompted(dash_args.typed(cmd), &prompted_args, argv);
+            }
         }
     }
     let cmd_with_answers = inject(
         cmd,
         answers.iter().map(|answer| (answer.prompted_arg, answer.injected_values.as_slice())),
     );
-    super::parse(cmd_with_answers, argv)
+    super::parse(dash_args.typed(cmd_with_answers), argv)
 }
 
 /// Parse as clap would, without asking. A confirmation left unanswered fails the parse with
@@ -445,7 +656,7 @@ fn parse_unprompted<T>(
     mut cmd: Command,
     prompted_args: &[PromptedArg],
     argv: &[OsString],
-) -> Result<T, Failure>
+) -> Result<T, ParseError>
 where
     T: FromArgMatches,
 {
@@ -458,12 +669,12 @@ where
     }
     // Kept unbuilt: requiring an arg on the built command makes clap show help instead.
     let declared = cmd.clone();
-    let mut matches = cmd.try_get_matches_from_mut(argv).map_err(Failure::Clap)?;
+    let mut matches = cmd.try_get_matches_from_mut(argv).map_err(ParseError::Clap)?;
     let unconfirmed = confirmations.iter().any(|confirmation| {
         let id = confirmation.attr.arg_id;
         let passed = matches_at(&matches, &confirmation.subcommand_path)
             .is_none_or(|level| explicit(level, &Id::from(id)));
-        !passed && !blocked(&cmd, &matches, confirmation, &[])
+        !passed && !blocked(&cmd, &matches, &confirmation.subcommand_path, id, &[])
     });
     if unconfirmed {
         // Parsed again only to fail: clap words the error, and the help stays as declared.
@@ -474,37 +685,35 @@ where
         });
         return super::parse(required, argv);
     }
-    T::from_arg_matches_mut(&mut matches).map_err(|err| Failure::Clap(err.format(&mut cmd)))
+    T::from_arg_matches_mut(&mut matches).map_err(|err| ParseError::Clap(err.format(&mut cmd)))
 }
 
-fn arg_at<'cmd>(cmd: &'cmd Command, path: &[&str], id: &str) -> Option<&'cmd Arg> {
+pub(super) fn arg_at<'cmd>(cmd: &'cmd Command, path: &[&str], id: &str) -> Option<&'cmd Arg> {
     command_at(cmd, path)?.get_arguments().find(|arg| arg.get_id() == id)
 }
 
-/// Check whether `prompted_arg` conflicts with an arg the user passed or an earlier answer.
+/// Check whether arg `id` of the command at `path` conflicts with an arg the user passed or an
+/// earlier answer.
 ///
 /// Answers go in as default values, which clap never checks for conflicts, so asking here
 /// would let the parse land in a state clap rejects when typed.
-fn blocked(
+pub(super) fn blocked(
     cmd: &Command,
     matches: &ArgMatches,
-    prompted_arg: &PromptedArg,
+    path: &[&str],
+    id: &str,
     answers: &[Answer<'_>],
 ) -> bool {
-    let (Some(level), Some(level_matches)) = (
-        command_at(cmd, &prompted_arg.subcommand_path),
-        matches_at(matches, &prompted_arg.subcommand_path),
-    ) else {
-        return false;
-    };
-    let Some(arg) = level.get_arguments().find(|arg| arg.get_id() == prompted_arg.attr.arg_id)
+    let (Some(level), Some(level_matches)) = (command_at(cmd, path), matches_at(matches, path))
     else {
         return false;
     };
-    let answered = |id: &Id| {
+    let Some(arg) = level.get_arguments().find(|arg| arg.get_id() == id) else {
+        return false;
+    };
+    let answered = |other: &Id| {
         answers.iter().any(|answer| {
-            answer.prompted_arg.subcommand_path == prompted_arg.subcommand_path
-                && answer.prompted_arg.attr.arg_id == id
+            answer.prompted_arg.subcommand_path == path && answer.prompted_arg.attr.arg_id == other
         })
     };
     let conflicts = level.get_arg_conflicts_with(arg);
@@ -587,20 +796,22 @@ fn inject<'prompted_arg>(
     answers: impl IntoIterator<Item = (&'prompted_arg PromptedArg, &'prompted_arg [String])>,
 ) -> Command {
     answers.into_iter().fold(cmd, |cmd, (prompted_arg, values)| {
-        // A default value is no explicit value to clap, so the rules that require the arg would
-        // still miss it.
-        with_arg_at(
-            unrequire(cmd, prompted_arg),
-            &prompted_arg.subcommand_path,
-            prompted_arg.attr.arg_id,
-            |arg| arg.default_values(values.iter().cloned()),
-        )
+        inject_at(cmd, &prompted_arg.subcommand_path, prompted_arg.attr.arg_id, values)
     })
 }
 
-/// `question` with each `{id}` replaced by arg `id`'s values in `matches`, joined with `, `, and
-/// `{{` and `}}` by single braces. A `{id}` naming no arg stays as written.
-fn interpolate(question: &str, matches: &ArgMatches) -> String {
+/// Set `values` as the default values of arg `id` of the command at `path`.
+fn inject_at(cmd: Command, path: &[&str], id: &str, values: &[String]) -> Command {
+    // A default value is no explicit value to clap, so the rules that require the arg would
+    // still miss it.
+    with_arg_at(unrequire(cmd, path, id), path, id, |arg| {
+        arg.default_values(values.iter().cloned())
+    })
+}
+
+/// `question` with each `{id}` replaced by arg `id`'s values from `values_of`, joined with `, `,
+/// and `{{` and `}}` by single braces. A `{id}` naming no arg stays as written.
+fn interpolate(question: &str, values_of: impl Fn(&str) -> Option<Vec<String>>) -> String {
     let mut interpolated = String::with_capacity(question.len());
     let mut rest = question;
     while let Some(brace) = rest.find(['{', '}']) {
@@ -615,11 +826,9 @@ fn interpolate(question: &str, matches: &ArgMatches) -> String {
             continue;
         }
         let placeholder = tail.strip_prefix('{').and_then(|inner| inner.split_once('}'));
-        if let Some((values, after)) = placeholder
-            .and_then(|(id, after)| matches.try_get_raw(id).ok().map(|values| (values, after)))
+        if let Some((values, after)) =
+            placeholder.and_then(|(id, after)| values_of(id).map(|values| (values, after)))
         {
-            let values: Vec<_> =
-                values.into_iter().flatten().map(|v| v.to_string_lossy()).collect();
             interpolated.push_str(&values.join(", "));
             rest = after;
             continue;
@@ -633,7 +842,7 @@ fn interpolate(question: &str, matches: &ArgMatches) -> String {
     interpolated
 }
 
-fn matches_at<'matches>(
+pub(super) fn matches_at<'matches>(
     matches: &'matches ArgMatches,
     path: &[&str],
 ) -> Option<&'matches ArgMatches> {
@@ -642,14 +851,15 @@ fn matches_at<'matches>(
     })
 }
 
-/// The prompted args on the path the user took that got no value or only their default, with
-/// the default's values, split at the arg's value delimiter as clap splits them. One whose
-/// `default_value_if` fired is left to the arg that fired it: the conditional default beats an
-/// injected answer, so asking would drop the answer.
+/// The prompted args on the path the user took that got no value or only their default, or `-`
+/// to be asked for, with the default's values, split at the arg's value delimiter as clap splits
+/// them. One whose `default_value_if` fired is left to the arg that fired it: the conditional
+/// default beats an injected answer, so asking would drop the answer.
 fn pending<'prompted_arg>(
     cmd: &Command,
     matches: &ArgMatches,
     prompted_args: &'prompted_arg [PromptedArg],
+    dashed: &Dashed<'_>,
 ) -> Vec<(&'prompted_arg PromptedArg, Vec<String>)> {
     // Built, so a flag's action has filled in its implicit default (`false` for `SetTrue`).
     let mut built = cmd.clone();
@@ -657,26 +867,39 @@ fn pending<'prompted_arg>(
     prompted_args
         .iter()
         .filter_map(|prompted_arg| {
-            let arg = arg_at(&built, &prompted_arg.subcommand_path, prompted_arg.attr.arg_id)?;
-            let level = matches_at(matches, &prompted_arg.subcommand_path)?;
-            let id = prompted_arg.attr.arg_id;
-            match level.value_source(id) {
-                None if default_values(arg).next().is_none() => Some((prompted_arg, Vec::new())),
-                Some(ValueSource::DefaultValue) => {
-                    let current = raw_values(level, id);
-                    current
-                        .iter()
-                        .map(String::as_str)
-                        .eq(default_values(arg))
-                        .then_some((prompted_arg, current))
-                }
-                None | Some(_) => None,
+            let (path, id) = (&prompted_arg.subcommand_path, prompted_arg.attr.arg_id);
+            // Passed `-`, it has a value, but one the user asked to be asked for.
+            if dashed.asks(path, id) {
+                return Some((prompted_arg, Vec::new()));
             }
+            unfilled(&built, matches, path, id).map(|current| (prompted_arg, current))
         })
         .collect()
 }
 
-fn raw_values(matches: &ArgMatches, id: &str) -> Vec<String> {
+/// The values of arg `id` of the command at `path`, when it is on the path the user took and got
+/// no value or only its default; see [`pending`]. `built` must be built.
+pub(super) fn unfilled(
+    built: &Command,
+    matches: &ArgMatches,
+    path: &[&str],
+    id: &str,
+) -> Option<Vec<String>> {
+    let arg = arg_at(built, path, id)?;
+    let level = matches_at(matches, path)?;
+    match level.value_source(id) {
+        None if arg.is_required_by_default() || default_values(arg).next().is_none() => {
+            Some(Vec::new())
+        }
+        Some(ValueSource::DefaultValue) => {
+            let current = raw_values(level, id);
+            current.iter().map(String::as_str).eq(default_values(arg)).then_some(current)
+        }
+        None | Some(_) => None,
+    }
+}
+
+pub(super) fn raw_values(matches: &ArgMatches, id: &str) -> Vec<String> {
     matches
         .try_get_raw(id)
         .ok()
@@ -694,11 +917,13 @@ fn takes_many(arg: &Arg) -> bool {
 }
 
 /// Make each of `prompted_args` optional, so a missing one does not stop a parse.
-fn relax<'prompted_arg>(
+pub(super) fn relax<'prompted_arg>(
     cmd: Command,
     prompted_args: impl IntoIterator<Item = &'prompted_arg PromptedArg>,
 ) -> Command {
-    prompted_args.into_iter().fold(cmd, unrequire)
+    prompted_args.into_iter().fold(cmd, |cmd, prompted_arg| {
+        unrequire(cmd, &prompted_arg.subcommand_path, prompted_arg.attr.arg_id)
+    })
 }
 
 /// The first line of clap's message, without its `error: ` prefix. clap quotes the rejected
@@ -714,12 +939,11 @@ fn summary(err: &clap::Error, values: &[String]) -> String {
     line.strip_prefix("error: ").unwrap_or(line).to_owned()
 }
 
-/// Drop the rules that make `prompted_arg` required: its `required`, its
-/// `required_unless_present`, and the `required` of the groups it belongs to. clap can't clear
-/// `required_unless_present_all` or `required_if_eq`, so those stay.
-fn unrequire(cmd: Command, prompted_arg: &PromptedArg) -> Command {
-    let id = prompted_arg.attr.arg_id;
-    with_command_at(cmd, &prompted_arg.subcommand_path, |level| {
+/// Drop the rules that make arg `id` of the command at `path` required: its `required`, its
+/// `required_unless_present`, a secret's required default, and the `required` of the groups it
+/// belongs to. clap can't clear `required_unless_present_all` or `required_if_eq`, so those stay.
+pub(super) fn unrequire(cmd: Command, path: &[&str], id: &str) -> Command {
+    with_command_at(cmd, path, |level| {
         if !level.get_arguments().any(|arg| arg.get_id() == id) {
             return level;
         }
@@ -728,8 +952,11 @@ fn unrequire(cmd: Command, prompted_arg: &PromptedArg) -> Command {
             .filter(|group| group.is_required_set() && group.get_args().any(|arg| arg == id))
             .map(|group| group.get_id().clone())
             .collect();
-        let level =
-            level.mut_arg(id, |arg| arg.required(false).required_unless_present(Resettable::Reset));
+        let level = level.mut_arg(id, |arg| {
+            arg.required(false)
+                .required_unless_present(Resettable::Reset)
+                .without_required_default()
+        });
         groups
             .iter()
             .fold(level, |level, group| level.mut_group(group, |group| group.required(false)))
@@ -748,4 +975,118 @@ where
             level
         }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{ffi::OsString, io};
+
+    use clap::{CommandFactory as _, Parser};
+    use rstest::rstest;
+    use secrecy::SecretString;
+
+    use super::parse;
+    use crate::{
+        __private::{DashAttr, PromptAttr, PromptPurpose, PromptedArgTree, StdinAttr},
+        Messages,
+        interactive::{
+            Backend, ConfirmPrompt, MultiSelectPrompt, PromptError, SecretPrompt, SelectPrompt,
+            TextPrompt,
+        },
+        os::stdin::{ReadWhen, Stdin},
+    };
+
+    /// `#[couture(prompt(dash), stdin)]` on `--message`.
+    static ASKED_OR_READ: PromptedArgTree = PromptedArgTree {
+        branches: &[],
+        own_args: &[PromptAttr {
+            arg_id: "message",
+            dash: Some(DashAttr::new::<String>()),
+            editor: None,
+            purpose: PromptPurpose::Value,
+            question: None,
+            secret: None,
+        }],
+        stdin_arg: Some(StdinAttr {
+            arg_id: "message",
+            dash: DashAttr::new::<String>(),
+            piped: false,
+        }),
+    };
+
+    /// Answers every text prompt with `"asked"`, when available.
+    struct Answering {
+        available: bool,
+    }
+
+    #[derive(Parser)]
+    struct Draft {
+        #[arg(long)]
+        message: Option<String>,
+    }
+
+    /// Stdin holding `"read"`, a terminal or not.
+    struct FakeStdin {
+        terminal: bool,
+    }
+
+    impl Backend for Answering {
+        fn confirm(&self, _prompt: &ConfirmPrompt<'_>) -> Result<bool, PromptError> {
+            Err(PromptError::NotATerminal)
+        }
+
+        fn is_available(&self) -> bool {
+            self.available
+        }
+
+        fn multi_select(
+            &self,
+            _prompt: &MultiSelectPrompt<'_>,
+        ) -> Result<Vec<String>, PromptError> {
+            Err(PromptError::NotATerminal)
+        }
+
+        fn secret(&self, _prompt: &SecretPrompt<'_>) -> Result<Option<SecretString>, PromptError> {
+            Err(PromptError::NotATerminal)
+        }
+
+        fn select(&self, _prompt: &SelectPrompt<'_>) -> Result<Option<String>, PromptError> {
+            Err(PromptError::NotATerminal)
+        }
+
+        fn text(&self, _prompt: &TextPrompt<'_>) -> Result<Option<String>, PromptError> {
+            Ok(Some("asked".to_owned()))
+        }
+    }
+
+    impl Stdin for FakeStdin {
+        fn is_terminal(&self) -> bool {
+            self.terminal
+        }
+
+        fn read(&self, when: ReadWhen) -> io::Result<Option<Vec<u8>>> {
+            Ok((when == ReadWhen::Always || !self.terminal).then(|| b"read\n".to_vec()))
+        }
+    }
+
+    #[rstest]
+    #[case::asks_at_a_terminal(true, true, "asked")]
+    #[case::reads_stdin_that_is_no_terminal(false, true, "read")]
+    #[case::reads_a_terminal_it_cannot_ask_on(true, false, "read")]
+    fn a_dash_that_may_ask_or_read(
+        #[case] terminal: bool,
+        #[case] available: bool,
+        #[case] message: &str,
+    ) {
+        let argv: Vec<OsString> = ["draft", "--message", "-"].map(OsString::from).into();
+        let draft: Result<Draft, _> = parse(
+            Draft::command(),
+            &ASKED_OR_READ,
+            &Messages::DEFAULT,
+            &argv,
+            &Answering { available },
+            &FakeStdin { terminal },
+        );
+        assert_eq!(draft.ok().and_then(|draft| draft.message).as_deref(), Some(message));
+    }
 }

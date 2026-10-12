@@ -1,18 +1,17 @@
-//! `PROMPTED_ARGS`: the args `#[couture(prompt)]` and `#[couture(confirm)]` mark, and the command
-//! path to each.
+//! `PROMPTED_ARGS`: the args `#[couture(prompt)]`, `#[couture(confirm)]` and
+//! `#[couture(stdin)]` mark, and the command path to each.
 
-use darling::{
-    Error,
-    ast::Style,
-    util::{Override, SpannedValue},
-};
+use darling::{Error, ast::Style, util::Override};
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{ToTokens, quote};
 use syn::Type;
 
 use crate::{
-    clap_compat::{ClapAttrs as _, ClapFieldType as _, FieldKind, SubcommandNaming},
-    input::{EditorOptions, FieldInput, Question, VariantInput},
+    clap_compat::{
+        ClapAttrs as _, ClapFieldType as _, ClapName, FieldKind, FlagAction, SubcommandNaming,
+    },
+    input::{BareOr, EditorOptions, FieldInput, StdinOptions, VariantInput},
+    runtime::Runtime,
     text::{OptionalText, TextExpr},
 };
 
@@ -22,6 +21,8 @@ pub(crate) struct PromptedArgTree {
     branches: Vec<PromptedArgBranch>,
     /// The args prompted for at this level.
     own_args: Vec<PromptAttr>,
+    /// This level's `#[couture(stdin)]` arg, if any.
+    stdin_arg: Option<StdinAttr>,
 }
 
 /// What hangs off one command level besides its own prompted args.
@@ -29,21 +30,34 @@ enum PromptedArgBranch {
     /// A type merged into this level: a flattened `Args` type, or the subcommand enum.
     Flattened(Type),
     /// A struct variant: a subcommand whose args are its own fields.
-    Inline(String, PromptedArgTree),
+    Inline(ClapName, PromptedArgTree),
     /// A tuple variant: a subcommand whose args are another type's.
-    Subcommand(String, Type),
+    Subcommand(ClapName, Type),
 }
+
+/// A `dash` in `prompt(dash)`, or a `stdin`.
+struct DashAttr {
+    /// The type clap parses the field's value as: what `-` becomes.
+    field_type: Type,
+}
+
+/// The `dash` of a `PromptAttr` or `StdinAttr`, emitted as an `Option`.
+struct OptionalDash<'dash>(Option<&'dash DashAttr>);
 
 /// The `editor` beside a `#[couture(prompt)]`.
 struct EditorAttr {
     /// The temp file's extension, without the dot.
     extension: String,
+    /// The text the file starts with when the arg has no default.
+    initial: Option<TextExpr>,
 }
 
 /// One `#[couture(prompt)]` or `#[couture(confirm)]`, with or without `= "..."`.
 struct PromptAttr {
     /// The clap id of the arg it is on.
-    arg_id: String,
+    arg_id: ClapName,
+    /// `prompt(dash)`: asked only when `-` is its value.
+    dash: Option<DashAttr>,
     /// `Some` for `#[couture(prompt, editor)]`.
     editor: Option<EditorAttr>,
     /// What the answer is for.
@@ -60,6 +74,16 @@ enum Purpose {
     Confirmation,
     Value,
 }
+/// A field's `#[couture(stdin)]`.
+struct StdinAttr {
+    /// The clap id of the arg it is on.
+    arg_id: ClapName,
+    /// Stdin is read when `-` is its value.
+    dash: DashAttr,
+    /// `stdin(piped)`: a pipe is read too when the arg is left out.
+    piped: bool,
+}
+
 /// A `secret` beside a prompt, and the type it must hold.
 struct SecretAttr {
     /// `secret(allow_argv)`.
@@ -69,21 +93,54 @@ struct SecretAttr {
 }
 
 impl PromptedArgTree {
+    /// Every flattened and subcommand type this tree reads consts from, nested levels included.
+    pub(crate) fn merged_types(&self) -> Vec<&Type> {
+        self.branches
+            .iter()
+            .flat_map(|branch| match branch {
+                PromptedArgBranch::Flattened(merged_type)
+                | PromptedArgBranch::Subcommand(_, merged_type) => Vec::from([merged_type]),
+                PromptedArgBranch::Inline(_, tree) => tree.merged_types(),
+            })
+            .collect()
+    }
+
     /// The tree for one command level's fields: its prompted args, plus its flattened and
     /// subcommand types.
     ///
     /// # Errors
     /// - A `#[couture(prompt)]` or `#[couture(confirm)]` without the `interactive` feature.
     /// - Either on a field that is not a single named arg, or both on one field.
-    /// - A `#[couture(confirm)]` on a field that is not a `bool`.
+    /// - A `#[couture(confirm)]` on a field that is not a `bool`, or whose action sets no `true`.
+    /// - A `#[couture(stdin)]` on more than one field, or on one that is not a single named arg
+    ///   taking one value.
+    /// - A `dash` on an arg that does not take one value.
     pub(crate) fn of_fields(fields: &[FieldInput]) -> darling::Result<Self> {
         let mut errors = Error::accumulator();
-        let own_args = fields
+        let own_args: Vec<PromptAttr> = fields
             .iter()
             .filter_map(|field| errors.handle(PromptAttr::of_field(field)).flatten())
             .collect();
+        for prompt_attr in &own_args {
+            for error in prompt_attr.secrets_named(&own_args) {
+                errors.push(error);
+            }
+        }
         let branches = fields.iter().filter_map(PromptedArgBranch::of_field).collect();
-        errors.finish_with(Self { branches, own_args })
+        let mut marked_stdin =
+            fields.iter().filter_map(|field| field.stdin.as_ref().map(|attr| (field, attr)));
+        let stdin_arg = marked_stdin
+            .next()
+            .and_then(|(field, attr)| errors.handle(StdinAttr::new(field, attr)));
+        for (_, stdin) in marked_stdin {
+            errors.push(
+                Error::custom(
+                    "`#[couture(stdin)]` marks one arg per command; stdin can only be read once",
+                )
+                .with_span(&stdin.span()),
+            );
+        }
+        errors.finish_with(Self { branches, own_args, stdin_arg })
     }
 
     /// The tree for a subcommand enum: one branch per variant that can hold prompted args.
@@ -101,7 +158,7 @@ impl PromptedArgTree {
                 errors.handle(PromptedArgBranch::of_variant(variant, naming)).flatten()
             })
             .collect();
-        errors.finish_with(Self { branches, own_args: Vec::new() })
+        errors.finish_with(Self { branches, own_args: Vec::new(), stdin_arg: None })
     }
 }
 
@@ -140,20 +197,16 @@ impl PromptedArgBranch {
 
     /// `field_type`'s prompted args, or none when `field_type` does not implement `Couture`.
     fn prompted_args_of(field_type: &Type) -> TokenStream2 {
-        quote!(<::clap_couture::MaybeCouture<#field_type>>::PROMPTED_ARGS)
+        quote!(<#Runtime::__private::MaybeCouture<#field_type>>::PROMPTED_ARGS)
     }
 }
 
 impl EditorAttr {
     /// # Errors
     /// - `editor` without the `interactive-editor` feature.
-    /// - `editor` on a `bool` flag, which has no value to edit; a `bool` given an `action` may take
-    ///   one.
+    /// - `editor` on a flag, which has no value to edit.
     /// - An `extension` that is empty, starts with a dot or holds a path separator.
-    fn new(
-        field: &FieldInput,
-        editor: &SpannedValue<Override<EditorOptions>>,
-    ) -> darling::Result<Self> {
+    fn new(field: &FieldInput, editor: &BareOr<EditorOptions>) -> darling::Result<Self> {
         let span = editor.span();
         if !cfg!(feature = "interactive-editor") {
             return Err(Error::custom(
@@ -161,7 +214,7 @@ impl EditorAttr {
             )
             .with_span(&span));
         }
-        if field.ty.is_bool() && !field.attrs.has_clap_key("action") {
+        if !field.takes_value() {
             return Err(Error::custom("`#[couture(editor)]` needs an arg that takes a value")
                 .with_span(&span));
         }
@@ -176,8 +229,9 @@ impl EditorAttr {
             Override::Inherit => EditorOptions::default(),
             Override::Explicit(options) => options.clone(),
         };
+        let initial = options.initial;
         let Some(extension) = options.extension else {
-            return Ok(Self { extension: "txt".to_owned() });
+            return Ok(Self { extension: "txt".to_owned(), initial });
         };
         if extension.is_empty() || extension.starts_with('.') || extension.contains(['/', '\\']) {
             return Err(Error::custom(
@@ -185,13 +239,20 @@ impl EditorAttr {
             )
             .with_span(&extension.span()));
         }
-        Ok(Self { extension: extension.into_inner() })
+        Ok(Self { extension: extension.into_inner(), initial })
     }
 }
 
 impl PromptAttr {
-    fn new(field: &FieldInput, purpose: Purpose, question: &Question) -> darling::Result<Self> {
-        let (span, attr) = (question.span(), purpose.attr());
+    /// `dash` is the span of `prompt(dash)`, if given.
+    fn new(
+        field: &FieldInput,
+        purpose: Purpose,
+        span: Span,
+        question: Option<&TextExpr>,
+        dash: Option<Span>,
+    ) -> darling::Result<Self> {
+        let attr = purpose.attr();
         if !cfg!(feature = "interactive") {
             return Err(Error::custom(format!(
                 "{attr} needs clap-couture's `interactive` feature; enable it or one of \
@@ -205,12 +266,18 @@ impl PromptAttr {
         if purpose == Purpose::Confirmation && !field.ty.is_bool() {
             return Err(Error::custom(format!("{attr} marks a `bool` flag")).with_span(&span));
         }
+        if purpose == Purpose::Confirmation
+            && field.attrs.clap_flag_action().is_some_and(|action| action != FlagAction::SetTrue)
+        {
+            return Err(Error::custom(format!(
+                "{attr} marks a flag that a yes sets to `true`; this one's action doesn't"
+            ))
+            .with_span(&span));
+        }
+        let dash = dash.map(|span| DashAttr::new(field, span)).transpose()?;
         let editor =
             field.editor.as_ref().map(|editor| EditorAttr::new(field, editor)).transpose()?;
-        let question = match &**question {
-            Override::Inherit => None,
-            Override::Explicit(question) => Some(question.clone()),
-        };
+        let question = question.cloned();
         let secret = field
             .secret
             .as_ref()
@@ -229,7 +296,7 @@ impl PromptAttr {
                 Ok(SecretAttr { allow_argv, secret_type: field.ty.peel_option().clone() })
             })
             .transpose()?;
-        Ok(Self { arg_id, editor, purpose, question, secret })
+        Ok(Self { arg_id, dash, editor, purpose, question, secret })
     }
 
     /// The field's `#[couture(prompt)]` or `#[couture(confirm)]`, if it has one.
@@ -253,10 +320,19 @@ impl PromptAttr {
             )
             .with_span(&editor.span()));
         }
-        let (purpose, question) = match (&field.prompt, &field.confirm) {
+        let (purpose, span, question, dash) = match (&field.prompt, &field.confirm) {
             (None, None) => return Ok(None),
-            (Some(prompt), None) => (Purpose::Value, prompt),
-            (None, Some(confirm)) => (Purpose::Confirmation, confirm),
+            (Some(prompt), None) => {
+                let dash = prompt.dash.is_present().then(|| prompt.dash.span());
+                (Purpose::Value, prompt.span(), prompt.question.as_ref(), dash)
+            }
+            (None, Some(confirm)) => {
+                let question = match &**confirm {
+                    Override::Inherit => None,
+                    Override::Explicit(question) => Some(question),
+                };
+                (Purpose::Confirmation, confirm.span(), question, None)
+            }
             (Some(_), Some(confirm)) => {
                 return Err(Error::custom(
                     "`#[couture(prompt)]` and `#[couture(confirm)]` cannot mark the same field",
@@ -264,9 +340,9 @@ impl PromptAttr {
                 .with_span(&confirm.span()));
             }
         };
-        let (span, attr) = (question.span(), purpose.attr());
+        let attr = purpose.attr();
         match FieldKind::from(field.attrs.as_slice()) {
-            FieldKind::Arg => Self::new(field, purpose, question).map(Some),
+            FieldKind::Arg => Self::new(field, purpose, span, question, dash).map(Some),
             FieldKind::Flatten => Err(purpose.misplaced(span, "the fields of the flattened type")),
             FieldKind::Skip => {
                 Err(Error::custom(format!("{attr} cannot mark a field clap skips"))
@@ -276,6 +352,34 @@ impl PromptAttr {
                 Err(purpose.misplaced(span, "the fields of the subcommand's variants"))
             }
         }
+    }
+
+    /// An error for each secret among `level_args` its confirmation's question names, whose
+    /// value the confirmation would show.
+    fn secrets_named(&self, level_args: &[Self]) -> Vec<Error> {
+        let Some(question) =
+            self.question.as_ref().filter(|_| self.purpose == Purpose::Confirmation)
+        else {
+            return Vec::new();
+        };
+        let is_secret = |id: &str| {
+            level_args.iter().any(|arg| {
+                arg.secret.is_some()
+                    && matches!(&arg.arg_id, ClapName::Literal(secret_id) if secret_id == id)
+            })
+        };
+        question
+            .named_ids()
+            .into_iter()
+            .filter(|id| is_secret(id))
+            .map(|id| {
+                Error::custom(format!(
+                    "`{{{id}}}` names a `#[couture(secret)]`; the confirmation would show its \
+                     value"
+                ))
+                .with_span(&question.span())
+            })
+            .collect()
     }
 }
 
@@ -298,10 +402,23 @@ impl Purpose {
 impl ToTokens for PromptedArgTree {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         let (branches, own_args) = (&self.branches, &self.own_args);
+        let stdin_arg = self.stdin_arg.as_ref().map_or_else(
+            || quote!(::core::option::Option::None),
+            |StdinAttr { arg_id, dash, piped }| {
+                quote! {
+                    ::core::option::Option::Some(#Runtime::__private::StdinAttr {
+                        arg_id: #arg_id,
+                        dash: #dash,
+                        piped: #piped,
+                    })
+                }
+            },
+        );
         tokens.extend(quote! {
-            ::clap_couture::interactive::PromptedArgTree {
+            #Runtime::__private::PromptedArgTree {
                 branches: &[#(#branches),*],
                 own_args: &[#(#own_args),*],
+                stdin_arg: #stdin_arg,
             }
         });
     }
@@ -312,10 +429,10 @@ impl ToTokens for PromptedArgBranch {
         tokens.extend(match self {
             Self::Flattened(flattened_type) => {
                 let tree = Self::prompted_args_of(flattened_type);
-                quote!(::clap_couture::interactive::PromptedArgBranch::Flattened(#tree))
+                quote!(#Runtime::__private::PromptedArgBranch::Flattened(#tree))
             }
             Self::Inline(subcommand_name, tree) => quote! {
-                ::clap_couture::interactive::PromptedArgBranch::Subcommand(
+                #Runtime::__private::PromptedArgBranch::Subcommand(
                     #subcommand_name,
                     &#tree,
                 )
@@ -323,7 +440,7 @@ impl ToTokens for PromptedArgBranch {
             Self::Subcommand(subcommand_name, subcommand_type) => {
                 let tree = Self::prompted_args_of(subcommand_type);
                 quote! {
-                    ::clap_couture::interactive::PromptedArgBranch::Subcommand(
+                    #Runtime::__private::PromptedArgBranch::Subcommand(
                         #subcommand_name,
                         #tree,
                     )
@@ -335,15 +452,19 @@ impl ToTokens for PromptedArgBranch {
 
 impl ToTokens for PromptAttr {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
-        let arg_id = &self.arg_id;
+        let (arg_id, dash) = (&self.arg_id, OptionalDash(self.dash.as_ref()));
         let editor = self.editor.as_ref().map_or_else(
             || quote!(::core::option::Option::None),
-            |EditorAttr { extension }| {
+            |EditorAttr { extension, initial }| {
+                let initial = OptionalText::from(initial);
                 quote! {
                     ::core::option::Option::Some({
                         // Fails the build when clap-couture can't open an editor.
-                        const _: () = ::clap_couture::interactive::EditorAttr::FEATURE_CHECK;
-                        ::clap_couture::interactive::EditorAttr { extension: #extension }
+                        const _: () = #Runtime::__private::EditorAttr::FEATURE_CHECK;
+                        #Runtime::__private::EditorAttr {
+                            extension: #extension,
+                            initial: #initial,
+                        }
                     })
                 }
             },
@@ -359,19 +480,100 @@ impl ToTokens for PromptAttr {
             |SecretAttr { allow_argv, secret_type }| {
                 quote! {
                     ::core::option::Option::Some(
-                        ::clap_couture::interactive::SecretAttr::new::<#secret_type>(#allow_argv)
+                        #Runtime::__private::SecretAttr::new::<#secret_type>(#allow_argv)
                     )
                 }
             },
         );
         tokens.extend(quote! {
-            ::clap_couture::interactive::PromptAttr {
+            #Runtime::__private::PromptAttr {
                 arg_id: #arg_id,
+                dash: #dash,
                 editor: #editor,
-                purpose: ::clap_couture::interactive::PromptPurpose::#purpose,
+                purpose: #Runtime::__private::PromptPurpose::#purpose,
                 question: #question,
                 secret: #secret,
             }
         });
+    }
+}
+
+impl StdinAttr {
+    /// `field`'s `#[couture(stdin)]`, `stdin`.
+    ///
+    /// # Errors
+    /// - No `interactive` feature.
+    /// - The field is not a single named arg, takes no value, or takes many.
+    /// - `#[couture(confirm)]` beside it.
+    fn new(field: &FieldInput, stdin: &BareOr<StdinOptions>) -> darling::Result<Self> {
+        let span = stdin.span();
+        let error = |message: &str| Err(Error::custom(message).with_span(&span));
+        if !cfg!(feature = "interactive") {
+            return error(
+                "`#[couture(stdin)]` needs clap-couture's `interactive` feature; enable it or one \
+                 of `interactive-cliclack`, `interactive-dialoguer`, `interactive-inquire`",
+            );
+        }
+        match FieldKind::from(field.attrs.as_slice()) {
+            FieldKind::Arg => {}
+            FieldKind::Flatten | FieldKind::Subcommand => {
+                return error(
+                    "`#[couture(stdin)]` marks a single arg; put it on a field of that type \
+                     instead",
+                );
+            }
+            FieldKind::Skip => {
+                return error("`#[couture(stdin)]` cannot mark a field clap skips");
+            }
+        }
+        let Some(arg_id) = field.clap_arg_id() else {
+            return error("`#[couture(stdin)]` needs a named field");
+        };
+        if field.confirm.is_some() || !field.takes_value() {
+            return error("`#[couture(stdin)]` needs an arg that takes a value");
+        }
+        if field.ty.is_multi_value() {
+            return error("`#[couture(stdin)]` takes a single value");
+        }
+        let piped = match &**stdin {
+            Override::Explicit(StdinOptions { piped }) => piped.is_present(),
+            Override::Inherit => false,
+        };
+        Ok(Self { arg_id, dash: DashAttr::new(field, span)?, piped })
+    }
+}
+
+impl DashAttr {
+    /// The `dash` at `span` on `field`.
+    ///
+    /// # Errors
+    /// The field is a flag that takes no value, or takes many.
+    fn new(field: &FieldInput, span: Span) -> darling::Result<Self> {
+        if !field.takes_value() {
+            return Err(Error::custom("`dash` needs an arg that takes a value").with_span(&span));
+        }
+        if field.ty.is_multi_value() {
+            return Err(
+                Error::custom("`dash` needs an arg that takes a single value").with_span(&span)
+            );
+        }
+        Ok(Self { field_type: field.ty.value_type().clone() })
+    }
+}
+
+impl ToTokens for DashAttr {
+    fn to_tokens(&self, tokens: &mut TokenStream2) {
+        // The type keeps the user's span, so a field clap can't hand over is the error's location.
+        let field_type = &self.field_type;
+        tokens.extend(quote!(#Runtime::__private::DashAttr::new::<#field_type>()));
+    }
+}
+
+impl ToTokens for OptionalDash<'_> {
+    fn to_tokens(&self, tokens: &mut TokenStream2) {
+        tokens.extend(self.0.map_or_else(
+            || quote!(::core::option::Option::None),
+            |dash| quote!(::core::option::Option::Some(#dash)),
+        ));
     }
 }

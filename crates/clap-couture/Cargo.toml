@@ -1,8 +1,8 @@
 [package]
 name = "clap-couture"
 version = "0.1.0"
-edition = "2024"
-description = "Beautiful, categorized --help for clap CLIs: group subcommands into titled, styled sections."
+edition.workspace = true
+description = "Polish for clap CLIs: categorized, markdown --help, and prompts for missing args: masked secrets, $EDITOR, confirmations and stdin."
 keywords = ["clap", "cli", "help", "terminal", "derive"]
 categories = ["command-line-interface", "development-tools"]
 readme = "../../README.md"
@@ -35,9 +35,11 @@ codepage = { workspace = true, optional = true }
 windows-sys = { workspace = true, optional = true }
 
 [features]
-default = ["full"]
+# Everything but `markdown`, which changes what `*`, `_` and `<...>` mean in help text.
+default = ["derive", "interactive-cliclack", "interactive-editor"]
 # `#[derive(Couture)]`. Without it, implement `Couture` by hand.
 derive = ["dep:clap-couture-derive"]
+# Help text is CommonMark, rendered in the terminal.
 markdown = ["dep:pulldown-cmark"]
 # Prompts are declared with `#[couture(prompt)]`, so they need the derive.
 interactive = [
@@ -112,6 +114,14 @@ required-features = ["interactive"]
 [[example]]
 name = "09-interactive-custom-backend"
 required-features = ["derive", "markdown", "interactive"]
+
+[[example]]
+name = "10-interactive-stdin"
+required-features = ["interactive"]
+
+[[example]]
+name = "11-interactive-dash"
+required-features = ["interactive"]
 
 [dev-dependencies]
 clap = { workspace = true, features = ["derive", "env"] }

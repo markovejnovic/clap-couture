@@ -27,7 +27,8 @@
 //!   :root[data-theme="light"] .couture-light { display: revert; }
 //!   :root[data-theme="light"] .couture-dark { display: none; }
 //!   .docblock img.couture-dark, .docblock img.couture-light {
-//!     width: 100%;
+//!     max-width: 100%;
+//!     height: auto;
 //!     border-radius: var(--code-block-border-radius, 6px);
 //!   }
 //! </style>
@@ -72,7 +73,8 @@
 //!
 //! ```
 //! # use clap::{Parser, Subcommand};
-//! # use clap_couture::Couture;
+//! use clap_couture::{Couture, CoutureParser as _};
+//!
 //! #[derive(Parser, Couture)]
 //! struct Cli {
 //!     #[command(subcommand)]
@@ -83,28 +85,28 @@
 //! #[couture(categories = { "everyday" = {}, "deploy" = {}, "account" = {} })]
 //! enum Cmd {
 //!     /// Ship the current project.
-//!     #[category("deploy")]
+//!     #[couture(category = "deploy")]
 //!     Deploy,
 //!     /// Sign in to your account.
-//!     #[category("account")]
+//!     #[couture(category = "account")]
 //!     Login,
 //!     /// Tail live logs.
-//!     #[category("everyday")]
+//!     #[couture(category = "everyday")]
 //!     Logs,
 //!     /// Roll back to a previous release.
-//!     #[category("deploy")]
+//!     #[couture(category = "deploy")]
 //!     Rollback,
 //!     /// Search your deployment history.
-//!     #[category("everyday")]
+//!     #[couture(category = "everyday")]
 //!     Search,
 //!     /// Manage environment secrets.
-//!     #[category("deploy")]
+//!     #[couture(category = "deploy")]
 //!     Secrets,
 //!     /// Show recent activity.
-//!     #[category("everyday")]
+//!     #[couture(category = "everyday")]
 //!     Status,
 //!     /// Sync settings across machines.
-//!     #[category("account")]
+//!     #[couture(category = "account")]
 //!     Sync,
 //! }
 //! ```
@@ -114,7 +116,8 @@
 //!
 //! ## Markdown Support
 //!
-//! [`clap_couture`](self) also has support for markdown with the `markdown` feature flag.
+//! [`clap_couture`](self) also has support for markdown with the `markdown` feature flag, which is
+//! off by default. Help text is then CommonMark, so `*`, `_` and `<...>` mean what they do there.
 //!
 //! ```
 //! use clap::{Parser, Subcommand};
@@ -135,8 +138,10 @@
 //!     Login,
 //! }
 //! # let help = Cli::couture_command().render_help().to_string();
-//! # assert!(help.contains("Ship the current project"));
-//! # assert!(help.contains("Sign in to your account"));
+//! # if cfg!(feature = "markdown") {
+//! #     assert!(help.contains("Ship the current project"));
+//! #     assert!(help.contains("Sign in to your account"));
+//! # }
 //! ```
 //!
 //! This results in:
@@ -198,8 +203,8 @@
 //!
 //! This results in support for interactive input:
 //!
-//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/03-interactive-dark.gif" alt="running orbit-deploy with no flags: it asks for the app as text, whether to tail the logs as yes/no, and the region from a list, then asks for the replicas again after an answer that isn't a number">
-//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/03-interactive-light.gif" alt="running orbit-deploy with no flags: it asks for the app as text, whether to tail the logs as yes/no, and the region from a list, then asks for the replicas again after an answer that isn't a number">
+//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/03-interactive-dark.gif" alt="running orbit-deploy with no flags: it asks for the app as text, whether to tail the logs as yes/no, and the region from a list, then asks for the replicas again after an answer that isn't a number" width="846">
+//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/03-interactive-light.gif" alt="running orbit-deploy with no flags: it asks for the app as text, whether to tail the logs as yes/no, and the region from a list, then asks for the replicas again after an answer that isn't a number" width="846">
 //!
 //! ### Neat features
 //!
@@ -255,8 +260,8 @@
 //!
 //! An example of this interaction is:
 //!
-//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/05-interactive-confirm-dark.gif" alt="running orbit-destroy with no flags: it asks for the app and the region, then asks whether to destroy web in eu, and goes ahead on a yes">
-//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/05-interactive-confirm-light.gif" alt="running orbit-destroy with no flags: it asks for the app and the region, then asks whether to destroy web in eu, and goes ahead on a yes">
+//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/05-interactive-confirm-dark.gif" alt="running orbit-destroy with no flags: it asks for the app and the region, then asks whether to destroy web in eu, and goes ahead on a yes" width="623">
+//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/05-interactive-confirm-light.gif" alt="running orbit-destroy with no flags: it asks for the app and the region, then asks whether to destroy web in eu, and goes ahead on a yes" width="623">
 //!
 //! See [`examples/05-interactive-confirm.rs`](https://github.com/markovejnovic/clap-couture/blob/main/crates/clap-couture/examples/05-interactive-confirm.rs).
 //!
@@ -285,10 +290,67 @@
 //!
 //! An example of this interaction is:
 //!
-//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/07-interactive-secret-dark.gif" alt="running orbit-deploy with no flags: it asks for the app, then for the deploy token, showing only a mask as it is typed, and deploys">
-//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/07-interactive-secret-light.gif" alt="running orbit-deploy with no flags: it asks for the app, then for the deploy token, showing only a mask as it is typed, and deploys">
+//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/07-interactive-secret-dark.gif" alt="running orbit-deploy with no flags: it asks for the app, then for the deploy token, showing only a mask as it is typed, and deploys" width="623">
+//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/07-interactive-secret-light.gif" alt="running orbit-deploy with no flags: it asks for the app, then for the deploy token, showing only a mask as it is typed, and deploys" width="623">
 //!
 //! See [`examples/07-interactive-secret.rs`](https://github.com/markovejnovic/clap-couture/blob/main/crates/clap-couture/examples/07-interactive-secret.rs).
+//!
+//! ### Piped input
+//!
+//! `#[couture(stdin)]` reads stdin into an arg the user passes `-`, so `post --message -` takes
+//! the message from a pipe or a file. `#[couture(stdin(piped))]` takes a pipe unasked as well:
+//! `echo hi | post` works like `post --message hi`. Only a pipe is read that way, so a terminal, a
+//! file or `/dev/null` on stdin never blocks the parse, but a pipe nobody writes to does, as under
+//! `ssh host cli`; read [the warning](interactive#reading-stdin) before choosing it. Beside
+//! `prompt`, the arg is asked when nothing is piped; beside `secret`, it works like `docker login
+//! --password-stdin`.
+//!
+//! ```
+//! use clap::Parser;
+//! use clap_couture::{Couture, CoutureParser as _};
+//!
+//! #[derive(Parser, Couture)]
+//! struct Cli {
+//!     /// Message to post.
+//!     #[arg(long)]
+//!     #[couture(prompt, stdin(piped))]
+//!     message: String,
+//! }
+//!
+//! let cli = Cli::couture_parse_from(["post", "--message", "hi"]);
+//! # assert_eq!(cli.message, "hi");
+//! ```
+//!
+//! An example of this interaction is:
+//!
+//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/10-interactive-stdin-dark.gif" alt="piping release notes into orbit-release, which takes them without asking, then running orbit-release alone, which asks for the notes" width="623">
+//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/10-interactive-stdin-light.gif" alt="piping release notes into orbit-release, which takes them without asking, then running orbit-release alone, which asks for the notes" width="623">
+//!
+//! See [`examples/10-interactive-stdin.rs`](https://github.com/markovejnovic/clap-couture/blob/main/crates/clap-couture/examples/10-interactive-stdin.rs).
+//!
+//! Only one arg on a command may take stdin, as stdin can only be read once. See
+//! [the `interactive` module](interactive#reading-stdin) for the details.
+//!
+//! ### Dash input
+//!
+//! `#[couture(prompt(dash))]` asks for an argument interactively if the user passes `-` as the
+//! command line flag.
+//!
+//! ```rust,ignore
+//! #[arg(short, long)]
+//! #[couture(prompt(dash), editor)] // `commit -m -` opens your $EDITOR
+//! message: Option<String>,
+//!
+//! #[arg(long)]
+//! #[couture(prompt, secret, stdin)] // `login --password -` reads stdin
+//! password: SecretString,
+//! ```
+//!
+//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/11-interactive-dash-dark.gif" alt="running orbit-release --title -, which asks for the title, then piping release notes into orbit-release --notes -, which reads them from stdin" width="623">
+//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/11-interactive-dash-light.gif" alt="running orbit-release --title -, which asks for the title, then piping release notes into orbit-release --notes -, which reads them from stdin" width="623">
+//!
+//! See [`examples/11-interactive-dash.rs`](https://github.com/markovejnovic/clap-couture/blob/main/crates/clap-couture/examples/11-interactive-dash.rs),
+//! and [the `interactive` module](interactive#dash-as-a-value) for the details.
 //!
 //! ### Custom interactive input
 //!
@@ -323,8 +385,8 @@
 //!
 //! An example of this interaction is:
 //!
-//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/08-interactive-prompter-dark.gif" alt="running orbit-create with no flags: it asks for the app, then whether to add a database, and on a yes, which engine">
-//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/08-interactive-prompter-light.gif" alt="running orbit-create with no flags: it asks for the app, then whether to add a database, and on a yes, which engine">
+//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/08-interactive-prompter-dark.gif" alt="running orbit-create with no flags: it asks for the app, then whether to add a database, and on a yes, which engine" width="623">
+//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/08-interactive-prompter-light.gif" alt="running orbit-create with no flags: it asks for the app, then whether to add a database, and on a yes, which engine" width="623">
 //!
 //! See [`examples/08-interactive-prompter.rs`](https://github.com/markovejnovic/clap-couture/blob/main/crates/clap-couture/examples/08-interactive-prompter.rs).
 //!
@@ -361,7 +423,7 @@
 //!
 //! #[couture(categories = { "deploy" = { title = fl!("deploy-opt") } })]
 //! enum Cmd {
-//!     #[category("deploy")]
+//!     #[couture(category = "deploy")]
 //!     Ship,
 //! }
 //!
@@ -378,6 +440,9 @@
 
 extern crate alloc;
 
+#[doc(hidden)]
+#[path = "private.rs"]
+pub mod __private;
 #[cfg(feature = "interactive-editor")]
 mod fs;
 #[cfg(feature = "interactive")]
@@ -392,15 +457,11 @@ mod strings;
 mod text;
 
 use alloc::borrow::Cow;
-use core::fmt::Write as _;
 
-use clap::{Command, builder::StyledStr};
+use clap::Command;
 #[cfg(feature = "derive")]
 pub use clap_couture_derive::Couture;
-#[doc(hidden)]
-pub use maybe_couture::{MaybeCouture, NotCouture};
-pub use parser::CoutureParser;
-use render::CommandRenderExt as _;
+pub use parser::{CoutureParser, ParseError};
 pub use text::Text;
 
 /// A clap subcommand name, eg. `foo` in `app foo`.
@@ -459,7 +520,7 @@ impl CommandName {
 /// #[couture(categories = { "deploy" = { title = "部署：" } })]
 /// enum Cmd {
 ///     /// 部署当前项目
-///     #[category("deploy")]
+///     #[couture(category = "deploy")]
 ///     Ship,
 /// }
 ///
@@ -490,47 +551,31 @@ impl CommandName {
 /// `Print help` and `[possible values: ...]` are clap's own text; for the help flag, disable
 /// clap's and add your own.
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(
+    not(feature = "interactive-editor"),
+    expect(dead_code, reason = "the prompts' messages are read only by the features that prompt")
+)]
 pub struct Messages {
-    /// Reported when a `#[couture(prompt, editor)]` arg that is required or has a default is
-    /// answered with an empty file.
-    /// The default is `"Aborting due to an empty answer."`.
-    pub editor_empty: Text,
-    /// The last header line of the file of a `#[couture(prompt, editor)]` arg that is required or
-    /// has a default. The default
-    /// is `"These lines are removed. Leave the file empty to cancel."`.
-    pub editor_instructions: Text,
-    /// The last header line of the file of an optional `#[couture(prompt, editor)]` arg with no
-    /// default. The default
-    /// is `"These lines are removed. Leave the file empty to leave it unset."`.
-    pub editor_instructions_optional: Text,
-    /// The error a `#[couture(prompt, editor)]` file reopens with when it was saved in an
-    /// encoding that can't be read. The default is `"The file is not UTF-8. Save it as UTF-8."`.
-    pub editor_not_utf8: Text,
-    /// Asked when the editor returned right away and left the file as it was, as `code` does
-    /// without `--wait`. The default is `"Your editor returned right away. Done editing the
-    /// file?"`.
-    pub editor_returned_early: Text,
-    /// Shown while the editor is open; empty shows nothing. The default is
-    /// `"hint: Waiting for your editor to close the file..."`.
-    pub editor_waiting: Text,
-    pub environment: Text,
-    /// The hint beside each prompt for one more value of a multi-value arg, telling that an empty
-    /// answer finishes the list. The default is `"(<enter> to finish)"`.
-    pub finish_hint: Text,
-    /// The select option that leaves an optional prompted arg unset. The default is `"(none)"`.
-    pub none: Text,
-    /// The heading above the options in `--help`. The default is `"Options:"`.
-    pub options: Text,
-    /// What a required multi-select tells the user when nothing is selected. The default is
-    /// `"Select at least one option"`.
-    pub selection_required: Text,
-    /// The heading above the usage in `--help`. The default is `"Usage:"`.
-    pub usage: Text,
+    pub(crate) arguments: Text,
+    pub(crate) editor_empty: Text,
+    pub(crate) editor_instructions: Text,
+    pub(crate) editor_instructions_optional: Text,
+    pub(crate) editor_not_utf8: Text,
+    pub(crate) editor_returned_early: Text,
+    pub(crate) editor_unreadable: Text,
+    pub(crate) editor_waiting: Text,
+    pub(crate) environment: Text,
+    pub(crate) finish_hint: Text,
+    pub(crate) none: Text,
+    pub(crate) options: Text,
+    pub(crate) selection_required: Text,
+    pub(crate) usage: Text,
 }
 
 impl Messages {
     /// clap's English wording.
     pub const DEFAULT: Self = Self {
+        arguments: Text::Literal("Arguments:"),
         editor_empty: Text::Literal("Aborting due to an empty answer."),
         editor_instructions: Text::Literal(
             "These lines are removed. Leave the file empty to cancel.",
@@ -542,6 +587,9 @@ impl Messages {
         editor_returned_early: Text::Literal(
             "Your editor returned right away. Done editing the file?",
         ),
+        editor_unreadable: Text::Literal(
+            "Text that could not be read shows as \u{FFFD}. Retype it.",
+        ),
         editor_waiting: Text::Literal("hint: Waiting for your editor to close the file..."),
         environment: Text::Literal("Environment:"),
         finish_hint: Text::Literal("(<enter> to finish)"),
@@ -550,24 +598,153 @@ impl Messages {
         selection_required: Text::Literal("Select at least one option"),
         usage: Text::Literal("Usage:"),
     };
+
+    /// The heading above the positional arguments in `--help`. The default is `"Arguments:"`.
+    #[must_use]
+    pub const fn with_arguments(self, text: Text) -> Self {
+        Self { arguments: text, ..self }
+    }
+
+    /// Reported when a `#[couture(prompt, editor)]` arg that is required or has a default is
+    /// answered with an empty file. The default is `"Aborting due to an empty answer."`.
+    #[must_use]
+    pub const fn with_editor_empty(self, text: Text) -> Self {
+        Self { editor_empty: text, ..self }
+    }
+
+    /// The last header line of the file of a `#[couture(prompt, editor)]` arg that is required or
+    /// has a default. The default is `"These lines are removed. Leave the file empty to cancel."`.
+    #[must_use]
+    pub const fn with_editor_instructions(self, text: Text) -> Self {
+        Self { editor_instructions: text, ..self }
+    }
+
+    /// The last header line of the file of an optional `#[couture(prompt, editor)]` arg with no
+    /// default. The default is `"These lines are removed. Leave the file empty to leave it
+    /// unset."`.
+    #[must_use]
+    pub const fn with_editor_instructions_optional(self, text: Text) -> Self {
+        Self { editor_instructions_optional: text, ..self }
+    }
+
+    /// The error a `#[couture(prompt, editor)]` file reopens with when it was saved in an encoding
+    /// that can't be read. The default is `"The file is not UTF-8. Save it as UTF-8."`.
+    #[must_use]
+    pub const fn with_editor_not_utf8(self, text: Text) -> Self {
+        Self { editor_not_utf8: text, ..self }
+    }
+
+    /// Asked when the editor returned right away and left the file as it was, as `code` does
+    /// without `--wait`. The default is `"Your editor returned right away. Done editing the
+    /// file?"`.
+    #[must_use]
+    pub const fn with_editor_returned_early(self, text: Text) -> Self {
+        Self { editor_returned_early: text, ..self }
+    }
+
+    /// The error a `#[couture(prompt, editor)]` file reopens with while it still holds the U+FFFD
+    /// marking text that couldn't be read. The default is `"Text that could not be read shows as
+    /// \u{FFFD}. Retype it."`.
+    #[must_use]
+    pub const fn with_editor_unreadable(self, text: Text) -> Self {
+        Self { editor_unreadable: text, ..self }
+    }
+
+    /// Shown while the editor is open; empty shows nothing. The default is `"hint: Waiting for your
+    /// editor to close the file..."`.
+    #[must_use]
+    pub const fn with_editor_waiting(self, text: Text) -> Self {
+        Self { editor_waiting: text, ..self }
+    }
+
+    /// The heading above the env vars that pass a `#[couture(secret)]` arg, in `--help`. The
+    /// default is `"Environment:"`.
+    #[must_use]
+    pub const fn with_environment(self, text: Text) -> Self {
+        Self { environment: text, ..self }
+    }
+
+    /// The hint beside each prompt for one more value of a multi-value arg, telling that an empty
+    /// answer finishes the list. The default is `"(<enter> to finish)"`.
+    #[must_use]
+    pub const fn with_finish_hint(self, text: Text) -> Self {
+        Self { finish_hint: text, ..self }
+    }
+
+    /// The select option that leaves an optional prompted arg unset. The default is `"(none)"`.
+    #[must_use]
+    pub const fn with_none(self, text: Text) -> Self {
+        Self { none: text, ..self }
+    }
+
+    /// The heading above the options in `--help`. The default is `"Options:"`.
+    #[must_use]
+    pub const fn with_options(self, text: Text) -> Self {
+        Self { options: text, ..self }
+    }
+
+    /// What a required multi-select tells the user when nothing is selected. The default is
+    /// `"Select at least one option"`.
+    #[must_use]
+    pub const fn with_selection_required(self, text: Text) -> Self {
+        Self { selection_required: text, ..self }
+    }
+
+    /// The heading above the usage in `--help`. The default is `"Usage:"`.
+    #[must_use]
+    pub const fn with_usage(self, text: Text) -> Self {
+        Self { usage: text, ..self }
+    }
 }
 
 /// Defines a category of similar commands.
+#[derive(Clone, Copy, Debug)]
 pub struct Category {
-    /// Text printed beside the heading, if any.
-    pub description: Option<Text>,
-
-    /// Key that `#[category("...")]` refers to.
-    pub label: &'static str,
-
-    /// Heading shown to the user, colon included; falls back to [`Self::label`] and a colon.
-    pub title: Option<Text>,
+    description: Option<Text>,
+    label: &'static str,
+    title: Option<Text>,
 }
 
 impl Category {
+    /// Text printed beside the heading, if any.
+    #[must_use]
+    pub const fn description(&self) -> Option<Text> {
+        self.description
+    }
+
     /// The user-facing heading: [`Self::title`], falling back to [`Self::label`] and a colon.
     pub(crate) fn heading(&self) -> Cow<'static, str> {
         self.title.as_ref().map_or_else(|| Cow::Owned(format!("{}:", self.label)), Text::get)
+    }
+
+    /// The key `#[couture(category = "...")]` refers to.
+    #[must_use]
+    pub const fn label(&self) -> &'static str {
+        self.label
+    }
+
+    /// A category keyed `label`, headed by `label` and a colon, with no description.
+    #[must_use]
+    pub const fn new(label: &'static str) -> Self {
+        Self { description: None, label, title: None }
+    }
+
+    /// The heading shown to the user, colon included, if set.
+    #[must_use]
+    pub const fn title(&self) -> Option<Text> {
+        self.title
+    }
+
+    /// Print `description` beside the heading.
+    #[must_use]
+    pub const fn with_description(self, description: Text) -> Self {
+        Self { description: Some(description), ..self }
+    }
+
+    /// Head the category with `title`, colon included, instead of the label and a colon.
+    #[must_use]
+    pub const fn with_title(self, title: Text) -> Self {
+        Self { title: Some(title), ..self }
     }
 }
 
@@ -716,7 +893,15 @@ pub trait Couture {
     /// The args marked `#[couture(prompt)]` or `#[couture(confirm)]`, and where they sit.
     #[cfg(feature = "interactive")]
     #[doc(hidden)]
-    const PROMPTED_ARGS: interactive::PromptedArgTree = interactive::PromptedArgTree::EMPTY;
+    const PROMPTED_ARGS: __private::PromptedArgTree = __private::PromptedArgTree::EMPTY;
+}
+
+/// A boxed type's consts are the type's, so a boxed subcommand or flattened `Args` keeps them.
+impl<T: Couture> Couture for Box<T> {
+    const CATEGORIES: CommandCategoryMap = T::CATEGORIES;
+    const MESSAGES: Messages = T::MESSAGES;
+    #[cfg(feature = "interactive")]
+    const PROMPTED_ARGS: __private::PromptedArgTree = T::PROMPTED_ARGS;
 }
 
 /// Extension trait adding categorized help to a [`clap::Command`].
@@ -724,8 +909,12 @@ pub trait CommandExt {
     /// Group this command's `--help` subcommand listing by `T`'s categories, with `T`'s
     /// [`Messages`].
     ///
-    /// Overwrites the command's [`help_template`](Command::help_template) and
-    /// [`before_help`](Command::before_help).
+    /// clap renders the arg sections as it always does, positionals and `help_heading`s included.
+    /// Everything below the usage goes in the command's [`after_help`](Command::after_help), after
+    /// any it already has; a [`before_help`](Command::before_help) is kept. A
+    /// [`help_template`](Command::help_template) set before this call is kept too: place
+    /// `{after-help}` in it rather than `{all-args}` or `{subcommands}`. Add args and subcommands
+    /// before this call, as the listing is rendered here.
     ///
     /// Leaves `#[couture(secret)]` args unguarded; take the command from
     /// [`CoutureParser::couture_command`] to refuse them on the command line.
@@ -746,7 +935,7 @@ pub trait CommandExt {
     /// #[couture(categories = { "everyday" = { description = "daily drivers" } })]
     /// enum Cmd {
     ///     /// Search your deployment history
-    ///     #[category("everyday")]
+    ///     #[couture(category = "everyday")]
     ///     Search,
     /// }
     ///
@@ -764,25 +953,6 @@ impl CommandExt for Command {
     where
         T: Couture,
     {
-        let styles = self.get_styles();
-        let mut before = StyledStr::new();
-        // `StyledStr`'s `fmt::Write` is infallible.
-        self.write_command_sections(&mut before, T::CATEGORIES).ok();
-
-        // clap can't regroup its subcommand listing, so the template lists `{options}` instead of
-        // `{all-args}` and the menu goes in `{before-help}`. The headings are written out rather
-        // than clap's `{usage-heading}`, which is always English.
-        let (header, usage) = (styles.get_header(), styles.get_usage());
-        let (options_heading, usage_heading) = (T::MESSAGES.options.get(), T::MESSAGES.usage.get());
-        let mut template =
-            format!("{{about-with-newline}}\n{usage}{usage_heading}{usage:#}\n  {{usage}}\n\n");
-        // `String`'s `fmt::Write` is infallible.
-        writeln!(template, "{{before-help}}{header}{options_heading}{header:#}").ok();
-        template.push_str("{options}{after-help}");
-
-        // clap follows a set `before_help` with a blank line, even an empty one, so a command
-        // without subcommands would get a gap where the menu goes.
-        let command = if before.to_string().is_empty() { self } else { self.before_help(before) };
-        command.help_template(template)
+        render::HelpBody::new(&self, T::CATEGORIES, &T::MESSAGES).install(self, &T::MESSAGES)
     }
 }

@@ -12,7 +12,7 @@ Usage:
   search    Search your deployment history
   status    Show recent activity
 
-deploy:
+Deploy:
   deploy    Ship the current project
   rollback  Roll back to a previous release
   secrets   Manage environment secrets

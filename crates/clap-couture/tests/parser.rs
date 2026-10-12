@@ -20,7 +20,7 @@ struct Nested {
 #[couture(categories = { "everyday" = { title = "Everyday:" } })]
 enum Cmd {
     /// Tail live logs.
-    #[category("everyday")]
+    #[couture(category = "everyday")]
     Logs,
 }
 

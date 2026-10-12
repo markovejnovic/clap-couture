@@ -7,7 +7,7 @@ mod common;
 
 use clap::{Parser, Subcommand, error::ErrorKind};
 use clap_couture::{
-    Couture, CoutureParser as _,
+    Couture, CoutureParser as _, ParseError,
     interactive::{
         NonInteractive,
         secrecy::{ExposeSecret as _, SecretString},
@@ -15,6 +15,18 @@ use clap_couture::{
 };
 use common::{Asked, Kind, Reply, ScriptedBackend};
 use rstest::rstest;
+
+/// A computed question escapes the derive's check, so the runtime keeps the secret out of it.
+#[derive(Parser, Couture)]
+struct ConfirmedLogin {
+    #[arg(long)]
+    #[couture(prompt = "Which token?", secret)]
+    token: SecretString,
+
+    #[arg(long)]
+    #[couture(confirm = String::from("Use token {token}?"))]
+    yes: bool,
+}
 
 /// The secret is asked first, so the replicas' trial parse carries the secret's placeholder.
 #[derive(Parser, Couture)]
@@ -27,6 +39,14 @@ struct Deploy {
     #[arg(long)]
     #[couture(prompt)]
     replicas: u8,
+}
+
+#[derive(Parser, Couture)]
+struct EnvLogin {
+    /// API token.
+    #[arg(long, env = "CLAP_COUTURE_TEST_NEVER_SET_TOKEN")]
+    #[couture(prompt, secret)]
+    token: SecretString,
 }
 
 /// A root secret every subcommand takes, so the subcommand's parse carries the placeholder.
@@ -82,6 +102,11 @@ struct ScriptedLogin {
     token: SecretString,
 }
 
+/// The rendered error of a parse that must fail.
+fn error_of<T>(parsed: Result<T, ParseError>) -> String {
+    parsed.map(drop).map_err(|err| err.to_string()).err().unwrap_or_default()
+}
+
 fn token_asked_masked() -> Asked {
     Asked {
         defaults: Vec::new(),
@@ -97,11 +122,11 @@ fn token_asked_masked() -> Asked {
 
 #[rstest]
 fn the_derive_records_the_secret_and_its_argv_policy() {
-    let allow_argv = |tree: &'static clap_couture::interactive::PromptedArgTree| {
+    let allow_argv = |tree: &'static clap_couture::__private::PromptedArgTree| {
         tree.prompted_args()
             .first()
             .and_then(|arg| arg.attr.secret.as_ref())
-            .map(clap_couture::interactive::SecretAttr::allow_argv)
+            .map(clap_couture::__private::SecretAttr::allow_argv)
     };
     assert_eq!(allow_argv(&Login::PROMPTED_ARGS), Some(false));
     assert_eq!(allow_argv(&OptionalLogin::PROMPTED_ARGS), Some(false));
@@ -112,26 +137,34 @@ fn the_derive_records_the_secret_and_its_argv_policy() {
 fn the_command_line_is_refused_before_anything_is_asked() {
     let backend = ScriptedBackend::new([]);
     let login = Login::couture_try_parse_from_with(&backend, ["app", "--token", "x"]);
-    assert_eq!(login.map(drop).map_err(|err| err.kind()).err(), Some(ErrorKind::ValueValidation));
+    assert_eq!(
+        login.map(drop).map_err(|err| err.kind()).err(),
+        Some(Some(ErrorKind::ValueValidation))
+    );
     assert_eq!(backend.asked(), []);
 }
 
 #[rstest]
 fn the_command_line_is_refused_without_a_terminal() {
-    let login = Login::couture_try_parse_from_with(&NonInteractive, ["app", "--token", "x"]);
-    assert_eq!(login.map(drop).map_err(|err| err.kind()).err(), Some(ErrorKind::ValueValidation));
+    let login = Login::couture_try_parse_from_with(NonInteractive, ["app", "--token", "x"]);
+    assert_eq!(
+        login.map(drop).map_err(|err| err.kind()).err(),
+        Some(Some(ErrorKind::ValueValidation))
+    );
 }
 
 #[rstest]
 fn an_optional_secret_is_refused_on_the_command_line() {
-    let login =
-        OptionalLogin::couture_try_parse_from_with(&NonInteractive, ["app", "--token", "x"]);
-    assert_eq!(login.map(drop).map_err(|err| err.kind()).err(), Some(ErrorKind::ValueValidation));
+    let login = OptionalLogin::couture_try_parse_from_with(NonInteractive, ["app", "--token", "x"]);
+    assert_eq!(
+        login.map(drop).map_err(|err| err.kind()).err(),
+        Some(Some(ErrorKind::ValueValidation))
+    );
 }
 
 #[rstest]
 fn the_refusal_names_the_arg() {
-    let login = Login::couture_try_parse_from_with(&NonInteractive, ["app", "--token", "x"]);
+    let login = Login::couture_try_parse_from_with(NonInteractive, ["app", "--token", "x"]);
     let message = login.map(drop).map_err(|err| err.to_string()).err().unwrap_or_default();
     assert!(message.contains("--token <TOKEN> is a secret"), "{message}");
 }
@@ -144,8 +177,7 @@ fn couture_command_alone_refuses_the_command_line() {
 
 #[rstest]
 fn allow_argv_takes_the_command_line() {
-    let login =
-        ScriptedLogin::couture_try_parse_from_with(&NonInteractive, ["app", "--token", "x"]);
+    let login = ScriptedLogin::couture_try_parse_from_with(NonInteractive, ["app", "--token", "x"]);
     let token = login.map(|login| login.token.expose_secret().to_owned());
     assert_eq!(token.ok().as_deref(), Some("x"));
 }
@@ -197,7 +229,7 @@ fn a_rejected_answer_after_a_secret_is_asked_again_and_reported_without_its_plac
 fn a_cancelled_secret_is_an_io_error() {
     let backend = ScriptedBackend::new([Reply::Cancel]);
     let login = Login::couture_try_parse_from_with(&backend, ["app"]);
-    assert_eq!(login.map(drop).map_err(|err| err.kind()).err(), Some(ErrorKind::Io));
+    assert!(matches!(login, Err(ParseError::Cancelled(_))));
 }
 
 #[rstest]
@@ -218,7 +250,7 @@ fn a_secret_on_a_subcommand_is_refused_on_the_command_line() {
         Registry::couture_try_parse_from_with(&backend, ["app", "login", "--token", "x"]);
     assert_eq!(
         registry.map(drop).map_err(|err| err.kind()).err(),
-        Some(ErrorKind::ValueValidation)
+        Some(Some(ErrorKind::ValueValidation))
     );
     assert_eq!(backend.asked(), []);
 }
@@ -232,4 +264,65 @@ fn a_global_secret_is_asked_through_a_subcommand() {
     });
     assert_eq!(token.ok().flatten().as_deref(), Some("hunter2"));
     assert_eq!(backend.asked(), [token_asked_masked()]);
+}
+
+#[rstest]
+fn a_confirmation_masks_a_prompted_secret() {
+    let backend = ScriptedBackend::new([Reply::Secret(Some("hunter2")), Reply::Confirm(true)]);
+    let login = ConfirmedLogin::couture_try_parse_from_with(&backend, ["app"]);
+    assert_eq!(
+        login.map(|login| login.token.expose_secret().to_owned()).ok().as_deref(),
+        Some("hunter2")
+    );
+    let questions: Vec<String> = backend.asked().into_iter().map(|asked| asked.question).collect();
+    assert_eq!(questions, ["Which token?", "Use token ********?"]);
+}
+
+#[rstest]
+fn a_missing_secret_is_not_offered_as_a_flag() {
+    let message = error_of(Login::couture_try_parse_from_with(NonInteractive, ["app"]));
+    assert_eq!(
+        message,
+        "error: the secret token was not given; run at a terminal to be asked for it\n\nUsage: \
+         app\n\nFor more information, try '--help'.\n"
+    );
+}
+
+#[rstest]
+fn a_missing_secret_names_its_env_var() {
+    let message = error_of(EnvLogin::couture_try_parse_from_with(NonInteractive, ["app"]));
+    assert!(
+        message.contains(
+            "the secret token was not given; set CLAP_COUTURE_TEST_NEVER_SET_TOKEN or run at a \
+             terminal to be asked for it"
+        ),
+        "{message}"
+    );
+    assert!(!message.contains("--token"), "{message}");
+}
+
+#[rstest]
+fn a_missing_secret_on_a_subcommand_is_not_offered_as_a_flag() {
+    let message = error_of(Registry::couture_try_parse_from_with(NonInteractive, ["app", "login"]));
+    assert!(message.contains("the secret token was not given"), "{message}");
+    assert!(!message.contains("--token"), "{message}");
+}
+
+#[rstest]
+fn usage_leaves_out_a_refused_secret() {
+    let usage = Login::couture_command().name("app").render_usage().to_string();
+    assert_eq!(usage, "Usage: app");
+}
+
+#[rstest]
+fn a_secret_the_command_line_may_pass_stays_in_usage() {
+    let usage = ScriptedLogin::couture_command().name("app").render_usage().to_string();
+    assert_eq!(usage, "Usage: app --token <TOKEN>");
+}
+
+#[rstest]
+fn a_required_secret_answered_with_nothing_says_how_to_give_it() {
+    let backend = ScriptedBackend::new([Reply::Secret(None)]);
+    let message = error_of(Login::couture_try_parse_from_with(&backend, ["app"]));
+    assert!(message.contains("the secret token was not given"), "{message}");
 }

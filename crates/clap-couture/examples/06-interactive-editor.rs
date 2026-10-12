@@ -1,5 +1,5 @@
 //! Prompted args: leave out `--region`, `--strategy`, `--follow` or `--notes` and couture asks,
-//! the notes in your `$EDITOR`.
+//! the notes in your `$EDITOR`, starting from a `## Changes` heading.
 //!
 //! ```sh
 //! cargo run -p clap-couture --example 06-interactive-editor --features interactive-editor
@@ -20,7 +20,7 @@ struct Cli {
 
     /// Release notes for this deploy.
     #[arg(long)]
-    #[couture(prompt, editor(extension = "md"))]
+    #[couture(prompt, editor(extension = "md", initial = "## Changes\n"))]
     notes: Option<String>,
 
     /// Region to deploy to.

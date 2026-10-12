@@ -120,3 +120,27 @@ fn secret_returns_the_answer() {
     assert_eq!(answer.as_deref(), Some("hunter2"));
     assert_eq!(backend.asked(), [asked(Kind::Secret, "Token?")]);
 }
+
+/// Run by [`prompter_unwrap_panics_without_a_terminal`] in a child with no terminal on stdin.
+#[test]
+#[ignore = "run in a child process by `prompter_unwrap_panics_without_a_terminal`"]
+fn prompter_unwrap_in_child() {
+    drop(Cli::prompter_unwrap());
+}
+
+#[rstest]
+fn prompter_unwrap_panics_without_a_terminal() {
+    let output = std::env::current_exe().and_then(|test_binary| {
+        std::process::Command::new(test_binary)
+            .args(["prompter_unwrap_in_child", "--exact", "--ignored"])
+            .stdin(std::process::Stdio::null())
+            .output()
+    });
+    let output = output.map(|output| (output.status.success(), output.stdout)).ok();
+    assert!(
+        output.as_ref().is_some_and(|(succeeded, stdout)| {
+            !succeeded && String::from_utf8_lossy(stdout).contains("needs a terminal to ask on")
+        }),
+        "{output:?}"
+    );
+}

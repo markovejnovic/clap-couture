@@ -16,8 +16,13 @@ use crate::{
 
 pub struct EditorInteraction<'run, B: Backend + ?Sized> {
     backend: &'run B,
+    /// The header the file was last opened with.
+    header: String,
     marker: PromptMarker,
     opened: Option<Opened>,
+    /// How many U+FFFD the answer may hold: those that were text, not marks for bytes that
+    /// couldn't be read. `None` until the file couldn't be read.
+    own_marks: Option<usize>,
     prompt: &'run EditorPrompt<'run>,
 }
 
@@ -32,9 +37,9 @@ impl<'run, B: Backend + ?Sized> EditorInteraction<'run, B> {
     ///   found or started, or exits unsuccessfully.
     pub fn answer(mut self) -> Result<Option<String>, PromptError> {
         let Some(opened) = self.opened.as_mut() else {
-            // `:` is git's no-op editor: the default is taken as written.
-            let default = self.prompt.default.map(str::trim).filter(|default| !default.is_empty());
-            return Ok(default.map(ToOwned::to_owned));
+            // `:` is git's no-op editor: the initial text is taken as written.
+            let initial = self.prompt.initial.map(str::trim).filter(|initial| !initial.is_empty());
+            return Ok(initial.map(ToOwned::to_owned));
         };
 
         loop {
@@ -56,20 +61,36 @@ impl<'run, B: Backend + ?Sized> EditorInteraction<'run, B> {
                 saved => saved,
             };
 
-            match Locale::decode(&saved?) {
-                Ok(text) => return Ok(self.marker.strip(&text)),
-                // Reopen with what could be read, and how to fix the rest.
-                Err(NotUnicode(readable)) => {
-                    let readable = self.marker.strip(&readable);
-                    let header = format!(
-                        "{}\n\nerror: {}\n{}",
-                        self.prompt.question, self.prompt.not_utf8, self.prompt.instructions
-                    );
-                    opened.write(readable.as_deref().unwrap_or_default(), Some(&header))?;
-                    opened.reopen()?;
+            // Reopen with what could be read, and how to fix the rest.
+            let (answer, error) = match Locale::decode(&saved?) {
+                Ok(text) => {
+                    let answer = self.marker.strip(&text, Some(&self.header));
+                    let marks = answer.as_deref().map_or(0, Self::count_marks);
+                    if self.own_marks.is_none_or(|own_marks| marks <= own_marks) {
+                        return Ok(answer);
+                    }
+                    (answer, self.prompt.unreadable)
                 }
-            }
+                Err(NotUnicode { marks, text }) => {
+                    let answer = self.marker.strip(&text, Some(&self.header));
+                    // Marks left from an earlier reopen read as text now: never count more.
+                    let own_marks =
+                        answer.as_deref().map_or(0, Self::count_marks).saturating_sub(marks);
+                    self.own_marks =
+                        Some(self.own_marks.map_or(own_marks, |own| own.min(own_marks)));
+                    (answer, self.prompt.not_utf8)
+                }
+            };
+            self.header =
+                format!("{}\n\nerror: {error}\n{}", self.prompt.question, self.prompt.instructions);
+            opened.write(answer.as_deref().unwrap_or_default(), Some(&self.header))?;
+            opened.reopen()?;
         }
+    }
+
+    /// How many U+FFFD `text` holds.
+    fn count_marks(text: &str) -> usize {
+        text.matches(char::REPLACEMENT_CHARACTER).count()
     }
 
     /// # Errors
@@ -88,7 +109,7 @@ impl<'run, B: Backend + ?Sized> EditorInteraction<'run, B> {
         file_name.push(prompt.extension);
 
         let options = EditorSpawnOptions::builder()
-            .contents(prompt.default.unwrap_or_default())
+            .contents(prompt.initial.unwrap_or_default())
             .prompt(&header)
             .tmpfile(file_name)
             .hint(prompt.waiting)
@@ -98,7 +119,14 @@ impl<'run, B: Backend + ?Sized> EditorInteraction<'run, B> {
             Err(SpawnError::Editor(EditorError::NoOp)) => None,
             opened => Some(opened?),
         };
-        Ok(Self { backend, marker: PromptMarker::default(), opened, prompt })
+        Ok(Self {
+            backend,
+            header,
+            marker: PromptMarker::default(),
+            opened,
+            own_marks: None,
+            prompt,
+        })
     }
 }
 

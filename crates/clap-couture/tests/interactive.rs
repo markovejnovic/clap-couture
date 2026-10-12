@@ -14,9 +14,10 @@ use core::{
 };
 
 use clap::{
-    ArgGroup, Args, Parser, Subcommand, ValueEnum, builder::ArgPredicate, error::ErrorKind,
+    ArgAction, ArgGroup, Args, Parser, Subcommand, ValueEnum, builder::ArgPredicate,
+    error::ErrorKind,
 };
-use clap_couture::{Couture, CoutureParser as _};
+use clap_couture::{Couture, CoutureParser as _, ParseError};
 use common::{Asked, Kind, Reply, ScriptedBackend};
 use rstest::rstest;
 
@@ -88,6 +89,30 @@ struct Account {
     #[arg(long)]
     #[couture(prompt = "Which user?")]
     user: String,
+}
+
+#[derive(Parser, Couture, Debug)]
+struct Fleet {
+    #[command(subcommand)]
+    cmd: Box<FleetCmd>,
+}
+
+#[derive(Subcommand, Couture, Debug)]
+enum FleetCmd {
+    Login(Box<Login>),
+    Logout(Logout),
+}
+
+#[derive(Args, Couture, Debug)]
+struct Logout {
+    #[command(flatten)]
+    account: Box<Account>,
+}
+
+#[derive(Parser, Couture, Debug)]
+struct Generic<A: Args> {
+    #[command(flatten)]
+    inner: A,
 }
 
 #[derive(Parser, Couture, Debug)]
@@ -301,6 +326,35 @@ struct Split {
 }
 
 #[derive(Parser, Couture, Debug)]
+struct Pair {
+    #[arg(long, num_args = 2)]
+    #[couture(prompt = "Which pair?")]
+    pair: Vec<String>,
+}
+
+/// `Pair`, but passed only once, and optional.
+#[derive(Parser, Couture, Debug)]
+struct PairOnce {
+    #[arg(long, num_args = 2, action = ArgAction::Set)]
+    #[couture(prompt = "Which pair?")]
+    pair: Option<Vec<String>>,
+}
+
+#[derive(Parser, Couture, Debug)]
+struct UpToThree {
+    #[arg(long, num_args = 1..=3, required = true)]
+    #[couture(prompt = "Which labels?")]
+    labels: Vec<String>,
+}
+
+#[derive(Parser, Couture, Debug)]
+struct UpToTwoEnvs {
+    #[arg(long, value_enum, num_args = 1..=2)]
+    #[couture(prompt = "Which envs?")]
+    envs: Vec<Env>,
+}
+
+#[derive(Parser, Couture, Debug)]
 struct Delete {
     #[arg(long, conflicts_with = "force")]
     dry_run: bool,
@@ -465,14 +519,17 @@ fn asks_again_with_claps_message_when_an_answer_is_invalid() {
 fn a_cancelled_prompt_is_an_io_error() {
     let backend = ScriptedBackend::new([Reply::Cancel]);
     let deploy = Deploy::couture_try_parse_from_with(&backend, deploy_argv("region"));
-    assert_eq!(deploy.map_err(|err| err.kind()).err(), Some(ErrorKind::Io));
+    assert!(matches!(deploy, Err(ParseError::Cancelled(_))));
 }
 
 #[rstest]
 fn without_a_terminal_a_missing_required_arg_is_claps_error() {
     let backend = ScriptedBackend::unavailable();
     let deploy = Deploy::couture_try_parse_from_with(&backend, deploy_argv("region"));
-    assert_eq!(deploy.map_err(|err| err.kind()).err(), Some(ErrorKind::MissingRequiredArgument));
+    assert_eq!(
+        deploy.map_err(|err| err.kind()).err(),
+        Some(Some(ErrorKind::MissingRequiredArgument))
+    );
 }
 
 #[rstest]
@@ -483,6 +540,24 @@ fn only_asks_on_the_subcommand_path_taken(#[case] argv: &[&str], #[case] questio
     let orbit = Orbit::couture_try_parse_from_with(&backend, argv);
     assert!(orbit.is_ok(), "{orbit:?}");
     assert_eq!(backend.asked(), [asked(Kind::Text, question, None, &[])]);
+}
+
+#[rstest]
+#[case::boxed_variant(&["fleet", "login"])]
+#[case::boxed_flatten(&["fleet", "logout"])]
+fn asks_through_boxed_args(#[case] argv: &[&str]) {
+    let backend = ScriptedBackend::new([Reply::Text(Some("x"))]);
+    let fleet = Fleet::couture_try_parse_from_with(&backend, argv);
+    assert!(fleet.is_ok(), "{fleet:?}");
+    assert_eq!(backend.asked(), [asked(Kind::Text, "Which user?", None, &[])]);
+}
+
+#[rstest]
+fn asks_through_generic_flattened_args() {
+    let backend = ScriptedBackend::new([Reply::Text(Some("x"))]);
+    let generic = Generic::<Account>::couture_try_parse_from_with(&backend, ["generic"]);
+    assert!(generic.is_ok(), "{generic:?}");
+    assert_eq!(backend.asked(), [asked(Kind::Text, "Which user?", None, &[])]);
 }
 
 #[rstest]
@@ -522,7 +597,7 @@ fn never_asks_for_a_global_arg_passed_after_the_subcommand() {
 fn help_exits_before_asking() {
     let backend = ScriptedBackend::new([]);
     let repo = Repo::couture_try_parse_from_with(&backend, ["repo", "push", "--help"]);
-    assert_eq!(repo.map_err(|err| err.kind()).err(), Some(ErrorKind::DisplayHelp));
+    assert_eq!(repo.map_err(|err| err.kind()).err(), Some(Some(ErrorKind::DisplayHelp)));
     assert_eq!(backend.asked(), []);
 }
 
@@ -542,7 +617,7 @@ fn help_shows_the_prompted_args_in_usage() {
     let backend = ScriptedBackend::new([]);
     let help = Deploy::couture_try_parse_from_with(&backend, ["deploy", "--help"])
         .map(drop)
-        .map_err(|err| err.render().to_string());
+        .map_err(|err| err.to_string());
     let help = help.err().unwrap_or_default();
     let usage = help.lines().skip_while(|line| !line.starts_with("Usage:")).nth(1);
     assert!(
@@ -805,6 +880,83 @@ fn splits_a_delimited_default_into_its_values() {
 }
 
 #[rstest]
+fn stops_asking_once_num_args_is_reached() {
+    let backend = ScriptedBackend::new([Reply::Text(Some("a")), Reply::Text(Some("b"))]);
+    let pair = Pair::couture_try_parse_from_with(&backend, ["pair"]);
+    assert_eq!(pair.map(|pair| pair.pair).ok(), Some(["a", "b"].map(str::to_owned).into()));
+    assert_eq!(backend.asked(), [
+        text("Which pair?", None, true),
+        text("Which pair?", None, false),
+    ]);
+}
+
+#[rstest]
+fn finishing_short_of_num_args_asks_again_with_claps_message() {
+    let backend =
+        ScriptedBackend::new([Reply::Text(Some("a")), Reply::Text(None), Reply::Text(Some("b"))]);
+    let pair = Pair::couture_try_parse_from_with(&backend, ["pair"]);
+    assert_eq!(pair.map(|pair| pair.pair).ok(), Some(["a", "b"].map(str::to_owned).into()));
+    let errors: Vec<_> = backend.asked().into_iter().map(|asked| asked.error).collect();
+    assert_eq!(errors, [
+        None,
+        None,
+        Some("2 values required for '--pair <PAIR> <PAIR>' but 1 was provided".to_owned()),
+    ]);
+}
+
+#[rstest]
+fn an_optional_arg_taking_num_args_values_may_be_left_unset() {
+    let backend = ScriptedBackend::new([Reply::Text(None)]);
+    let pair = PairOnce::couture_try_parse_from_with(&backend, ["pair"]);
+    assert_eq!(pair.map(|pair| pair.pair).ok(), Some(None));
+    assert_eq!(backend.asked(), [text("Which pair?", None, true)]);
+}
+
+#[rstest]
+fn an_arg_passed_once_stops_at_num_args_too() {
+    let backend = ScriptedBackend::new([Reply::Text(Some("a")), Reply::Text(Some("b"))]);
+    let pair = PairOnce::couture_try_parse_from_with(&backend, ["pair"]);
+    assert_eq!(pair.map(|pair| pair.pair).ok(), Some(Some(["a", "b"].map(str::to_owned).into())));
+}
+
+#[rstest]
+fn offers_to_finish_within_the_num_args_range() {
+    let backend = ScriptedBackend::new([
+        Reply::Text(Some("a")),
+        Reply::Text(Some("b")),
+        Reply::Text(Some("c")),
+    ]);
+    let labels = UpToThree::couture_try_parse_from_with(&backend, ["labels"]);
+    assert_eq!(
+        labels.map(|labels| labels.labels).ok(),
+        Some(["a", "b", "c"].map(str::to_owned).into())
+    );
+    assert_eq!(backend.asked(), [
+        text("Which labels?", None, false),
+        text("Which labels?", None, true),
+        text("Which labels?", None, true),
+    ]);
+}
+
+#[rstest]
+fn picking_more_than_num_args_asks_again_with_claps_message() {
+    let backend = ScriptedBackend::new([
+        Reply::MultiSelect(&["dev", "prod", "stage"]),
+        Reply::MultiSelect(&["dev", "prod"]),
+    ]);
+    let envs = UpToTwoEnvs::couture_try_parse_from_with(&backend, ["envs"]);
+    assert_eq!(envs.map(|envs| envs.envs).ok(), Some(Vec::from([Env::Dev, Env::Prod])));
+    let errors: Vec<_> = backend.asked().into_iter().map(|asked| asked.error).collect();
+    assert_eq!(errors, [
+        None,
+        Some(
+            "unexpected value 'stage' for '--envs <ENVS>...' found; no more were expected"
+                .to_owned()
+        ),
+    ]);
+}
+
+#[rstest]
 fn confirms_after_every_prompt_with_the_answers_filled_in() {
     let backend = ScriptedBackend::new([Reply::Text(Some("web")), Reply::Confirm(true)]);
     let argv = ["delete", "--regions", "eu", "--regions", "us"];
@@ -820,7 +972,7 @@ fn confirms_after_every_prompt_with_the_answers_filled_in() {
 fn a_declined_confirmation_is_an_io_error() {
     let backend = ScriptedBackend::new([Reply::Confirm(false)]);
     let delete = Delete::couture_try_parse_from_with(&backend, ["delete", "--name", "web"]);
-    assert_eq!(delete.map_err(|err| err.kind()).err(), Some(ErrorKind::Io));
+    assert!(matches!(delete, Err(ParseError::Declined)));
 }
 
 #[rstest]
@@ -849,10 +1001,10 @@ fn without_a_terminal_a_passed_or_conflicting_flag_parses(
 fn without_a_terminal_an_unconfirmed_flag_is_a_missing_required_arg() {
     let backend = ScriptedBackend::unavailable();
     let wipe = Wipe::couture_try_parse_from_with(&backend, ["wipe", "--name", "web"]);
-    let err = wipe.map_err(|err| (err.kind(), err.render().to_string())).err();
+    let err = wipe.map_err(|err| (err.kind(), err.to_string())).err();
     assert!(
         err.as_ref().is_some_and(|(kind, rendered)| {
-            *kind == ErrorKind::MissingRequiredArgument && rendered.contains("--force")
+            *kind == Some(ErrorKind::MissingRequiredArgument) && rendered.contains("--force")
         }),
         "{err:?}"
     );
@@ -863,7 +1015,7 @@ fn without_a_terminal_help_leaves_the_confirmed_flag_optional() {
     let backend = ScriptedBackend::unavailable();
     let help = Delete::couture_try_parse_from_with(&backend, ["delete", "--help"])
         .map(drop)
-        .map_err(|err| err.render().to_string());
+        .map_err(|err| err.to_string());
     let help = help.err().unwrap_or_default();
     let usage = help.lines().skip_while(|line| !line.starts_with("Usage:")).nth(1);
     assert!(usage.is_some_and(|usage| !usage.contains("--force")), "{help}");

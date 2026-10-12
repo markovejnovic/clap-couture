@@ -1,73 +1,53 @@
 """Where the repo keeps its example recordings, shared by the recording scripts.
 
 An example run with its default features is recorded to
-`assets/<example>-{dark,light}.gif` and `assets/<example>.txt`. A run with other
+`assets/<example>-{dark,light}.gif` and `assets/<example>.txt`; a `--help` screen gets
+a still `.png` in place of the GIF. A run with other
 features, e.g. another prompt backend, is a variant: only its text is recorded, to
 `assets/<example>.<variant>.txt`, and its tape is `<example>.<variant>.tape` when there
 is one, since backends take different keys.
 """
 
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, replace
 from itertools import groupby
 from pathlib import Path
-from typing import Self
+from typing import Self, override
 
-from devtools.rust.cargo import AllFeatures, CargoRun, DefaultFeatures, OnlyFeatures
+from devtools.backdrop import Backdrop
+from devtools.rust.cargo import (
+    AllFeatures,
+    CargoRun,
+    DefaultFeatures,
+    Example,
+    Feature,
+    Features,
+    OnlyFeatures,
+)
 from devtools.vhs import Recording
 
 ROOT = Path(__file__).resolve().parent.parent
 ASSETS = ROOT / "assets"
 PACKAGE = "clap-couture"
-# Catppuccin's colors on the background and text of rustdoc's code blocks, so the GIFs
-# sit in the docs like code. Ayu, rustdoc's third theme, shows the dark GIFs.
-THEMES: dict[str, dict[str, str]] = {
-    "dark": {
-        "name": "rustdoc dark",
-        "background": "#2a2a2a",
-        "foreground": "#dddddd",
-        "cursor": "#f5e0dc",
-        "selection": "#585b70",
-        "black": "#45475a",
-        "red": "#f38ba8",
-        "green": "#a6e3a1",
-        "yellow": "#f9e2af",
-        "blue": "#89b4fa",
-        "magenta": "#f5c2e7",
-        "cyan": "#94e2d5",
-        "white": "#bac2de",
-        "brightBlack": "#585b70",
-        "brightRed": "#f38ba8",
-        "brightGreen": "#a6e3a1",
-        "brightYellow": "#f9e2af",
-        "brightBlue": "#89b4fa",
-        "brightMagenta": "#f5c2e7",
-        "brightCyan": "#94e2d5",
-        "brightWhite": "#a6adc8",
-    },
-    "light": {
-        "name": "rustdoc light",
-        "background": "#eaeaea",
-        "foreground": "#000000",
-        "cursor": "#dc8a78",
-        "selection": "#acb0be",
-        "black": "#5c5f77",
-        "red": "#d20f39",
-        "green": "#40a02b",
-        "yellow": "#df8e1d",
-        "blue": "#1e66f5",
-        "magenta": "#ea76cb",
-        "cyan": "#179299",
-        "white": "#acb0be",
-        "brightBlack": "#6c6f85",
-        "brightRed": "#d20f39",
-        "brightGreen": "#40a02b",
-        "brightYellow": "#df8e1d",
-        "brightBlue": "#1e66f5",
-        "brightMagenta": "#ea76cb",
-        "brightCyan": "#179299",
-        "brightWhite": "#bcc0cc",
-    },
+
+
+@dataclass(frozen=True)
+class Theme:
+    """How a recording looks in one color scheme: vhs's theme, on a backdrop."""
+
+    vhs: str
+    backdrop: Backdrop
+
+
+# Catppuccin on GitHub's page background, so the window sits on the README itself.
+THEMES: dict[str, Theme] = {
+    "dark": Theme("Catppuccin Mocha", Backdrop(color="#0d1117")),
+    "light": Theme("Catppuccin Latte", Backdrop(color="#ffffff")),
 }
+# `--help` screens: nothing moves, so they get a still of their last frame, not a GIF.
+STILLS = frozenset(
+    {"01-orbit-disorganized", "01-orbit-organized", "02-markdown-simple"}
+)
 # What separates the screens in a text capture, as in vhs's own.
 _SCREEN_RULE = "─" * 80
 
@@ -76,20 +56,42 @@ _SCREEN_RULE = "─" * 80
 class ExampleRun(CargoRun):
     """A `cargo run` of one of the repo's examples, and where its recording goes."""
 
+    # The example's `required-features` the package's defaults lack: a default run
+    # enables them, and they name no variant.
+    beyond_defaults: tuple[Feature, ...] = ()
+
     @classmethod
-    def from_argument(cls, argument: str) -> Self:
+    def from_argument(cls, argument: str, examples: Mapping[str, Example]) -> Self:
         """The run an argument names: an example as is, or a `cargo run` command."""
-        if argument.startswith("cargo "):
-            return cls.parse(argument)
-        return cls(example=argument, package=PACKAGE)
+        run = (
+            cls.parse(argument)
+            if argument.startswith("cargo ")
+            else cls(example=argument, package=PACKAGE)
+        )
+        return replace(run, beyond_defaults=examples[run.example].beyond_defaults)
+
+    @property
+    @override
+    def cargo_features(self) -> Features:
+        """Its features; with the defaults, plus what else the example requires."""
+        match self.features:
+            case DefaultFeatures(extra=extra):
+                lacking = (f for f in self.beyond_defaults if f not in extra)
+                return DefaultFeatures((*extra, *lacking))
+            case OnlyFeatures() | AllFeatures():
+                return self.features
 
     @property
     def variant(self) -> str | None:
         """Its features' name unless they're the defaults: `interactive-inquire`."""
         match self.features:
             case DefaultFeatures(extra=extra):
-                labels = (feature.label for feature in extra)
-                return "+".join(["default", *labels]) if extra else None
+                labels = [
+                    feature.label
+                    for feature in extra
+                    if feature not in self.beyond_defaults
+                ]
+                return "+".join(["default", *labels]) if labels else None
             case OnlyFeatures(features=only):
                 return "+".join(feature.label for feature in only) or "none"
             case AllFeatures():
@@ -108,11 +110,14 @@ class ExampleRun(CargoRun):
         return ASSETS / f"{self.stem}.txt"
 
     @property
-    def gifs(self) -> dict[str, Path]:
-        """The recording's GIF per theme; only default-feature runs get them."""
+    def images(self) -> dict[str, Path]:
+        """The recording's GIF, or still, per theme; only default runs get them."""
         if self.variant is not None:
             return {}
-        return {theme: ASSETS / f"{self.example}-{theme}.gif" for theme in THEMES}
+        extension = "png" if self.example in STILLS else "gif"
+        return {
+            theme: ASSETS / f"{self.example}-{theme}.{extension}" for theme in THEMES
+        }
 
     @property
     def target_dir(self) -> Path | None:

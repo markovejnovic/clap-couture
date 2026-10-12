@@ -14,7 +14,7 @@ use tempfile::TempDir;
 use super::{Editor, EditorError, EditorSpawnOptions, FilePlace, PromptMarker, default_file_name};
 use crate::os::{
     command::{CommandExt as _, Exit, InteractiveChild},
-    signal::Signal,
+    signal::{ForwardedTermination, Signal},
     term::{self, Term},
 };
 
@@ -38,9 +38,9 @@ struct Hint {
 /// An editor open on its file. Dropping it waits for the editor, then removes a temporary file.
 #[must_use = "dropping it waits for the editor to exit"]
 pub(crate) struct Opened {
-    /// Removed on drop, after the editor exits.
-    _dir: Option<TempDir>,
     child: Option<InteractiveChild>,
+    /// Removed on drop, after the editor exits.
+    dir: Option<TempDir>,
     editor: Editor,
     hint: Option<Hint>,
     path: PathBuf,
@@ -50,6 +50,17 @@ pub(crate) struct Opened {
 }
 
 impl Opened {
+    /// Wait for the open editor, if any. Once `SIGTERM` has come, remove the temporary directory
+    /// and die of it.
+    fn close(&mut self) -> Option<io::Result<Exit>> {
+        let exit = self.child.take().map(InteractiveChild::wait);
+        if ForwardedTermination::received() {
+            drop(self.dir.take());
+            ForwardedTermination::die();
+        }
+        exit
+    }
+
     /// Show the hint and start the editor.
     fn launch(&mut self) -> Result<(), SpawnError> {
         // Built before the hint shows, so a missing editor reports without one.
@@ -77,7 +88,7 @@ impl Opened {
 
     /// Open the editor on the file again.
     pub(crate) fn reopen(&mut self) -> Result<(), SpawnError> {
-        drop(self.child.take());
+        drop(self.close());
         self.launch()
     }
 
@@ -96,9 +107,18 @@ impl Opened {
                 if let Some(prefix) = &prefix {
                     builder.prefix(prefix);
                 }
+                // Private from creation: the draft, and the editor's swap files beside it, would
+                // otherwise be readable by anyone sharing the temporary directory.
+                #[cfg(unix)]
+                builder.permissions(std::os::unix::fs::PermissionsExt::from_mode(0o700));
                 let dir = builder.tempdir()?;
                 let name = name.file_name().map_or_else(default_file_name, Into::into);
                 let path = dir.path().join(name);
+                let mut new_file = fs::OpenOptions::new();
+                new_file.write(true).create_new(true);
+                #[cfg(unix)]
+                std::os::unix::fs::OpenOptionsExt::mode(&mut new_file, 0o600);
+                new_file.open(&path)?;
                 (Some(dir), path)
             }
         };
@@ -117,7 +137,7 @@ impl Opened {
 
         let mut opened = Self {
             child: None,
-            _dir: dir,
+            dir,
             editor: editor.clone(),
             hint,
             path,
@@ -131,8 +151,7 @@ impl Opened {
 
     /// Wait for the editor to exit, then read the file.
     pub(crate) fn wait(&mut self) -> Result<Vec<u8>, WaitError> {
-        let Some(child) = self.child.take() else { return Ok(self.read()?) };
-        let exit = child.wait();
+        let Some(exit) = self.close() else { return Ok(self.read()?) };
 
         if let Some(hint) = self.hint.as_ref().filter(|hint| hint.erased) {
             // Erase the hint and its trailing space after a clean exit; otherwise keep it,
@@ -175,7 +194,7 @@ impl Opened {
 impl Drop for Opened {
     fn drop(&mut self) {
         // The editor may still have the file open: wait for it before the directory goes.
-        drop(self.child.take());
+        drop(self.close());
     }
 }
 
@@ -240,7 +259,7 @@ mod tests {
             .spawn(EditorSpawnOptions::builder().prompt(PROMPT).build());
         let saved = opened.ok().and_then(|mut opened| opened.wait().ok());
         let answer = saved.and_then(|saved| Locale::decode(&saved).ok());
-        let answer = answer.map(|text| PromptMarker::default().strip(&text));
+        let answer = answer.map(|text| PromptMarker::default().strip(&text, Some(PROMPT)));
         assert_eq!(answer, Some(Some("Saved.".to_owned())));
     }
 
@@ -265,7 +284,7 @@ mod tests {
         let opened = editor(r#"sh -c 'printf "Saved.\n// edited\n" > "$0"'"#).spawn(options);
         let saved = opened.ok().and_then(|mut opened| opened.wait().ok());
         let answer = saved.and_then(|saved| Locale::decode(&saved).ok());
-        let answer = answer.map(|text| PromptMarker::new("//").strip(&text));
+        let answer = answer.map(|text| PromptMarker::new("//").strip(&text, Some(PROMPT)));
         assert_eq!(answer, Some(Some("Saved.".to_owned())));
     }
 
@@ -287,6 +306,16 @@ mod tests {
         let path = opened.map(|opened| opened.path.clone());
         assert!(path.is_ok_and(|path| path.file_name() == Some("escaped.txt".as_ref())
             && path.parent().is_some_and(|dir| dir.starts_with(std::env::temp_dir()))));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn the_temporary_file_is_private_while_the_editor_is_open() {
+        let _handling = crate::os::signal::tests::lock_handling();
+        let modes = r#"sh -c '{ ls -ld "$(dirname "$0")"; ls -l "$0"; } | cut -c1-10 > "$0"'"#;
+        let opened = editor(modes).spawn(EditorSpawnOptions::builder().contents("x").build());
+        let saved = opened.ok().and_then(|mut opened| opened.wait().ok());
+        assert_eq!(saved.as_deref(), Some(b"drwx------\n-rw-------\n".as_slice()));
     }
 
     #[cfg(unix)]

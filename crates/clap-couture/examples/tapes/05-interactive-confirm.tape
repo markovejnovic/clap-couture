@@ -1,6 +1,7 @@
 # `orbit-destroy` confirming before it goes ahead. See `scripts/record-examples.py`.
 
-Set Height 620
+Set Width 1246
+Set Height 824
 
 Hide
 Type "alias orbit-destroy=05-interactive-confirm && clear" Enter

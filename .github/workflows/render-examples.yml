@@ -5,17 +5,16 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# Two pushes in quick succession would otherwise race to commit the same assets.
+# A newer push supersedes a running render, whose rebase would otherwise conflict with it.
 concurrency:
   group: ${{ github.workflow }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 permissions:
   contents: write
 
 env:
   CARGO_TERM_COLOR: always
-  FREEZE_VERSION: 0.2.2
   TTYD_VERSION: 1.7.7
   VHS_VERSION: 0.12.1
 
@@ -35,32 +34,18 @@ jobs:
       # The scripts run through `uv run`, in the environment `uv.lock` pins.
       - uses: astral-sh/setup-uv@v10.3.0
 
-      # freeze's SVGs differ across OSes, so only re-render when the `.ansi` captures change.
-      - run: ./scripts/render-examples.sh --ansi-only
+      - run: ./scripts/render-examples.sh
       - name: Check for changed captures
         id: captures
         run: |
           if [[ -n $(git status --porcelain -- 'assets/*.ansi' crates/clap-couture/docs) ]]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
           else
-            echo "assets are up to date"
+            echo "help blocks are up to date"
           fi
 
-      - name: Install freeze
-        if: steps.captures.outputs.changed == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          archive="freeze_${FREEZE_VERSION}_Linux_x86_64"
-          gh release download "v${FREEZE_VERSION}" -R charmbracelet/freeze -p "$archive.tar.gz" -D "$RUNNER_TEMP"
-          tar -xzf "$RUNNER_TEMP/$archive.tar.gz" -C "$RUNNER_TEMP"
-          echo "$RUNNER_TEMP/$archive" >> "$GITHUB_PATH"
-
-      - if: steps.captures.outputs.changed == 'true'
-        run: ./scripts/render-examples.sh
-
-      # vhs renders the `.txt` captures along with the GIFs, so it always records, and the GIFs are
-      # kept only when the captures change.
+      # vhs renders the `.txt` captures along with the GIFs and stills, which differ on every run,
+      # so it always records, and the images are kept only when the captures change.
       - name: Install vhs
         env:
           GH_TOKEN: ${{ github.token }}
@@ -86,7 +71,7 @@ jobs:
             echo "changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "recordings are up to date"
-            git checkout -- 'assets/*.gif'
+            git checkout -- 'assets/*.gif' 'assets/*.png'
           fi
 
       - name: Check for changed example docs

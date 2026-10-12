@@ -1,40 +1,14 @@
 #!/usr/bin/env bash
-# Capture examples' `--help` to `assets/<example>.ansi`, convert it to the rustdoc block
-# `crates/clap-couture/docs/<example>.html`, then render it to `assets/<example>-{dark,light}.svg`
-# with charmbracelet/freeze for the README.
+# Capture examples' `--help` to `assets/<example>.ansi`, and convert it to the rustdoc block
+# `crates/clap-couture/docs/<example>.html`. The README's pictures of it are recorded by
+# `scripts/record-examples.py`, like the GIFs, so they look alike.
 #
-#   scripts/render-examples.sh [--ansi-only] [example...]
+#   scripts/render-examples.sh [example...]
 #
-# The `.ansi` captures are identical on every OS, unlike freeze's SVGs, so CI diffs those to tell
-# whether the images are stale. `--ansi-only` skips freeze, for that check.
+# The `.ansi` captures are identical on every OS, so CI diffs those to tell whether the blocks are
+# stale.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-
-freeze_opts=(
-  --language ansi
-  --window
-  --background "#1e1e2e"
-  --padding 30 --margin 64
-  --border.radius 10
-  --shadow.blur 24 --shadow.x 0 --shadow.y 16
-  --font.size 14 --line-height 1.4
-)
-
-# The dark render uses Catppuccin Mocha's base; the light render swaps each fill for its Latte twin.
-mocha_to_latte=(
-  "1e1e2e:eff1f5" # base, the window background
-  "c4c4c4:4c4f69" # freeze's default text -> Latte text
-)
-light_sed=()
-for pair in "${mocha_to_latte[@]}"; do
-  light_sed+=(-e "s/fill=\"#${pair%%:*}\"/fill=\"#${pair##*:}\"/g")
-done
-
-ansi_only=false
-if [[ ${1-} == --ansi-only ]]; then
-  ansi_only=true
-  shift
-fi
 
 if (($# > 0)); then
   examples=("$@")
@@ -59,13 +33,4 @@ for example in "${examples[@]}"; do
   block="crates/clap-couture/docs/$example.html"
   ./scripts/ansi-to-html.py <"$ansi" >"$block"
   echo "wrote $block"
-  if $ansi_only; then
-    continue
-  fi
-
-  dark="assets/$example-dark.svg"
-  light="assets/$example-light.svg"
-  freeze "${freeze_opts[@]}" --output "$dark" <"$ansi"
-  sed "${light_sed[@]}" "$dark" >"$light"
-  echo "wrote $dark and $light"
 done

@@ -39,26 +39,33 @@ where
         self.backend.confirm(&ConfirmPrompt { default, question, styles: self.styles() })
     }
 
-    /// Ask in the user's editor, in a temp file with `extension`, like `md`. An empty answer
-    /// reports [`Messages::editor_empty`] and cancels.
+    /// Ask in the user's editor, in a temp file with `extension`, like `md`, that starts with
+    /// `initial`. An empty answer reports the [`editor_empty`](Messages::with_editor_empty)
+    /// message and cancels.
     ///
     /// # Errors
     /// - [`PromptError::Cancelled`] when the user backs out or leaves the file empty.
     /// - [`PromptError::Signalled`] when the editor dies of a signal.
     /// - [`PromptError::Io`] when the editor cannot be found or started, or exits unsuccessfully.
     #[cfg(feature = "interactive-editor")]
-    pub fn editor(&self, question: &str, extension: &str) -> Result<String, PromptError> {
+    pub fn editor(
+        &self,
+        question: &str,
+        extension: &str,
+        initial: Option<&str>,
+    ) -> Result<String, PromptError> {
         let answer = self.backend.editor(&EditorPrompt {
-            default: None,
             error: None,
             extension,
             file_stem: &self.name,
+            initial,
             instructions: &self.messages.editor_instructions.get(),
             not_utf8: &self.messages.editor_not_utf8.get(),
             optional: false,
             question,
             returned_early: &self.messages.editor_returned_early.get(),
             styles: self.styles(),
+            unreadable: &self.messages.editor_unreadable.get(),
             waiting: &self.messages.editor_waiting.get(),
         })?;
         answer.ok_or_else(|| {

@@ -16,7 +16,7 @@
 //!   search    Search your deployment history
 //!   status    Show recent activity
 //!
-//! deploy:
+//! Deploy:
 //!   deploy    Ship the current project
 //!   rollback  Roll back to a previous release
 //!   secrets   Manage environment secrets
@@ -46,33 +46,33 @@ struct Cli {
 // You also need to decorate all your subcommands with `#[derive(Couture)]`.
 #[derive(Subcommand, Couture)]
 #[couture(categories = {
-    "deploy" = {},
-    // `title` replaces the `account:` heading, and `description` goes beside it.
+    "deploy" = { title = "Deploy:" },
+    // `title` replaces the default `deploy:`/`account:` heading, and `description` goes beside it.
     "account" = { title = "Account & sync:", description = "Who you are, on every machine" }
 })]
 enum Cmd {
     /// Ship the current project.
-    #[category("deploy")]
+    #[couture(category = "deploy")]
     Deploy,
     /// Sign in to your account.
-    #[category("account")]
+    #[couture(category = "account")]
     Login,
     // Uncategorized entries go into an uncategorized section at the top. In this example, that's
     // Logs, Search, and Status.
     /// Tail live logs.
     Logs,
     /// Roll back to a previous release.
-    #[category("deploy")]
+    #[couture(category = "deploy")]
     Rollback,
     /// Search your deployment history.
     Search,
     /// Manage environment secrets.
-    #[category("deploy")]
+    #[couture(category = "deploy")]
     Secrets,
     /// Show recent activity.
     Status,
     /// Sync settings across machines.
-    #[category("account")]
+    #[couture(category = "account")]
     Sync,
 }
 

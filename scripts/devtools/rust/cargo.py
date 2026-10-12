@@ -151,6 +151,11 @@ class CargoRun:
             args=tuple(args),
         )
 
+    @property
+    def cargo_features(self) -> Features:
+        """The features cargo is asked for."""
+        return self.features
+
     @override
     def __str__(self) -> str:
         """The command line, as a shell would take it."""
@@ -158,7 +163,7 @@ class CargoRun:
             "cargo",
             "run",
             *(["-p", self.package] if self.package is not None else []),
-            *_feature_args(self.features),
+            *_feature_args(self.cargo_features),
             "--example",
             self.example,
             *(["--", *self.args] if self.args else []),
@@ -208,6 +213,8 @@ class Example:
     # In a virtual workspace, cargo ignores feature flags unless `--package` is given.
     package: str
     required_features: tuple[Feature, ...]
+    # Its `required_features` the package's default features don't enable.
+    beyond_defaults: tuple[Feature, ...]
     source: RustFile
     workspace: "Workspace" = field(repr=False, compare=False)
 
@@ -263,20 +270,24 @@ class Package:
     def parse(cls, package: Mapping[str, object], workspace: "Workspace") -> Self:
         """Read one entry of `cargo metadata`'s `packages`, in `workspace`."""
         name = cast("str", package["name"])
+        defaults = cls.enabled_by(
+            cast("dict[str, list[str]]", package["features"]), "default"
+        )
 
         examples = (
             Example(
                 name=cast("str", target["name"]),
                 package=name,
-                required_features=tuple(
-                    Feature(label)
-                    for label in cast("list[str]", target.get("required-features", []))
+                required_features=tuple(Feature(label) for label in required),
+                beyond_defaults=tuple(
+                    Feature(label) for label in required if label not in defaults
                 ),
                 source=RustFile(Path(cast("str", target["src_path"]))),
                 workspace=workspace,
             )
             for target in cast("list[dict[str, object]]", package["targets"])
             if "example" in cast("list[str]", target["kind"])
+            for required in [cast("list[str]", target.get("required-features", []))]
         )
 
         return cls(
@@ -284,6 +295,19 @@ class Package:
             directory=Path(cast("str", package["manifest_path"])).parent,
             examples={example.name: example for example in examples},
         )
+
+    @staticmethod
+    def enabled_by(features: Mapping[str, list[str]], feature: str) -> frozenset[str]:
+        """`feature` and every feature of the package it turns on, transitively."""
+        enabled: set[str] = set()
+        pending = [feature]
+        while pending:
+            current = pending.pop()
+            if current in enabled or current not in features:
+                continue
+            enabled.add(current)
+            pending.extend(features[current])
+        return frozenset(enabled)
 
 
 @dataclass(frozen=True)

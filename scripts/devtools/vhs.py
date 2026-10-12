@@ -34,7 +34,7 @@ class ScrolledAwayError(RuntimeError):
 
 
 # A `Set` value: a number, a string, or a JSON object such as a theme.
-type Setting = str | int | Mapping[str, str]
+type Setting = str | int | float | Mapping[str, str]
 
 
 @dataclass(frozen=True)

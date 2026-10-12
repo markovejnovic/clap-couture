@@ -1,25 +1,27 @@
 //! The `impl clap_couture::Couture` one derive emits.
 
 mod categories;
+mod container;
 mod messages;
 mod prompted_args;
 
 use darling::ast;
-use proc_macro2::TokenStream as TokenStream2;
+use proc_macro2::{TokenStream as TokenStream2, TokenTree};
 use quote::{ToTokens, quote};
-use syn::{Generics, Ident};
+use syn::{GenericParam, Generics, Ident, Path, Type, WherePredicate, parse_quote};
 
 use self::{
-    categories::{Categories, Spec},
-    messages::Messages,
+    categories::Categories, container::ContainerAttrs, messages::Messages,
     prompted_args::PromptedArgTree,
 };
-use crate::{clap_compat::SubcommandNaming, input::CoutureInput};
+use crate::{clap_compat::SubcommandNaming, input::CoutureInput, runtime::Runtime};
 
 /// The `impl clap_couture::Couture` one derive emits.
 pub(crate) struct CoutureImpl {
     /// The categories of its subcommands, its own and its flattened types'.
     categories: Categories,
+    /// `#[couture(crate = ...)]`, if the type renames clap-couture.
+    crate_path: Option<Path>,
     /// The text couture prints itself, if the type sets any.
     messages: Option<Messages>,
     /// The args marked `#[couture(prompt)]`, from the deriving type down.
@@ -34,22 +36,22 @@ impl TryFrom<CoutureInput> for CoutureImpl {
     type Error = darling::Error;
 
     fn try_from(input: CoutureInput) -> darling::Result<Self> {
-        let mut specs = Spec::parse_all(&input.attrs)?;
-        // The last `messages = { ... }` wins outright, like `inherit`.
-        let messages = specs.iter_mut().rev().find_map(|spec| spec.messages.take());
+        let mut container = ContainerAttrs::parse(&input.attrs)?;
         let (categories, prompted_arg_tree) = match &input.data {
             ast::Data::Enum(variants) => {
                 let naming = SubcommandNaming::from_container(&input.attrs);
-                let categories = Categories::parse(specs, variants, &naming)?;
+                let categories = Categories::parse(&mut container, variants, &naming)?;
                 (categories, PromptedArgTree::of_variants(variants, &naming)?)
             }
             ast::Data::Struct(fields) => {
+                container.refuse_enum_only_keys()?;
                 (Categories::of_args(&fields.fields), PromptedArgTree::of_fields(&fields.fields)?)
             }
         };
         Ok(Self {
             categories,
-            messages,
+            crate_path: container.crate_path,
+            messages: container.messages,
             prompted_arg_tree,
             type_generics: input.generics,
             type_name: input.ident,
@@ -57,39 +59,90 @@ impl TryFrom<CoutureInput> for CoutureImpl {
     }
 }
 
+impl CoutureImpl {
+    /// The type's generics, plus a `Couture` bound on each flattened or subcommand type naming a
+    /// type parameter, so a generic one keeps its consts rather than falling back to none.
+    fn bounded_generics(&self) -> Generics {
+        let mut generics = self.type_generics.clone();
+        let bounds: Vec<_> = self
+            .prompted_arg_tree
+            .merged_types()
+            .into_iter()
+            .filter(|merged_type| self.names_type_parameter(merged_type))
+            .map(|merged_type| -> WherePredicate { parse_quote!(#merged_type: #Runtime::Couture) })
+            .collect();
+        generics.make_where_clause().predicates.extend(bounds);
+        generics
+    }
+
+    /// Whether `ty` names one of the type's type parameters anywhere in its tokens.
+    fn names_type_parameter(&self, ty: &Type) -> bool {
+        let parameters: Vec<&Ident> = self
+            .type_generics
+            .params
+            .iter()
+            .filter_map(|parameter| match parameter {
+                GenericParam::Type(type_parameter) => Some(&type_parameter.ident),
+                GenericParam::Lifetime(_) | GenericParam::Const(_) => None,
+            })
+            .collect();
+        let mut token_streams = Vec::from([ty.to_token_stream()]);
+        while let Some(token_stream) = token_streams.pop() {
+            for token in token_stream {
+                match token {
+                    TokenTree::Ident(ident) if parameters.contains(&&ident) => return true,
+                    TokenTree::Group(group) => token_streams.push(group.stream()),
+                    TokenTree::Ident(_) | TokenTree::Punct(_) | TokenTree::Literal(_) => {}
+                }
+            }
+        }
+        false
+    }
+}
+
 impl ToTokens for CoutureImpl {
     fn to_tokens(&self, tokens: &mut TokenStream2) {
         let (type_name, categories, prompted_arg_tree) =
             (&self.type_name, &self.categories, &self.prompted_arg_tree);
-        let (impl_parameters, type_arguments, where_clause) = self.type_generics.split_for_impl();
+        let bounded_generics = self.bounded_generics();
+        let (impl_parameters, type_arguments, where_clause) = bounded_generics.split_for_impl();
+        let crate_path = self
+            .crate_path
+            .as_ref()
+            .map_or_else(|| quote!(::clap_couture), ToTokens::to_token_stream);
 
         let messages_const = self
             .messages
             .as_ref()
-            .map(|messages| quote!(const MESSAGES: ::clap_couture::Messages = #messages;));
+            .map(|messages| quote!(const MESSAGES: #Runtime::Messages = #messages;));
 
         let prompted_arg_tree_const = cfg!(feature = "interactive").then(|| {
             quote! {
-                const PROMPTED_ARGS: ::clap_couture::interactive::PromptedArgTree = {
-                    use ::clap_couture::NotCouture as _;
+                const PROMPTED_ARGS: #Runtime::__private::PromptedArgTree = {
+                    use #Runtime::__private::NotCouture as _;
 
+                    // Fails the build when one command path reads stdin twice, across types.
+                    #prompted_arg_tree.assert_stdin_read_once();
                     #prompted_arg_tree
                 };
             }
         });
 
+        // The block binds the crate to one alias, so a renamed dependency only changes the `use`.
         tokens.extend(quote! {
-            impl #impl_parameters ::clap_couture::Couture
-                for #type_name #type_arguments #where_clause
-            {
-                const CATEGORIES: ::clap_couture::CommandCategoryMap = {
-                    use ::clap_couture::NotCouture as _;
+            const _: () = {
+                use #crate_path as #Runtime;
 
-                    #categories
-                };
-                #messages_const
-                #prompted_arg_tree_const
-            }
+                impl #impl_parameters #Runtime::Couture for #type_name #type_arguments #where_clause {
+                    const CATEGORIES: #Runtime::CommandCategoryMap = {
+                        use #Runtime::__private::NotCouture as _;
+
+                        #categories
+                    };
+                    #messages_const
+                    #prompted_arg_tree_const
+                }
+            };
         });
     }
 }

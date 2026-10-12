@@ -50,6 +50,8 @@ TAPE_SIZE = re.compile(
 # vhs rejects a quoted duration, and `Tape` quotes every string setting, so this one
 # is a command.
 TYPING_SPEED = "Set TypingSpeed 75ms"
+# The variables that turn couture's prompts off, which the tapes record; CI sets `CI`.
+PROMPT_OPT_OUTS = frozenset({"CI", "NO_PROMPT"})
 
 
 @click.command()
@@ -88,7 +90,11 @@ def main(arguments: tuple[str, ...]) -> None:
     with Vhs() as vhs, tempfile.TemporaryDirectory(prefix="backdrops-") as backdrops:
         for run, executable in executables.items():
             env = {
-                **os.environ,
+                **{
+                    name: value
+                    for name, value in os.environ.items()
+                    if name not in PROMPT_OPT_OUTS
+                },
                 "PATH": f"{executable.parent}{os.pathsep}{os.environ['PATH']}",
             }
             record(vhs, run, run.tape(tapes), env=env, backdrops=Path(backdrops))

@@ -209,6 +209,12 @@ password: SecretString,
   <img src="assets/11-interactive-dash-dark.gif" alt="running orbit-release --title -, which asks for the title, then piping release notes into orbit-release --notes -, which reads them from stdin" width="623">
 </picture>
 
+### Scripts & CI
+
+Couture prompts only when stdin and stderr are terminals. Otherwise a missing
+arg gets clap's usual error, and a confirmation needs its flag passed. Set
+`NO_PROMPT=1` or `CI=true` to turn prompts off even at a terminal.
+
 ## Markdown
 
 Markdown is opt-in: with the `markdown` feature (or `full`), doc comments and

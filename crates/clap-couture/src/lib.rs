@@ -217,8 +217,8 @@
 //!   mode.
 //! - `#[couture(prompt)]` will avoid inquiring about fields the user passed either through the CLI
 //!   flags or the environment.
-//! - `#[couture(prompt)]` only queries the input field if there's a PTY to query on. If the user is
-//!   not in a terminal (eg. scripts, CI), couture will skip interactive prompts.
+//! - `#[couture(prompt)]` only queries the input field if stdin and stderr are terminals. If the
+//!   user is not in a terminal (e.g. scripts, CI), couture will skip interactive prompts.
 //!
 //! ### Input Types
 //!

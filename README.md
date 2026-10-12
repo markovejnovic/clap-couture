@@ -47,6 +47,7 @@ With `clap-couture`, you can:
 Install it:
 
 ```bash
+cargo add clap --features derive
 cargo add clap-couture
 ```
 
@@ -101,6 +102,8 @@ Clap isn't really interactive. clap-couture fills that gap--mark an arg with
 `#[couture(prompt)]`, and when the user leaves it out, couture asks for it.
 
 ```rust
+use clap_couture::interactive::secrecy::SecretString;
+
 #[derive(Parser, Couture)]
 struct Cli {
     /// Application name.
@@ -125,21 +128,24 @@ struct Cli {
 
     // secret support is built-in too and it uses secrecy.
     #[arg(long)]
-    #[couture(secret)]
+    #[couture(prompt, secret)]
     password: SecretString,
 
-    // the user can pass --user - and couture will ask them for the username
+    // the user can pass --username - and couture will ask them for the username
     // (or read from stdin if there's no terminal)
     #[arg(long)]
-    #[couture(stdin)]
+    #[couture(prompt(dash), stdin)]
     username: String,
 
     // passing --flair-type - asks the user interactively (but this one doesn't
     // fall back to the pipe).
     #[arg(long)]
-    #[couture(dash)]
+    #[couture(prompt(dash))]
     flair_type: String,
 }
+
+#[derive(Clone, ValueEnum)]
+enum Region { Apac, Eu, Us }
 ```
 
 The prompt fits the field's type:
@@ -157,6 +163,12 @@ The prompt fits the field's type:
 There are three backends, controlled through feature flags:
 `interactive-cliclack` (default), `interactive-inquire` and
 `interactive-dialoguer`, using those libraries.
+
+### Scripts & CI
+
+Couture prompts only when stdin and stderr are terminals. Otherwise a missing
+arg gets clap's usual error, and a confirmation needs its flag passed. Set
+`NO_PROMPT=1` or `CI=true` to turn prompts off even at a terminal.
 
 ### Scripts & CI
 

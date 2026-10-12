@@ -266,7 +266,7 @@
 <a href=#260 id=260 data-nosnippet>260</a>        <span class="kw">let </span>saved = opened.ok().and_then(|<span class="kw-2">mut </span>opened| opened.wait().ok());
 <a href=#261 id=261 data-nosnippet>261</a>        <span class="kw">let </span>answer = saved.and_then(|saved| Locale::decode(<span class="kw-2">&amp;</span>saved).ok());
 <a href=#262 id=262 data-nosnippet>262</a>        <span class="kw">let </span>answer = answer.map(|text| PromptMarker::default().strip(<span class="kw-2">&amp;</span>text, <span class="prelude-val">Some</span>(PROMPT)));
-<a href=#263 id=263 data-nosnippet>263</a>        <span class="macro">assert_eq!</span>(answer, <span class="prelude-val">Some</span>(<span class="prelude-val">Some</span>(<span class="string">"Saved."</span>.to_owned())));
+<a href=#263 id=263 data-nosnippet>263</a>        <span class="macro">assert_eq!</span>(answer, <span class="prelude-val">Some</span>(<span class="prelude-val">Some</span>(<span class="string">"Saved.\n"</span>.to_owned())));
 <a href=#264 id=264 data-nosnippet>264</a>    }
 <a href=#265 id=265 data-nosnippet>265</a>
 <a href=#266 id=266 data-nosnippet>266</a>    <span class="attr">#[cfg(unix)]
@@ -291,7 +291,7 @@
 <a href=#285 id=285 data-nosnippet>285</a>        <span class="kw">let </span>saved = opened.ok().and_then(|<span class="kw-2">mut </span>opened| opened.wait().ok());
 <a href=#286 id=286 data-nosnippet>286</a>        <span class="kw">let </span>answer = saved.and_then(|saved| Locale::decode(<span class="kw-2">&amp;</span>saved).ok());
 <a href=#287 id=287 data-nosnippet>287</a>        <span class="kw">let </span>answer = answer.map(|text| PromptMarker::new(<span class="string">"//"</span>).strip(<span class="kw-2">&amp;</span>text, <span class="prelude-val">Some</span>(PROMPT)));
-<a href=#288 id=288 data-nosnippet>288</a>        <span class="macro">assert_eq!</span>(answer, <span class="prelude-val">Some</span>(<span class="prelude-val">Some</span>(<span class="string">"Saved."</span>.to_owned())));
+<a href=#288 id=288 data-nosnippet>288</a>        <span class="macro">assert_eq!</span>(answer, <span class="prelude-val">Some</span>(<span class="prelude-val">Some</span>(<span class="string">"Saved.\n"</span>.to_owned())));
 <a href=#289 id=289 data-nosnippet>289</a>    }
 <a href=#290 id=290 data-nosnippet>290</a>
 <a href=#291 id=291 data-nosnippet>291</a>    <span class="doccomment">/// An app handling `SIGTERM` itself gets it, and the editor carries on.

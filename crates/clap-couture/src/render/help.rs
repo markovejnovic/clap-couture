@@ -171,3 +171,112 @@ impl HelpTemplates for Command {
         })
     }
 }
+
+/// couture's copies of clap internals, checked against the clap actually built: a clap release
+/// that changes them fails here, not as help printed twice.
+#[cfg(test)]
+mod tests {
+    use clap::{Arg, ArgAction, Command, builder::PossibleValue};
+    use rstest::rstest;
+
+    use super::HelpTemplates as _;
+
+    /// couture's copy of clap's template for a command with something to list.
+    const WITH_ARGS: &str = Command::CLAP_DEFAULTS[0];
+    /// couture's copy of clap's template for a command with nothing to list.
+    const WITHOUT_ARGS: &str = Command::CLAP_DEFAULTS[1];
+
+    fn app() -> Command {
+        Command::new("app").about("Copies files.")
+    }
+
+    fn force() -> Arg {
+        Arg::new("force").long("force").action(ArgAction::SetTrue).help("Overwrite")
+    }
+
+    fn mode() -> Arg {
+        Arg::new("mode").long("mode").value_parser([
+            PossibleValue::new("fast").help("Skip the checks"),
+            PossibleValue::new("safe"),
+        ])
+    }
+
+    /// `cmd`'s `-h` and `--help`, styled, under the template clap picks and under `template`.
+    fn helps(cmd: &Command, template: &'static str) -> [(String, String); 2] {
+        let mut clap = cmd.clone();
+        let mut copied = cmd.clone().help_template(template);
+        [
+            (clap.render_help().ansi().to_string(), copied.render_help().ansi().to_string()),
+            (
+                clap.render_long_help().ansi().to_string(),
+                copied.render_long_help().ansi().to_string(),
+            ),
+        ]
+    }
+
+    #[rstest]
+    #[case::nothing_to_list(app().disable_help_flag(true), WITHOUT_ARGS)]
+    #[case::only_hidden_args(app().disable_help_flag(true).arg(force().hide(true)), WITHOUT_ARGS)]
+    #[case::help_flag_only(app(), WITH_ARGS)]
+    #[case::options(app().arg(force()), WITH_ARGS)]
+    #[case::positionals(app().arg(Arg::new("source").required(true)), WITH_ARGS)]
+    #[case::help_heading(app().arg(force().help_heading("Output")), WITH_ARGS)]
+    #[case::subcommands(app().subcommand(Command::new("plan").about("Plan it")), WITH_ARGS)]
+    #[case::subcommands_without_flags(
+        app().disable_help_flag(true).disable_help_subcommand(true).subcommand(Command::new("plan")),
+        WITH_ARGS
+    )]
+    #[case::subcommands_and_args(
+        app().arg(force()).subcommand(Command::new("plan")).subcommand_required(true),
+        WITH_ARGS
+    )]
+    #[case::before_and_after_help(
+        app().before_help("Before.").after_help("After.").arg(force()),
+        WITH_ARGS
+    )]
+    #[case::long_texts(
+        app()
+            .long_about("Copies files, and keeps them.")
+            .after_long_help("After, at length.")
+            .arg(force().long_help("Overwrite what is there."))
+            .arg(mode()),
+        WITH_ARGS
+    )]
+    #[case::versioned(app().version("1.0").arg(force()), WITH_ARGS)]
+    fn clap_defaults_are_the_templates_clap_uses(
+        #[case] cmd: Command,
+        #[case] template: &'static str,
+    ) {
+        for (clap, copied) in helps(&cmd, template) {
+            assert_eq!(copied, clap, "clap's default template is no longer {template:?}");
+        }
+        assert!(!cmd.has_own_template());
+    }
+
+    #[rstest]
+    fn a_template_the_app_set_is_its_own() {
+        assert!(app().arg(force()).help_template("{usage}\n{all-args}").has_own_template());
+    }
+
+    #[rstest]
+    #[case::plain(app().arg(force()))]
+    #[case::long_about(app().long_about("Copies files, and keeps them."))]
+    #[case::before_long_help(app().before_long_help("Before, at length."))]
+    #[case::after_long_help(app().after_long_help("After, at length."))]
+    #[case::arg_long_help(app().arg(force().long_help("Overwrite what is there.")))]
+    #[case::hidden_arg_long_help(app().arg(force().long_help("Overwrite.").hide(true)))]
+    #[case::hide_short_help(app().arg(force().hide_short_help(true)))]
+    #[case::hide_long_help(app().arg(force().hide_long_help(true)))]
+    #[case::possible_value_help(app().arg(mode()))]
+    #[case::hidden_possible_values(app().arg(mode().hide_possible_values(true)))]
+    #[case::possible_values_without_help(app().arg(Arg::new("mode").value_parser(["a", "b"])))]
+    #[case::hidden_possible_value_help(app().arg(Arg::new("mode").value_parser([
+        PossibleValue::new("fast").help("Skip the checks").hide(true),
+    ])))]
+    #[case::subcommand_long_about(app().subcommand(Command::new("plan").long_about("Plans.")))]
+    fn long_help_exists_when_clap_says_so(#[case] cmd: Command) {
+        // clap's `-h` points to `--help` exactly when it shows more there.
+        let help = cmd.clone().render_help().to_string();
+        assert_eq!(cmd.has_long_help(), help.contains("(see more with '--help')"), "{help}");
+    }
+}

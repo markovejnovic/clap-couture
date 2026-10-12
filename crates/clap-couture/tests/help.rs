@@ -102,6 +102,30 @@ struct Long {
     source: String,
 }
 
+/// Copies files.
+///
+/// Reads every source before writing.
+#[derive(Parser, Couture)]
+#[command(name = "copy", version, before_help = "Before.", after_long_help = "After, at length.")]
+struct Flat {
+    /// Overwrite what is there.
+    ///
+    /// Even read-only files.
+    #[arg(long)]
+    force: bool,
+
+    /// Where to copy from.
+    source: String,
+
+    /// Print each file copied.
+    #[arg(long, help_heading = "Output")]
+    verbose: bool,
+}
+
+#[derive(Parser, Couture)]
+#[command(name = "copy", disable_help_flag = true)]
+struct Bare;
+
 /// The help a command prints, as couture renders it and as clap does.
 struct Helps {
     clap: String,
@@ -297,4 +321,19 @@ fn markdown_is_styled_on_a_terminal() {
 fn an_angle_bracketed_placeholder_is_kept() {
     let help = Described::couture_command().render_help().to_string();
     assert!(help.contains("Copy into <DEST>\n"), "{help}");
+}
+
+/// Without subcommands to file, couture's template must print exactly what clap's default does.
+#[rstest]
+#[case::args(Flat::command(), Flat::couture_command())]
+#[case::nothing_to_list(Bare::command(), Bare::couture_command())]
+fn without_subcommands_the_help_is_clap_s(
+    #[case] mut clap: clap::Command,
+    #[case] mut couture: clap::Command,
+) {
+    assert_eq!(couture.render_help().ansi().to_string(), clap.render_help().ansi().to_string());
+    assert_eq!(
+        couture.render_long_help().ansi().to_string(),
+        clap.render_long_help().ansi().to_string()
+    );
 }

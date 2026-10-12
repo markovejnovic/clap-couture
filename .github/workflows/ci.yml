@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Weekly, so a clap release is tested without waiting for a push: see `test-latest-clap`.
+  schedule:
+    - cron: "0 6 * * 1"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -56,6 +59,21 @@ jobs:
       - run: cargo test --workspace --all-features
       # `--all-features` never builds `render/plain.rs`; this also covers building without the derive.
       - run: cargo build -p clap-couture --no-default-features
+
+  # couture copies clap internals (help templates, `clap_derive`'s naming); a clap release that
+  # changes them breaks help or prompts silently. Users get the latest compatible clap, not ours.
+  test-latest-clap:
+    name: test (latest clap)
+    runs-on: ubuntu-latest
+    env:
+      # Resolve as a user on a newer Rust would, past the MSRV.
+      CARGO_RESOLVER_INCOMPATIBLE_RUST_VERSIONS: allow
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo update -p clap -p clap_builder -p clap_derive -p clap_lex
+      - run: cargo test --workspace --all-features
 
   test-windows:
     name: test (windows)

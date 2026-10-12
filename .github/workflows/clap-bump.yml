@@ -1,0 +1,190 @@
+name: Clap bump
+
+# couture copies clap internals, so Cargo.toml caps clap at the newest release tested:
+# `clap = ">=MIN, <=MAX"`. Weekly, this raises MAX to clap's latest 4.x on the branch
+# `build/clap-<version>`, runs all of CI there, and opens a PR only if CI passes. The
+# owner merges it by hand. When CI fails, the branch is deleted and the run fails,
+# naming the clap that broke.
+#
+# Setup:
+# - Settings > Actions > General > "Allow GitHub Actions to create and approve pull
+#   requests" must be on, for `github.token` to open the PR.
+# - A PR opened with `github.token` triggers no workflows, so CI and the PR-title check
+#   don't run on it (this run's CI already passed; its run is linked in the PR). To have
+#   them run, add a fine-grained PAT as the `CLAP_BUMP_TOKEN` secret, with "Contents"
+#   and "Pull requests" read and write on this repository.
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+# A second run would race this one to the same branch.
+concurrency:
+  group: clap-bump
+  cancel-in-progress: false
+
+permissions: {}
+
+defaults:
+  run:
+    # `-eo pipefail`: the default `bash -e` would let `script | tee` hide a failure.
+    shell: bash
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    name: check for a clap release
+    if: github.repository_owner == 'markovejnovic'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # pushes the bump branch
+      pull-requests: read # finds an earlier bump PR
+    outputs:
+      bump: ${{ steps.plan.outputs.bump }}
+      version: ${{ steps.latest.outputs.latest }}
+      branch: ${{ steps.plan.outputs.branch }}
+      rerendered: ${{ steps.render.outputs.rerendered }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Find clap's latest release
+        id: latest
+        run: |
+          python3 scripts/clap_bounds.py bounds | tee -a "$GITHUB_OUTPUT"
+          python3 scripts/clap_bounds.py latest | tee -a "$GITHUB_OUTPUT"
+      - name: Decide whether to bump
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LATEST: ${{ steps.latest.outputs.latest }}
+          MAX: ${{ steps.latest.outputs.max }}
+          NEWER: ${{ steps.latest.outputs.newer }}
+        run: |
+          branch="build/clap-$LATEST"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          if [[ $NEWER != true ]]; then
+            echo "clap $LATEST is the newest; nothing to do (Cargo.toml allows up to $MAX)." | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "bump=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Any state: a closed PR means the owner turned this version down.
+          pr=$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$branch" --state all --json url --jq '.[0].url // ""')
+          if [[ -n $pr ]]; then
+            echo "clap $LATEST already has a bump PR, $pr; nothing to do." | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "bump=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if git ls-remote --exit-code --heads origin "$branch" > /dev/null; then
+            echo "The branch \`$branch\` already exists; delete it to retry clap $LATEST." | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "bump=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "bump=true" >> "$GITHUB_OUTPUT"
+
+      - if: steps.plan.outputs.bump == 'true'
+        uses: dtolnay/rust-toolchain@stable
+      - if: steps.plan.outputs.bump == 'true'
+        uses: Swatinem/rust-cache@v2
+      # `ansi-to-html.py` runs through `uv run`, in the environment `uv.lock` pins.
+      - if: steps.plan.outputs.bump == 'true'
+        uses: astral-sh/setup-uv@v10.3.0
+      - name: Raise clap's max
+        if: steps.plan.outputs.bump == 'true'
+        env:
+          LATEST: ${{ steps.latest.outputs.latest }}
+        run: |
+          python3 scripts/clap_bounds.py set-max "$LATEST"
+          # Moves clap_builder, clap_derive and clap_lex along with it.
+          cargo update -p clap --precise "$LATEST"
+      # CI's `example assets` job fails if clap changed the examples' `--help`.
+      - name: Re-render the example help
+        id: render
+        if: steps.plan.outputs.bump == 'true'
+        run: |
+          ./scripts/render-examples.sh
+          if [[ -n $(git status --porcelain -- 'assets/*.ansi' crates/clap-couture/docs) ]]; then
+            echo "rerendered=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "rerendered=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Push the bump branch
+        if: steps.plan.outputs.bump == 'true'
+        env:
+          BRANCH: ${{ steps.plan.outputs.branch }}
+          LATEST: ${{ steps.latest.outputs.latest }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH"
+          git add Cargo.toml Cargo.lock assets/ crates/clap-couture/docs/
+          git commit -m "feat: Support clap $LATEST"
+          git push origin "HEAD:refs/heads/$BRANCH"
+
+  # All of CI, on the bump branch.
+  test:
+    name: CI
+    needs: check
+    if: needs.check.outputs.bump == 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ needs.check.outputs.branch }}
+
+  open-pr:
+    name: open the PR
+    needs: [check, test]
+    if: needs.check.outputs.bump == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Open the PR
+        env:
+          GH_TOKEN: ${{ secrets.CLAP_BUMP_TOKEN || github.token }}
+          BRANCH: ${{ needs.check.outputs.branch }}
+          LATEST: ${{ needs.check.outputs.version }}
+          RERENDERED: ${{ needs.check.outputs.rerendered }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          body="Raises the newest clap \`Cargo.toml\` allows to $LATEST, and locks it."
+          body+=$'\n\n'"Changelog: https://github.com/clap-rs/clap/blob/master/CHANGELOG.md"
+          if [[ $RERENDERED == true ]]; then
+            body+=$'\n\n'"clap changed the examples' \`--help\`, so \`assets/*.ansi\` and \`crates/clap-couture/docs/\` are re-rendered; check the diff."
+          fi
+          body+=$'\n\n'"The full CI passed on this branch in $RUN_URL."
+          url=$(gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$BRANCH" \
+            --title "feat: Support clap $LATEST" --body "$body")
+          echo "Opened $url for clap $LATEST." | tee -a "$GITHUB_STEP_SUMMARY"
+
+  # Leaves no branch behind, so next week's run tries again. A failed `check` pushed
+  # nothing and fails the run itself.
+  clean-up:
+    name: clean up
+    needs: [check, test, open-pr]
+    if: >-
+      always() && needs.check.result == 'success' &&
+      needs.check.outputs.bump == 'true' && needs.open-pr.result != 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # deletes the bump branch
+    steps:
+      - name: Delete the bump branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ needs.check.outputs.branch }}
+          LATEST: ${{ needs.check.outputs.version }}
+          TEST_RESULT: ${{ needs.test.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/$BRANCH"
+          if [[ $TEST_RESULT != success ]]; then
+            echo "::error::CI failed with clap $LATEST; no PR was opened."
+            echo "CI failed with clap $LATEST ($TEST_RESULT), so no PR was opened and \`$BRANCH\` was deleted. See the failing jobs in $RUN_URL." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::error::CI passed with clap $LATEST, but the PR couldn't be opened."
+            echo "CI passed with clap $LATEST, but opening its PR failed, so \`$BRANCH\` was deleted. Check the setup notes at the top of \`clap-bump.yml\`." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit 1

@@ -110,7 +110,7 @@
 <a href=#104 id=104 data-nosnippet>104</a>                .unwrap_or((<span class="kw-2">&amp;</span><span class="self">Self</span>::EMPTY, <span class="kw-2">*</span>messages));
 <a href=#105 id=105 data-nosnippet>105</a>            tree.install(subcommand, built_subcommand, tree.categories, <span class="kw-2">&amp;</span>messages, width)
 <a href=#106 id=106 data-nosnippet>106</a>        });
-<a href=#107 id=107 data-nosnippet>107</a>        HelpBody::new(built, categories, messages, width).install(cmd, messages)
+<a href=#107 id=107 data-nosnippet>107</a>        HelpBody::new(built, categories, messages, width).install(cmd)
 <a href=#108 id=108 data-nosnippet>108</a>    }
 <a href=#109 id=109 data-nosnippet>109</a>
 <a href=#110 id=110 data-nosnippet>110</a>    <span class="doccomment">/// The tree of the subcommand `name`, and the messages it inherits from `inherited` down
@@ -218,7 +218,7 @@
 <a href=#212 id=212 data-nosnippet>212</a>                    subcommand
 <a href=#213 id=213 data-nosnippet>213</a>                }
 <a href=#214 id=214 data-nosnippet>214</a>            });
-<a href=#215 id=215 data-nosnippet>215</a>            body.install(printed, <span class="kw-2">&amp;</span>messages)
+<a href=#215 id=215 data-nosnippet>215</a>            body.install(printed)
 <a href=#216 id=216 data-nosnippet>216</a>        });
 <a href=#217 id=217 data-nosnippet>217</a>        <span class="prelude-val">Err</span>(cmd.try_get_matches_from_mut(argv).err().unwrap_or(err))
 <a href=#218 id=218 data-nosnippet>218</a>    }

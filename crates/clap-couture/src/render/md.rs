@@ -1,12 +1,9 @@
-use core::{
-    fmt::{self, Display},
-    ops::Range,
-};
+use core::{fmt, ops::Range};
 
 use clap::builder::{StyledStr, Styles, styling::Style};
 use pulldown_cmark::{CowStr, Event, LinkType, Parser, Tag, TagEnd};
 
-use super::TextRenderer;
+use super::{TextRenderer, Word};
 
 pub(crate) struct MdTextRenderer<'style> {
     styles: &'style Styles,
@@ -19,14 +16,6 @@ impl<'style> MdTextRenderer<'style> {
 }
 
 impl TextRenderer for MdTextRenderer<'_> {
-    fn render_display<W, D>(&self, out: &mut W, text: D) -> fmt::Result
-    where
-        W: fmt::Write,
-        D: Display,
-    {
-        self.render_str(out, &text.to_string())
-    }
-
     fn render_str<W>(&self, out: &mut W, text: &str) -> fmt::Result
     where
         W: fmt::Write,
@@ -39,6 +28,17 @@ impl TextRenderer for MdTextRenderer<'_> {
         // `StyledStr`'s `fmt::Write` is infallible.
         self.render_blocks(&mut rendered, &text.to_string(), true).ok();
         rendered
+    }
+
+    fn restyle_line(&self, text: &StyledStr) -> StyledStr {
+        let mut rendered = StyledStr::new();
+        // `StyledStr`'s `fmt::Write` is infallible.
+        self.render_str(&mut rendered, &text.to_string()).ok();
+        rendered
+    }
+
+    fn restyle_wrapped(&self, wrapped: &str) -> String {
+        Word(wrapped).with_styles_reopened()
     }
 }
 

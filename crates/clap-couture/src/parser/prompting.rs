@@ -715,7 +715,8 @@ pub(super) fn blocked(
         .filter(|other| other.get_id() != arg.get_id())
         .filter(|other| answered(other.get_id()) || explicit(level_matches, other.get_id()))
         .any(|other| {
-            other.is_exclusive_set()
+            arg.is_exclusive_set()
+                || other.is_exclusive_set()
                 || conflicts.iter().any(|conflict| conflict.get_id() == other.get_id())
                 || level.get_arg_conflicts_with(other).iter().any(|c| c.get_id() == arg.get_id())
                 || group_mates(level, arg).any(|mate| mate == other.get_id())

@@ -20,7 +20,7 @@
 //! Before any of it, the `#[couture(stdin)]` arg on the path the user took takes stdin: all of it
 //! when passed `-`, else what is piped, if it got no value. It is then no longer asked.
 
-use core::{any::TypeId, iter};
+use core::iter;
 use std::ffi::{OsStr, OsString};
 
 use clap::{
@@ -250,6 +250,8 @@ impl Session<'_> {
         editor: &EditorAttr,
         rejected: Option<&Rejected>,
     ) -> Result<Option<String>, PromptError> {
+        use core::any::TypeId;
+
         let Asked { arg, current, optional: _, prompted_arg, question } = *asked;
         let styles = CommandStyles(self.cmd.get_styles());
         let optional = asked.optional && arg.get_default_values().is_empty();

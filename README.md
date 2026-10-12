@@ -16,8 +16,8 @@
   <a href="https://crates.io/crates/clap-couture"><img alt="crates.io" src="https://img.shields.io/crates/v/clap-couture?style=flat-square&color=DB2777"></a>
   <a href="https://docs.rs/clap-couture"><img alt="docs.rs" src="https://img.shields.io/docsrs/clap-couture?style=flat-square&color=DB2777"></a>
   <a href="https://github.com/markovejnovic/clap-couture/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/markovejnovic/clap-couture/ci.yml?branch=main&style=flat-square&label=CI"></a>
-  <a href="#installation"><img alt="MSRV 1.88" src="https://img.shields.io/badge/MSRV-1.88-DB2777?style=flat-square"></a>
-  <a href="https://crates.io/crates/clap"><img alt="clap 4.x" src="https://img.shields.io/badge/clap-4.x-DB2777?style=flat-square"></a>
+  <a href="#getting-started"><img alt="MSRV 1.88" src="https://img.shields.io/badge/MSRV-1.88-DB2777?style=flat-square"></a>
+  <a href="https://crates.io/crates/clap"><img alt="clap 4.6+" src="https://img.shields.io/badge/clap-4.6%2B-DB2777?style=flat-square"></a>
   <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-DB2777?style=flat-square"></a>
 </p>
 
@@ -61,7 +61,7 @@ it from the CLI.
 Install it:
 
 ```bash
-cargo add clap-couture --features full
+cargo add clap-couture
 ```
 
 Import `clap_couture`, add the `Couture` derive, and swap out `parse` for `couture_parse`.
@@ -214,7 +214,7 @@ password: SecretString,
 Markdown is opt-in: with the `markdown` feature (or `full`), doc comments and
 category descriptions are CommonMark, rendered in the terminal. That gives `*`,
 `_` and `<...>` their markdown meaning, so plain help text keeps them only
-without it:
+without it. Turn it on with `cargo add clap-couture --features markdown`:
 
 ```rust
 enum Cmd {
@@ -234,7 +234,7 @@ enum Cmd {
 
 - [The docs](https://docs.rs/clap-couture), with a tour of every feature.
 - [The examples](crates/clap-couture/examples), each runnable with
-  `cargo run -p clap-couture --example <name>`.
+  `cargo run -p clap-couture --features full --example <name>`.
 
 # Donationware
 

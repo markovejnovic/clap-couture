@@ -197,8 +197,10 @@ impl ParseError {
     ///
     /// clap's errors exit as [`clap::Error::exit`] does: `--help` with status 0, a usage error
     /// with 2. A cancelled prompt dies of its signal, so a shell loop around the CLI stops too,
-    /// or exits with status 130 where there are no signals. A failed prompt prints why and exits
-    /// with status 1, as does a declined confirmation, silently.
+    /// or exits with status 130 where there are no signals. An app that handles or ignores the
+    /// signal gets it under its own handling instead and, if it survives, exits with 128 plus the
+    /// signal: 130 for Ctrl-C. A failed prompt prints why and exits with status 1, as does a
+    /// declined confirmation, silently.
     pub fn exit(self) -> ! {
         match self {
             #[cfg(feature = "interactive")]
@@ -307,6 +309,11 @@ mod tests {
     fn die_in_child() {
         let Ok(signal) = std::env::var(DIE_OF) else { return };
         let signal = signal.parse().ok().and_then(Signal::from_raw).unwrap_or(Signal::Interrupt);
+        // A test ignoring the signal in the runner meanwhile would hand that down.
+        // SAFETY: the default action is valid for every signal.
+        unsafe {
+            libc::signal(signal.to_raw(), libc::SIG_DFL);
+        }
         ParseError::Cancelled(signal).exit();
     }
 

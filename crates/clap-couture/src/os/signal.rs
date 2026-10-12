@@ -174,7 +174,7 @@ pub enum Signal {
 
 impl Signal {
     /// The action this signal has now.
-    #[cfg(all(unix, feature = "interactive-editor"))]
+    #[cfg(unix)]
     fn action(self) -> Option<libc::sigaction> {
         // SAFETY: an all-zero `sigaction` is valid storage, only written to.
         let mut current: libc::sigaction = unsafe { core::mem::zeroed() };
@@ -184,13 +184,32 @@ impl Signal {
         (status == 0i32).then_some(current)
     }
 
+    /// The action this signal had before the [`IgnoredSignals`] guards, or has now when none
+    /// holds it.
+    #[cfg(unix)]
+    fn action_before_guards(self) -> Option<libc::sigaction> {
+        #[cfg(feature = "interactive-editor")]
+        {
+            let before_guards = Handling::lock().slot(self).as_ref().map(|held| held.previous);
+            before_guards.or_else(|| self.action())
+        }
+        #[cfg(not(feature = "interactive-editor"))]
+        self.action()
+    }
+
     /// Die of this signal.
     ///
     /// Normally, signals which interrupt processes can abort the process. This allows you to exit
-    /// mimicking as if that signal was fired to the app.
+    /// mimicking as if that signal was fired to the app. An app that handles or ignores the signal
+    /// gets it under its own handling instead, and if that doesn't end the process, it exits with
+    /// the status that reports a death by the signal.
     pub(crate) fn die(self) -> ! {
         #[cfg(unix)]
-        Self::raise_by_default(self.to_raw());
+        if self.handled_by_current_process() {
+            Self::raise_unblocked(self.to_raw());
+        } else {
+            Self::raise_by_default(self.to_raw());
+        }
 
         std::process::exit(self.exit_code())
     }
@@ -213,6 +232,32 @@ impl Signal {
         }
     }
 
+    /// Flush stdout and stderr, then unblock signal number `signal`, so that raising it acts at
+    /// once rather than leaving it pending.
+    #[cfg(unix)]
+    fn flush_and_unblock(signal: libc::c_int) {
+        use std::io::Write as _;
+
+        drop(std::io::stdout().flush());
+        drop(std::io::stderr().flush());
+
+        // SAFETY: an all-zero `sigset_t` is valid storage, filled in by `sigemptyset`.
+        let mut set: libc::sigset_t = unsafe { core::mem::zeroed() };
+        // A blocked signal would stay pending instead of killing, so it is unblocked first.
+        // SAFETY: `set` is live for the call.
+        unsafe {
+            libc::sigemptyset(&raw mut set);
+        }
+        // SAFETY: as above; `signal` is a real signal.
+        unsafe {
+            libc::sigaddset(&raw mut set, signal);
+        }
+        // SAFETY: `set` is live, and the old mask is not asked for.
+        unsafe {
+            libc::pthread_sigmask(libc::SIG_UNBLOCK, &raw const set, core::ptr::null_mut());
+        }
+    }
+
     /// The signal `raw` is, if it is one of these.
     #[cfg(unix)]
     #[cfg_attr(
@@ -228,6 +273,13 @@ impl Signal {
         }
     }
 
+    /// Whether the current process handles or ignores this signal rather than taking its default
+    /// action, looking past the [`IgnoredSignals`] guards.
+    #[cfg(unix)]
+    fn handled_by_current_process(self) -> bool {
+        self.action_before_guards().is_some_and(|action| action.sa_sigaction != libc::SIG_DFL)
+    }
+
     /// Ignore this signal, held by one guard.
     #[cfg(all(unix, feature = "interactive-editor"))]
     fn ignore(self) -> Option<Held> {
@@ -241,10 +293,7 @@ impl Signal {
     /// guards: while one holds it, what counts is the action it had before the first of them.
     #[cfg(all(unix, feature = "interactive-editor"))]
     pub(crate) fn ignored_by_current_process(self) -> bool {
-        let before_guards = Handling::lock().slot(self).as_ref().map(|held| held.previous);
-        before_guards
-            .or_else(|| self.action())
-            .is_some_and(|action| action.sa_sigaction == libc::SIG_IGN)
+        self.action_before_guards().is_some_and(|action| action.sa_sigaction == libc::SIG_IGN)
     }
 
     /// The signal `status`'s process died of, if it is one of these. On Windows, a process ended
@@ -272,34 +321,25 @@ impl Signal {
     /// signals this crate dies of.
     #[cfg(unix)]
     fn raise_by_default(signal: libc::c_int) {
-        use std::io::Write as _;
-
         // No guard may take the signal over between setting its default action and raising it.
         #[cfg(feature = "interactive-editor")]
         let _handling = Handling::lock();
-        drop(std::io::stdout().flush());
-        drop(std::io::stderr().flush());
-
-        // SAFETY: an all-zero `sigset_t` is valid storage, filled in by `sigemptyset`.
-        let mut set: libc::sigset_t = unsafe { core::mem::zeroed() };
-        // A blocked signal would stay pending instead of killing, so it is unblocked first.
-        // SAFETY: `set` is live for the call.
-        unsafe {
-            libc::sigemptyset(&raw mut set);
-        }
-        // SAFETY: as above; `signal` is a real signal.
-        unsafe {
-            libc::sigaddset(&raw mut set, signal);
-        }
-        // SAFETY: `set` is live, and the old mask is not asked for.
-        unsafe {
-            libc::pthread_sigmask(libc::SIG_UNBLOCK, &raw const set, core::ptr::null_mut());
-        }
+        Self::flush_and_unblock(signal);
         // SAFETY: the default action is valid for every signal.
         unsafe {
             libc::signal(signal, libc::SIG_DFL);
         }
         // SAFETY: raising a real signal; with its default action, it ends the process.
+        unsafe {
+            libc::raise(signal);
+        }
+    }
+
+    /// Raise signal number `signal` with the action it has now.
+    #[cfg(unix)]
+    fn raise_unblocked(signal: libc::c_int) {
+        Self::flush_and_unblock(signal);
+        // SAFETY: raising a real signal; unblocked, its handler runs before `raise` returns.
         unsafe {
             libc::raise(signal);
         }

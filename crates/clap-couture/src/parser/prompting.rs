@@ -34,7 +34,7 @@ use super::{
     ParseError,
     dash::{DashArgs, Dashed},
     secrets::{self, SecretRequirement as _, Vault},
-    stdin::{StdinArgs, StdinValue},
+    stdin::StdinArgs,
 };
 use crate::{
     Messages,
@@ -566,21 +566,8 @@ where
         return Err(asked.unaskable(&cmd));
     }
     let checking = dash_args.checking(cmd.clone());
-    if let Some(StdinValue { stdin_arg, text }) =
-        stdin_args.read(&checking, &prompted_args, &dashed, argv, stdin)?
-    {
-        let (path, id) = (stdin_arg.subcommand_path.as_slice(), stdin_arg.attr.arg_id);
-        let is_stdin_arg = |prompted_arg: &PromptedArg| {
-            prompted_arg.subcommand_path == path && prompted_arg.attr.arg_id == id
-        };
-        let secret = prompted_args
-            .iter()
-            .any(|prompted| is_stdin_arg(prompted) && prompted.attr.secret.is_some());
-        let text = if secret { vault.store(text.into()) } else { text };
-        if !dashed.fill_read(path, id, text.clone()) {
-            cmd = inject_at(cmd, path, id, &[text]);
-        }
-        prompted_args.retain(|prompted_arg| !is_stdin_arg(prompted_arg));
+    if let Some(stdin_value) = stdin_args.read(&checking, &prompted_args, &dashed, argv, stdin)? {
+        cmd = stdin_value.fill(cmd, &mut prompted_args, &dashed, &vault);
     }
     if prompted_args.is_empty() || !backend.is_available() {
         return parse_unprompted(dash_args.typed(cmd), &prompted_args, argv);
@@ -801,7 +788,7 @@ fn inject<'prompted_arg>(
 }
 
 /// Set `values` as the default values of arg `id` of the command at `path`.
-fn inject_at(cmd: Command, path: &[&str], id: &str, values: &[String]) -> Command {
+pub(super) fn inject_at(cmd: Command, path: &[&str], id: &str, values: &[String]) -> Command {
     // A default value is no explicit value to clap, so the rules that require the arg would
     // still miss it.
     with_arg_at(unrequire(cmd, path, id), path, id, |arg| {

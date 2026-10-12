@@ -30,7 +30,7 @@
 <div align="center">
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="assets/99-full-example-light.gif">
-  <img src="assets/99-full-example-dark.gif" alt="orbit --help listing its commands under Ship and Account headings, then orbit deploy asking for the app, release notes in vim, the region from a list, the replicas again after an answer that isn't a number, the sidecars from a multi-select, a masked deploy token, and a confirmation" width="846">
+  <img src="assets/99-full-example-dark.gif" alt="orbit --help listing its commands under Ship, Config and Account headings, with bold and italic text; orbit deploy --help; orbit deploy --app web with ORBIT_TOKEN set, asking only for release notes in vim, the region, the replicas, the sidecars and a confirmation; orbit login masking the password; then the same login with the password piped in, asking nothing" width="846">
 </picture>
 </div>
 
@@ -190,6 +190,13 @@ enum Cmd {
 - [The docs](https://docs.rs/clap-couture) go into a lot more detail!
 - [The examples](crates/clap-couture/examples), each runnable with
   `cargo run -p clap-couture --features full --example <name>`.
+
+# AI Disclosure
+
+I used Claude pretty aggressively for this project. If you're not comfortable
+with that, this may not be the project for you. All interfaces are
+hand-designed, all public docs are hand-written, but the implementation is not
+hand-written. It is all reviewed, of course.
 
 # Donationware
 

@@ -103,6 +103,28 @@ struct ScriptedLogin {
 }
 
 /// The rendered error of a parse that must fail.
+/// A command whose first subcommand holds a secret, which couture edits to guard it.
+#[derive(Parser, Couture)]
+struct Orbit {
+    #[command(subcommand)]
+    cmd: OrbitCmd,
+}
+
+#[derive(Subcommand, Couture)]
+#[couture(categories = { "account" = {} })]
+enum OrbitCmd {
+    /// Sign in.
+    #[couture(category = "account")]
+    Login {
+        #[arg(long)]
+        #[couture(prompt, secret)]
+        password: SecretString,
+    },
+    /// Sign out.
+    #[couture(category = "account")]
+    Logout,
+}
+
 fn error_of<T>(parsed: Result<T, ParseError>) -> String {
     parsed.map(drop).map_err(|err| err.to_string()).err().unwrap_or_default()
 }
@@ -325,4 +347,12 @@ fn a_required_secret_answered_with_nothing_says_how_to_give_it() {
     let backend = ScriptedBackend::new([Reply::Secret(None)]);
     let message = error_of(Login::couture_try_parse_from_with(&backend, ["app"]));
     assert!(message.contains("the secret token was not given"), "{message}");
+}
+
+#[rstest]
+fn guarding_a_secret_keeps_its_subcommand_in_place() {
+    let help = Orbit::couture_command().render_help().to_string();
+    let login = help.find("login").unwrap_or(usize::MAX);
+    let logout = help.find("logout").unwrap_or(usize::MAX);
+    assert!(login < logout, "{help}");
 }

@@ -19,8 +19,8 @@
 //!   }
 //! </style>
 //!
-//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/99-full-example-dark.gif" alt="orbit --help listing its commands under Ship and Account headings, then orbit deploy asking for the app, release notes in vim, the region from a list, the replicas again after an answer that isn't a number, the sidecars from a multi-select, a masked deploy token, and a confirmation" width="846">
-//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/99-full-example-light.gif" alt="orbit --help listing its commands under Ship and Account headings, then orbit deploy asking for the app, release notes in vim, the region from a list, the replicas again after an answer that isn't a number, the sidecars from a multi-select, a masked deploy token, and a confirmation" width="846">
+//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/99-full-example-dark.gif" alt="orbit --help listing its commands under Ship, Config and Account headings, with bold and italic text; orbit deploy --help; orbit deploy --app web with ORBIT_TOKEN set, asking only for release notes in vim, the region, the replicas, the sidecars and a confirmation; orbit login masking the password; then the same login with the password piped in, asking nothing" width="846">
+//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/99-full-example-light.gif" alt="orbit --help listing its commands under Ship, Config and Account headings, with bold and italic text; orbit deploy --help; orbit deploy --app web with ORBIT_TOKEN set, asking only for release notes in vim, the region, the replicas, the sidecars and a confirmation; orbit login masking the password; then the same login with the password piped in, asking nothing" width="846">
 //!
 //! See [`examples/99-full-example.rs`](https://github.com/markovejnovic/clap-couture/blob/main/crates/clap-couture/examples/99-full-example.rs).
 //!

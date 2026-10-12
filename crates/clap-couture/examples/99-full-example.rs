@@ -7,7 +7,6 @@
 //! ```
 
 #![expect(clippy::print_stdout, reason = "a runnable demo prints its result")]
-#![expect(clippy::use_debug, reason = "lists print shortest as their `Debug`")]
 
 use clap::{
     Parser, Subcommand, ValueEnum,
@@ -28,7 +27,7 @@ const STYLES: Styles = Styles::styled()
     .valid(AnsiColor::Green.on_default())
     .invalid(AnsiColor::Yellow.on_default());
 
-/// Deploy and manage your apps from the **terminal**.
+/// Deploy and manage your apps from the **terminal**, *fashionably*.
 #[derive(Parser, Couture)]
 #[command(name = "orbit", bin_name = "orbit", styles = STYLES)]
 struct Cli {
@@ -40,28 +39,47 @@ struct Cli {
 #[couture(categories = {
     // Descriptions are markdown, with the `markdown` feature.
     "ship" = { title = "Ship:", description = "Get code to **production**" },
-    "account" = { title = "Account:", description = "Who *you* are, and what you keep" },
+    "config" = { title = "Config:", description = "What your app *knows*" },
+    "account" = { title = "Account:", description = "Who **you** are" },
 })]
 enum Cmd {
-    /// Ship the current project.
+    /// Ship the **current** project.
     #[couture(category = "ship")]
     Deploy(Deploy),
+    /// Point a domain at your app.
+    #[couture(category = "config")]
+    Domains,
+    /// Manage `KEY=VALUE` variables.
+    #[couture(category = "config")]
+    Env,
     /// Sign in to your account.
     #[couture(category = "account")]
     Login(Login),
+    /// Sign out of *this* machine.
+    #[couture(category = "account")]
+    Logout,
     // No category: listed first, under no heading.
     /// Tail live logs.
     Logs,
+    /// Promote a release to *production*.
+    #[couture(category = "ship")]
+    Promote,
     /// Roll back to a previous release.
     #[couture(category = "ship")]
     Rollback(Rollback),
+    /// Change the `replicas` count.
+    #[couture(category = "ship")]
+    Scale,
     // `orbit secrets --help` is categorized too, by the categories on `Secrets`.
     /// Manage environment secrets.
-    #[couture(category = "account")]
+    #[couture(category = "config")]
     #[command(subcommand)]
     Secrets(Secrets),
     /// Show recent activity.
     Status,
+    /// Show who you're signed in as.
+    #[couture(category = "account")]
+    Whoami,
 }
 
 #[derive(Parser, Couture)]
@@ -72,10 +90,10 @@ struct Deploy {
     #[couture(prompt)]
     app: String,
 
-    /// Release notes.
+    /// Release notes, in **markdown**.
     #[arg(long)]
     // Written in the user's `$EDITOR`, like `git commit`.
-    #[couture(prompt, editor(extension = "md", initial = "## Changes\n"))]
+    #[couture(prompt = "Release notes", editor(extension = "md", initial = "## Changes\n"))]
     notes: Option<String>,
 
     /// Region to deploy to.
@@ -139,8 +157,10 @@ struct Login {
     #[couture(prompt)]
     email: String,
 
-    /// Your password; `-` reads it from stdin, like `docker login --password-stdin`.
+    /// Your password.
     #[arg(long)]
+    // Masked as it's typed; `--password -` reads it from stdin, like `docker login
+    // --password-stdin`.
     #[couture(prompt, secret, stdin)]
     password: SecretString,
 }
@@ -180,26 +200,41 @@ fn main() {
     let cli = Cli::couture_parse();
 
     match cli.cmd {
-        Cmd::Status => println!("all systems go"),
-        Cmd::Logs => println!("tailing logs"),
         Cmd::Deploy(deploy) => {
             // A real deploy hands the token on; the demo only says it arrived.
             let _token: SecretString = deploy.token;
+            let sidecars: Vec<_> = deploy.sidecars.iter().map(name).collect();
             println!(
-                "deploying {} to {:?} with {} replicas and {:?}",
-                deploy.app, deploy.region, deploy.replicas, deploy.sidecars
+                "deploying {} to {} with {} replicas and [{}]",
+                deploy.app,
+                name(&deploy.region),
+                deploy.replicas,
+                sidecars.join(", ")
             );
             if let Some(notes) = deploy.notes {
                 println!("{notes}");
             }
         }
-        Cmd::Rollback(rollback) => println!("rolling back to {}", rollback.to),
+        Cmd::Domains => println!("no domains yet"),
+        Cmd::Env => println!("no variables yet"),
         Cmd::Login(login) => println!("signed in as {}", login.email),
+        Cmd::Logout => println!("signed out"),
+        Cmd::Logs => println!("tailing logs"),
+        Cmd::Promote => println!("promoted"),
+        Cmd::Rollback(rollback) => println!("rolling back to {}", rollback.to),
+        Cmd::Scale => println!("scaled"),
         Cmd::Secrets(Secrets::List) => println!("no secrets yet"),
+        Cmd::Secrets(Secrets::Remove { name }) => println!("removed {name}"),
         Cmd::Secrets(Secrets::Set(secret)) => match secret.value {
             Some(_) => println!("set {}", secret.name),
             None => println!("left {} empty", secret.name),
         },
-        Cmd::Secrets(Secrets::Remove { name }) => println!("removed {name}"),
+        Cmd::Status => println!("all systems go"),
+        Cmd::Whoami => println!("not signed in"),
     }
+}
+
+/// `value` as the command line spells it: `eu`, not `Eu`.
+fn name(value: &impl ValueEnum) -> String {
+    value.to_possible_value().map(|value| value.get_name().to_owned()).unwrap_or_default()
 }

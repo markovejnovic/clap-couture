@@ -478,7 +478,7 @@
 <a href=#472 id=472 data-nosnippet>472</a><span class="kw">pub use </span>parser::{CoutureParser, ParseError};
 <a href=#473 id=473 data-nosnippet>473</a><span class="kw">pub use </span>text::Text;
 <a href=#474 id=474 data-nosnippet>474</a>
-<a href=#475 id=475 data-nosnippet>475</a><span class="kw">use </span><span class="kw">crate</span>::render::CommandRenderExt <span class="kw">as _</span>;
+<a href=#475 id=475 data-nosnippet>475</a><span class="kw">use </span><span class="kw">crate</span>::render::{CommandRenderExt <span class="kw">as _</span>, HelpTemplates <span class="kw">as _</span>};
 <a href=#476 id=476 data-nosnippet>476</a>
 <a href=#477 id=477 data-nosnippet>477</a><span class="doccomment">/// A clap subcommand name, eg. `foo` in `app foo`.
 <a href=#478 id=478 data-nosnippet>478</a></span><span class="kw">pub struct </span>CommandName(<span class="kw-2">&amp;</span><span class="lifetime">'static </span>str);
@@ -980,9 +980,11 @@
 <a href=#974 id=974 data-nosnippet>974</a>        <span class="comment">// Built as clap builds it to parse, so each help lists what clap propagates down.
 <a href=#975 id=975 data-nosnippet>975</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>built = <span class="self">self</span>.clone();
 <a href=#976 id=976 data-nosnippet>976</a>        built.build();
-<a href=#977 id=977 data-nosnippet>977</a>        <span class="comment">// Probed once: every built command wraps to the root's width.
-<a href=#978 id=978 data-nosnippet>978</a>        </span><span class="kw">let </span>width = built.help_width();
-<a href=#979 id=979 data-nosnippet>979</a>        T::HELP_TREE.install(<span class="self">self</span>, <span class="kw-2">&amp;</span>built, T::CATEGORIES, <span class="kw-2">&amp;</span>T::MESSAGES, width)
-<a href=#980 id=980 data-nosnippet>980</a>    }
-<a href=#981 id=981 data-nosnippet>981</a>}
+<a href=#977 id=977 data-nosnippet>977</a>        <span class="kw">let </span><span class="kw-2">mut </span>deciding = <span class="self">self</span>.clone().without_command_hide_possible_values();
+<a href=#978 id=978 data-nosnippet>978</a>        deciding.build();
+<a href=#979 id=979 data-nosnippet>979</a>        <span class="comment">// Probed once: every built command wraps to the root's width.
+<a href=#980 id=980 data-nosnippet>980</a>        </span><span class="kw">let </span>width = built.help_width();
+<a href=#981 id=981 data-nosnippet>981</a>        T::HELP_TREE.install(<span class="self">self</span>, <span class="kw-2">&amp;</span>built, <span class="kw-2">&amp;</span>deciding, T::CATEGORIES, <span class="kw-2">&amp;</span>T::MESSAGES, width)
+<a href=#982 id=982 data-nosnippet>982</a>    }
+<a href=#983 id=983 data-nosnippet>983</a>}
 </code></pre></div></section></main></body></html>

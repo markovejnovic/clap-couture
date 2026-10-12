@@ -34,11 +34,11 @@
 <a href=#28 id=28 data-nosnippet>28</a>//! answer, or until its `num_args` is reached; fewer than `num_args` asks for more.
 <a href=#29 id=29 data-nosnippet>29</a>//! An arg passed on the command line or through its env var is never
 <a href=#30 id=30 data-nosnippet>30</a>//! asked, and neither is one that conflicts with a passed arg or an earlier answer. An arg
-<a href=#31 id=31 data-nosnippet>31</a>//! required through `required_unless_present` or a required `ArgGroup` is asked as required, and
-<a href=#32 id=32 data-nosnippet>32</a>//! an empty answer is refused; in a group of prompted args, only the last one asked is. clap can't
-<a href=#33 id=33 data-nosnippet>33</a>//! lift `required_unless_present_all` or `required_if_eq` from an arg, so when one of those
-<a href=#34 id=34 data-nosnippet>34</a>//! fires, parsing fails with clap's error before anything is asked. Answers are not re-checked
-<a href=#35 id=35 data-nosnippet>35</a>//! against `requires` and similar rules between args.
+<a href=#31 id=31 data-nosnippet>31</a>//! required through `required_unless_present`, a required `ArgGroup` or a passed arg's `requires`
+<a href=#32 id=32 data-nosnippet>32</a>//! is asked as required, and an empty answer is refused; in a group of prompted args, only the
+<a href=#33 id=33 data-nosnippet>33</a>//! last one asked is. clap can't lift `required_unless_present_all` or `required_if_eq` from an
+<a href=#34 id=34 data-nosnippet>34</a>//! arg, so when one of those fires, parsing fails with clap's error before anything is asked.
+<a href=#35 id=35 data-nosnippet>35</a>//! Answers are not re-checked against `requires` and similar rules between args.
 <a href=#36 id=36 data-nosnippet>36</a>//!
 <a href=#37 id=37 data-nosnippet>37</a>//! `#[couture(confirm)]` on a `bool` flag the user left out asks whether to go ahead, after every
 <a href=#38 id=38 data-nosnippet>38</a>//! other prompt, with each `{id}` in the question replaced by arg `id`'s value. A yes sets the

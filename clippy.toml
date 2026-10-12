@@ -3,3 +3,5 @@
 # clap-couture-derive and its darling and serde_derive are on syn 3. Drop this once
 # zeroize_derive moves to syn 3.
 allowed-duplicate-crates = ["syn"]
+# A proper name, not code: the markdown spec help text follows.
+doc-valid-idents = ["CommonMark", ".."]

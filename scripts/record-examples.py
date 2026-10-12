@@ -59,9 +59,16 @@ def main(arguments: tuple[str, ...]) -> None:
     with Cargo() as cargo:
         package = cargo.workspace(ROOT).package(PACKAGE)
         tapes = package.directory / "examples" / "tapes"
-        runs = [ExampleRun.from_argument(argument) for argument in arguments] or [
-            ExampleRun(example=name, package=PACKAGE)
-            for name in sorted(package.examples)
+        runs = [
+            ExampleRun.from_argument(argument, package.examples)
+            for argument in arguments
+        ] or [
+            ExampleRun(
+                example=name,
+                package=PACKAGE,
+                beyond_defaults=example.beyond_defaults,
+            )
+            for name, example in sorted(package.examples.items())
         ]
 
         missing = [
@@ -73,7 +80,7 @@ def main(arguments: tuple[str, ...]) -> None:
 
         executables = {
             run: package.examples[run.example].build(
-                features=run.features, target_dir=run.target_dir
+                features=run.cargo_features, target_dir=run.target_dir
             )
             for run in runs
         }

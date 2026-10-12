@@ -8,13 +8,22 @@ features, e.g. another prompt backend, is a variant: only its text is recorded, 
 is one, since backends take different keys.
 """
 
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, replace
 from itertools import groupby
 from pathlib import Path
-from typing import Self
+from typing import Self, override
 
 from devtools.backdrop import Backdrop
-from devtools.rust.cargo import AllFeatures, CargoRun, DefaultFeatures, OnlyFeatures
+from devtools.rust.cargo import (
+    AllFeatures,
+    CargoRun,
+    DefaultFeatures,
+    Example,
+    Feature,
+    Features,
+    OnlyFeatures,
+)
 from devtools.vhs import Recording
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -47,20 +56,42 @@ _SCREEN_RULE = "─" * 80
 class ExampleRun(CargoRun):
     """A `cargo run` of one of the repo's examples, and where its recording goes."""
 
+    # The example's `required-features` the package's defaults lack: a default run
+    # enables them, and they name no variant.
+    beyond_defaults: tuple[Feature, ...] = ()
+
     @classmethod
-    def from_argument(cls, argument: str) -> Self:
+    def from_argument(cls, argument: str, examples: Mapping[str, Example]) -> Self:
         """The run an argument names: an example as is, or a `cargo run` command."""
-        if argument.startswith("cargo "):
-            return cls.parse(argument)
-        return cls(example=argument, package=PACKAGE)
+        run = (
+            cls.parse(argument)
+            if argument.startswith("cargo ")
+            else cls(example=argument, package=PACKAGE)
+        )
+        return replace(run, beyond_defaults=examples[run.example].beyond_defaults)
+
+    @property
+    @override
+    def cargo_features(self) -> Features:
+        """Its features; with the defaults, plus what else the example requires."""
+        match self.features:
+            case DefaultFeatures(extra=extra):
+                lacking = (f for f in self.beyond_defaults if f not in extra)
+                return DefaultFeatures((*extra, *lacking))
+            case OnlyFeatures() | AllFeatures():
+                return self.features
 
     @property
     def variant(self) -> str | None:
         """Its features' name unless they're the defaults: `interactive-inquire`."""
         match self.features:
             case DefaultFeatures(extra=extra):
-                labels = (feature.label for feature in extra)
-                return "+".join(["default", *labels]) if extra else None
+                labels = [
+                    feature.label
+                    for feature in extra
+                    if feature not in self.beyond_defaults
+                ]
+                return "+".join(["default", *labels]) if labels else None
             case OnlyFeatures(features=only):
                 return "+".join(feature.label for feature in only) or "none"
             case AllFeatures():

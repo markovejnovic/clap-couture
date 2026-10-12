@@ -61,9 +61,13 @@ def run_of(example: Example, command: str) -> ExampleRun:
         MismatchedExampleError: The command runs another example.
     """
     if command.startswith(PLACEHOLDER):
-        return ExampleRun(example=example.name, package=PACKAGE)
+        return ExampleRun(
+            example=example.name,
+            package=PACKAGE,
+            beyond_defaults=example.beyond_defaults,
+        )
 
-    run = ExampleRun.parse(command)
+    run = replace(ExampleRun.parse(command), beyond_defaults=example.beyond_defaults)
     if run.example != example.name:
         msg = f"{example.source.path}: `{command}` runs another example"
         raise MismatchedExampleError(msg)

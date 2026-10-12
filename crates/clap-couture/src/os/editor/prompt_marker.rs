@@ -47,7 +47,7 @@ impl PromptMarker {
         while kept.last().is_some_and(is_blank) {
             kept.pop();
         }
-        (!kept.is_empty()).then(|| kept.iter().map(|line| format!("{line}\n")).collect())
+        (!kept.is_empty()).then(|| kept.iter().flat_map(|line| [*line, "\n"]).collect())
     }
 
     /// The file the editor opens: the answer so far, a blank line, then the header.

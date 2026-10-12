@@ -64,10 +64,13 @@ Install it:
 cargo add clap-couture --features full
 ```
 
-Add the `Couture` derive and swap out `parse` for `couture_parse`.
+Import `clap_couture`, add the `Couture` derive, and swap out `parse` for `couture_parse`.
 
 
 ```diff
+ use clap::Parser;
++use clap_couture::{Couture, CoutureParser as _};
++
 -#[derive(Parser)]
 +#[derive(Parser, Couture)]
  struct Cli { /* ... */ }

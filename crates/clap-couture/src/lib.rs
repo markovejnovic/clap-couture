@@ -73,7 +73,8 @@
 //!
 //! ```
 //! # use clap::{Parser, Subcommand};
-//! # use clap_couture::Couture;
+//! use clap_couture::{Couture, CoutureParser as _};
+//!
 //! #[derive(Parser, Couture)]
 //! struct Cli {
 //!     #[command(subcommand)]

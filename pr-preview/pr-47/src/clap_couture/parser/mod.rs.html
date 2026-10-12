@@ -203,133 +203,140 @@
 <a href=#197 id=197 data-nosnippet>197</a>    ///
 <a href=#198 id=198 data-nosnippet>198</a>    /// clap's errors exit as [`clap::Error::exit`] does: `--help` with status 0, a usage error
 <a href=#199 id=199 data-nosnippet>199</a>    /// with 2. A cancelled prompt dies of its signal, so a shell loop around the CLI stops too,
-<a href=#200 id=200 data-nosnippet>200</a>    /// or exits with status 130 where there are no signals. A failed prompt prints why and exits
-<a href=#201 id=201 data-nosnippet>201</a>    /// with status 1, as does a declined confirmation, silently.
-<a href=#202 id=202 data-nosnippet>202</a>    </span><span class="kw">pub fn </span>exit(<span class="self">self</span>) -&gt; ! {
-<a href=#203 id=203 data-nosnippet>203</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#204 id=204 data-nosnippet>204</a>            <span class="attr">#[cfg(feature = <span class="string">"interactive"</span>)]
-<a href=#205 id=205 data-nosnippet>205</a>            </span><span class="self">Self</span>::Cancelled(signal) =&gt; signal.die(),
-<a href=#206 id=206 data-nosnippet>206</a>            <span class="self">Self</span>::Clap(err) =&gt; err.exit(),
-<a href=#207 id=207 data-nosnippet>207</a>            <span class="attr">#[cfg(feature = <span class="string">"interactive"</span>)]
-<a href=#208 id=208 data-nosnippet>208</a>            </span><span class="self">Self</span>::Declined =&gt; std::process::exit(<span class="number">1</span>),
+<a href=#200 id=200 data-nosnippet>200</a>    /// or exits with status 130 where there are no signals. An app that handles or ignores the
+<a href=#201 id=201 data-nosnippet>201</a>    /// signal gets it under its own handling instead and, if it survives, exits with 128 plus the
+<a href=#202 id=202 data-nosnippet>202</a>    /// signal: 130 for Ctrl-C. A failed prompt prints why and exits with status 1, as does a
+<a href=#203 id=203 data-nosnippet>203</a>    /// declined confirmation, silently.
+<a href=#204 id=204 data-nosnippet>204</a>    </span><span class="kw">pub fn </span>exit(<span class="self">self</span>) -&gt; ! {
+<a href=#205 id=205 data-nosnippet>205</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#206 id=206 data-nosnippet>206</a>            <span class="attr">#[cfg(feature = <span class="string">"interactive"</span>)]
+<a href=#207 id=207 data-nosnippet>207</a>            </span><span class="self">Self</span>::Cancelled(signal) =&gt; signal.die(),
+<a href=#208 id=208 data-nosnippet>208</a>            <span class="self">Self</span>::Clap(err) =&gt; err.exit(),
 <a href=#209 id=209 data-nosnippet>209</a>            <span class="attr">#[cfg(feature = <span class="string">"interactive"</span>)]
-<a href=#210 id=210 data-nosnippet>210</a>            </span><span class="self">Self</span>::Io(err) =&gt; {
-<a href=#211 id=211 data-nosnippet>211</a>                <span class="comment">// clap's `error:` styling; nothing is left to report a failed print to.
-<a href=#212 id=212 data-nosnippet>212</a>                </span><span class="kw">let </span>err = clap::Error::raw(clap::error::ErrorKind::Io, <span class="macro">format!</span>(<span class="string">"{err}\n"</span>));
-<a href=#213 id=213 data-nosnippet>213</a>                drop(err.print());
-<a href=#214 id=214 data-nosnippet>214</a>                std::process::exit(<span class="number">1</span>)
-<a href=#215 id=215 data-nosnippet>215</a>            }
-<a href=#216 id=216 data-nosnippet>216</a>        }
-<a href=#217 id=217 data-nosnippet>217</a>    }
-<a href=#218 id=218 data-nosnippet>218</a>
-<a href=#219 id=219 data-nosnippet>219</a>    <span class="doccomment">/// The kind of clap's error; `None` when a prompt, not clap, ended the parse.
-<a href=#220 id=220 data-nosnippet>220</a>    </span><span class="attr">#[must_use]
-<a href=#221 id=221 data-nosnippet>221</a>    </span><span class="kw">pub fn </span>kind(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;clap::error::ErrorKind&gt; {
-<a href=#222 id=222 data-nosnippet>222</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#223 id=223 data-nosnippet>223</a>            <span class="self">Self</span>::Clap(err) =&gt; <span class="prelude-val">Some</span>(err.kind()),
-<a href=#224 id=224 data-nosnippet>224</a>            <span class="attr">#[cfg(feature = <span class="string">"interactive"</span>)]
-<a href=#225 id=225 data-nosnippet>225</a>            </span><span class="self">Self</span>::Cancelled(<span class="kw">_</span>) | <span class="self">Self</span>::Declined | <span class="self">Self</span>::Io(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
-<a href=#226 id=226 data-nosnippet>226</a>        }
-<a href=#227 id=227 data-nosnippet>227</a>    }
-<a href=#228 id=228 data-nosnippet>228</a>}
-<a href=#229 id=229 data-nosnippet>229</a>
-<a href=#230 id=230 data-nosnippet>230</a><span class="kw">impl </span>fmt::Display <span class="kw">for </span>ParseError {
-<a href=#231 id=231 data-nosnippet>231</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-<a href=#232 id=232 data-nosnippet>232</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#233 id=233 data-nosnippet>233</a>            <span class="attr">#[cfg(feature = <span class="string">"interactive"</span>)]
-<a href=#234 id=234 data-nosnippet>234</a>            </span><span class="self">Self</span>::Cancelled(<span class="kw">_</span>) =&gt; f.write_str(<span class="string">"prompt cancelled"</span>),
-<a href=#235 id=235 data-nosnippet>235</a>            <span class="self">Self</span>::Clap(err) =&gt; err.fmt(f),
-<a href=#236 id=236 data-nosnippet>236</a>            <span class="attr">#[cfg(feature = <span class="string">"interactive"</span>)]
-<a href=#237 id=237 data-nosnippet>237</a>            </span><span class="self">Self</span>::Declined =&gt; f.write_str(<span class="string">"confirmation declined"</span>),
+<a href=#210 id=210 data-nosnippet>210</a>            </span><span class="self">Self</span>::Declined =&gt; std::process::exit(<span class="number">1</span>),
+<a href=#211 id=211 data-nosnippet>211</a>            <span class="attr">#[cfg(feature = <span class="string">"interactive"</span>)]
+<a href=#212 id=212 data-nosnippet>212</a>            </span><span class="self">Self</span>::Io(err) =&gt; {
+<a href=#213 id=213 data-nosnippet>213</a>                <span class="comment">// clap's `error:` styling; nothing is left to report a failed print to.
+<a href=#214 id=214 data-nosnippet>214</a>                </span><span class="kw">let </span>err = clap::Error::raw(clap::error::ErrorKind::Io, <span class="macro">format!</span>(<span class="string">"{err}\n"</span>));
+<a href=#215 id=215 data-nosnippet>215</a>                drop(err.print());
+<a href=#216 id=216 data-nosnippet>216</a>                std::process::exit(<span class="number">1</span>)
+<a href=#217 id=217 data-nosnippet>217</a>            }
+<a href=#218 id=218 data-nosnippet>218</a>        }
+<a href=#219 id=219 data-nosnippet>219</a>    }
+<a href=#220 id=220 data-nosnippet>220</a>
+<a href=#221 id=221 data-nosnippet>221</a>    <span class="doccomment">/// The kind of clap's error; `None` when a prompt, not clap, ended the parse.
+<a href=#222 id=222 data-nosnippet>222</a>    </span><span class="attr">#[must_use]
+<a href=#223 id=223 data-nosnippet>223</a>    </span><span class="kw">pub fn </span>kind(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;clap::error::ErrorKind&gt; {
+<a href=#224 id=224 data-nosnippet>224</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#225 id=225 data-nosnippet>225</a>            <span class="self">Self</span>::Clap(err) =&gt; <span class="prelude-val">Some</span>(err.kind()),
+<a href=#226 id=226 data-nosnippet>226</a>            <span class="attr">#[cfg(feature = <span class="string">"interactive"</span>)]
+<a href=#227 id=227 data-nosnippet>227</a>            </span><span class="self">Self</span>::Cancelled(<span class="kw">_</span>) | <span class="self">Self</span>::Declined | <span class="self">Self</span>::Io(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
+<a href=#228 id=228 data-nosnippet>228</a>        }
+<a href=#229 id=229 data-nosnippet>229</a>    }
+<a href=#230 id=230 data-nosnippet>230</a>}
+<a href=#231 id=231 data-nosnippet>231</a>
+<a href=#232 id=232 data-nosnippet>232</a><span class="kw">impl </span>fmt::Display <span class="kw">for </span>ParseError {
+<a href=#233 id=233 data-nosnippet>233</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+<a href=#234 id=234 data-nosnippet>234</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#235 id=235 data-nosnippet>235</a>            <span class="attr">#[cfg(feature = <span class="string">"interactive"</span>)]
+<a href=#236 id=236 data-nosnippet>236</a>            </span><span class="self">Self</span>::Cancelled(<span class="kw">_</span>) =&gt; f.write_str(<span class="string">"prompt cancelled"</span>),
+<a href=#237 id=237 data-nosnippet>237</a>            <span class="self">Self</span>::Clap(err) =&gt; err.fmt(f),
 <a href=#238 id=238 data-nosnippet>238</a>            <span class="attr">#[cfg(feature = <span class="string">"interactive"</span>)]
-<a href=#239 id=239 data-nosnippet>239</a>            </span><span class="self">Self</span>::Io(err) =&gt; err.fmt(f),
-<a href=#240 id=240 data-nosnippet>240</a>        }
-<a href=#241 id=241 data-nosnippet>241</a>    }
-<a href=#242 id=242 data-nosnippet>242</a>}
-<a href=#243 id=243 data-nosnippet>243</a>
-<a href=#244 id=244 data-nosnippet>244</a><span class="kw">impl </span>core::error::Error <span class="kw">for </span>ParseError {
-<a href=#245 id=245 data-nosnippet>245</a>    <span class="kw">fn </span>source(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>(<span class="kw">dyn </span>core::error::Error + <span class="lifetime">'static</span>)&gt; {
-<a href=#246 id=246 data-nosnippet>246</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#247 id=247 data-nosnippet>247</a>            <span class="self">Self</span>::Clap(err) =&gt; <span class="prelude-val">Some</span>(err),
-<a href=#248 id=248 data-nosnippet>248</a>            <span class="attr">#[cfg(feature = <span class="string">"interactive"</span>)]
-<a href=#249 id=249 data-nosnippet>249</a>            </span><span class="self">Self</span>::Io(err) =&gt; <span class="prelude-val">Some</span>(err),
+<a href=#239 id=239 data-nosnippet>239</a>            </span><span class="self">Self</span>::Declined =&gt; f.write_str(<span class="string">"confirmation declined"</span>),
+<a href=#240 id=240 data-nosnippet>240</a>            <span class="attr">#[cfg(feature = <span class="string">"interactive"</span>)]
+<a href=#241 id=241 data-nosnippet>241</a>            </span><span class="self">Self</span>::Io(err) =&gt; err.fmt(f),
+<a href=#242 id=242 data-nosnippet>242</a>        }
+<a href=#243 id=243 data-nosnippet>243</a>    }
+<a href=#244 id=244 data-nosnippet>244</a>}
+<a href=#245 id=245 data-nosnippet>245</a>
+<a href=#246 id=246 data-nosnippet>246</a><span class="kw">impl </span>core::error::Error <span class="kw">for </span>ParseError {
+<a href=#247 id=247 data-nosnippet>247</a>    <span class="kw">fn </span>source(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>(<span class="kw">dyn </span>core::error::Error + <span class="lifetime">'static</span>)&gt; {
+<a href=#248 id=248 data-nosnippet>248</a>        <span class="kw">match </span><span class="self">self </span>{
+<a href=#249 id=249 data-nosnippet>249</a>            <span class="self">Self</span>::Clap(err) =&gt; <span class="prelude-val">Some</span>(err),
 <a href=#250 id=250 data-nosnippet>250</a>            <span class="attr">#[cfg(feature = <span class="string">"interactive"</span>)]
-<a href=#251 id=251 data-nosnippet>251</a>            </span><span class="self">Self</span>::Cancelled(<span class="kw">_</span>) | <span class="self">Self</span>::Declined =&gt; <span class="prelude-val">None</span>,
-<a href=#252 id=252 data-nosnippet>252</a>        }
-<a href=#253 id=253 data-nosnippet>253</a>    }
-<a href=#254 id=254 data-nosnippet>254</a>}
-<a href=#255 id=255 data-nosnippet>255</a>
-<a href=#256 id=256 data-nosnippet>256</a><span class="kw">impl </span>From&lt;clap::Error&gt; <span class="kw">for </span>ParseError {
-<a href=#257 id=257 data-nosnippet>257</a>    <span class="kw">fn </span>from(err: clap::Error) -&gt; <span class="self">Self </span>{
-<a href=#258 id=258 data-nosnippet>258</a>        <span class="self">Self</span>::Clap(err)
-<a href=#259 id=259 data-nosnippet>259</a>    }
-<a href=#260 id=260 data-nosnippet>260</a>}
-<a href=#261 id=261 data-nosnippet>261</a>
-<a href=#262 id=262 data-nosnippet>262</a><span class="doccomment">/// Guard `T`'s secret args, so every parse of the command refuses them on the command line.
-<a href=#263 id=263 data-nosnippet>263</a></span><span class="attr">#[cfg(feature = <span class="string">"interactive"</span>)]
-<a href=#264 id=264 data-nosnippet>264</a></span><span class="kw">fn </span>guard_secrets&lt;T&gt;(cmd: Command) -&gt; Command
-<a href=#265 id=265 data-nosnippet>265</a><span class="kw">where
-<a href=#266 id=266 data-nosnippet>266</a>    </span>T: Couture,
-<a href=#267 id=267 data-nosnippet>267</a>{
-<a href=#268 id=268 data-nosnippet>268</a>    <span class="kw">let </span>prompted_arg_tree: <span class="kw-2">&amp;</span><span class="lifetime">'static </span><span class="kw">crate</span>::interactive::PromptedArgTree = <span class="kw-2">&amp;</span>T::PROMPTED_ARGS;
-<a href=#269 id=269 data-nosnippet>269</a>    secrets::guard(
-<a href=#270 id=270 data-nosnippet>270</a>        cmd,
-<a href=#271 id=271 data-nosnippet>271</a>        <span class="kw-2">&amp;</span>prompted_arg_tree.prompted_args(),
-<a href=#272 id=272 data-nosnippet>272</a>        <span class="kw-2">&amp;</span>secrets::Vault::default(),
-<a href=#273 id=273 data-nosnippet>273</a>        <span class="kw-2">&amp;</span>T::MESSAGES.environment.get(),
-<a href=#274 id=274 data-nosnippet>274</a>    )
-<a href=#275 id=275 data-nosnippet>275</a>}
-<a href=#276 id=276 data-nosnippet>276</a>
-<a href=#277 id=277 data-nosnippet>277</a><span class="doccomment">/// Parse `argv` against `cmd` as clap would, then build `T`. The prompting parse ends here too.
-<a href=#278 id=278 data-nosnippet>278</a></span><span class="kw">fn </span>parse&lt;T&gt;(<span class="kw-2">mut </span>cmd: Command, argv: <span class="kw-2">&amp;</span>[OsString]) -&gt; <span class="prelude-ty">Result</span>&lt;T, ParseError&gt;
-<a href=#279 id=279 data-nosnippet>279</a><span class="kw">where
-<a href=#280 id=280 data-nosnippet>280</a>    </span>T: FromArgMatches,
-<a href=#281 id=281 data-nosnippet>281</a>{
-<a href=#282 id=282 data-nosnippet>282</a>    <span class="kw">let </span><span class="kw-2">mut </span>matches = cmd.try_get_matches_from_mut(argv)<span class="question-mark">?</span>;
-<a href=#283 id=283 data-nosnippet>283</a>    T::from_arg_matches_mut(<span class="kw-2">&amp;mut </span>matches).map_err(|err| ParseError::Clap(err.format(<span class="kw-2">&amp;mut </span>cmd)))
-<a href=#284 id=284 data-nosnippet>284</a>}
-<a href=#285 id=285 data-nosnippet>285</a>
-<a href=#286 id=286 data-nosnippet>286</a><span class="attr">#[cfg(test)]
-<a href=#287 id=287 data-nosnippet>287</a></span><span class="kw">mod </span>tests {
-<a href=#288 id=288 data-nosnippet>288</a>    <span class="attr">#[cfg(all(unix, feature = <span class="string">"interactive"</span>))]
-<a href=#289 id=289 data-nosnippet>289</a>    </span><span class="kw">use </span>std::{os::unix::process::ExitStatusExt <span class="kw">as _</span>, process::Command};
-<a href=#290 id=290 data-nosnippet>290</a>
-<a href=#291 id=291 data-nosnippet>291</a>    <span class="attr">#[cfg(all(unix, feature = <span class="string">"interactive"</span>))]
-<a href=#292 id=292 data-nosnippet>292</a>    </span><span class="kw">use </span>rstest::rstest;
-<a href=#293 id=293 data-nosnippet>293</a>
-<a href=#294 id=294 data-nosnippet>294</a>    <span class="attr">#[cfg(all(unix, feature = <span class="string">"interactive"</span>))]
-<a href=#295 id=295 data-nosnippet>295</a>    </span><span class="kw">use </span><span class="kw">super</span>::ParseError;
+<a href=#251 id=251 data-nosnippet>251</a>            </span><span class="self">Self</span>::Io(err) =&gt; <span class="prelude-val">Some</span>(err),
+<a href=#252 id=252 data-nosnippet>252</a>            <span class="attr">#[cfg(feature = <span class="string">"interactive"</span>)]
+<a href=#253 id=253 data-nosnippet>253</a>            </span><span class="self">Self</span>::Cancelled(<span class="kw">_</span>) | <span class="self">Self</span>::Declined =&gt; <span class="prelude-val">None</span>,
+<a href=#254 id=254 data-nosnippet>254</a>        }
+<a href=#255 id=255 data-nosnippet>255</a>    }
+<a href=#256 id=256 data-nosnippet>256</a>}
+<a href=#257 id=257 data-nosnippet>257</a>
+<a href=#258 id=258 data-nosnippet>258</a><span class="kw">impl </span>From&lt;clap::Error&gt; <span class="kw">for </span>ParseError {
+<a href=#259 id=259 data-nosnippet>259</a>    <span class="kw">fn </span>from(err: clap::Error) -&gt; <span class="self">Self </span>{
+<a href=#260 id=260 data-nosnippet>260</a>        <span class="self">Self</span>::Clap(err)
+<a href=#261 id=261 data-nosnippet>261</a>    }
+<a href=#262 id=262 data-nosnippet>262</a>}
+<a href=#263 id=263 data-nosnippet>263</a>
+<a href=#264 id=264 data-nosnippet>264</a><span class="doccomment">/// Guard `T`'s secret args, so every parse of the command refuses them on the command line.
+<a href=#265 id=265 data-nosnippet>265</a></span><span class="attr">#[cfg(feature = <span class="string">"interactive"</span>)]
+<a href=#266 id=266 data-nosnippet>266</a></span><span class="kw">fn </span>guard_secrets&lt;T&gt;(cmd: Command) -&gt; Command
+<a href=#267 id=267 data-nosnippet>267</a><span class="kw">where
+<a href=#268 id=268 data-nosnippet>268</a>    </span>T: Couture,
+<a href=#269 id=269 data-nosnippet>269</a>{
+<a href=#270 id=270 data-nosnippet>270</a>    <span class="kw">let </span>prompted_arg_tree: <span class="kw-2">&amp;</span><span class="lifetime">'static </span><span class="kw">crate</span>::interactive::PromptedArgTree = <span class="kw-2">&amp;</span>T::PROMPTED_ARGS;
+<a href=#271 id=271 data-nosnippet>271</a>    secrets::guard(
+<a href=#272 id=272 data-nosnippet>272</a>        cmd,
+<a href=#273 id=273 data-nosnippet>273</a>        <span class="kw-2">&amp;</span>prompted_arg_tree.prompted_args(),
+<a href=#274 id=274 data-nosnippet>274</a>        <span class="kw-2">&amp;</span>secrets::Vault::default(),
+<a href=#275 id=275 data-nosnippet>275</a>        <span class="kw-2">&amp;</span>T::MESSAGES.environment.get(),
+<a href=#276 id=276 data-nosnippet>276</a>    )
+<a href=#277 id=277 data-nosnippet>277</a>}
+<a href=#278 id=278 data-nosnippet>278</a>
+<a href=#279 id=279 data-nosnippet>279</a><span class="doccomment">/// Parse `argv` against `cmd` as clap would, then build `T`. The prompting parse ends here too.
+<a href=#280 id=280 data-nosnippet>280</a></span><span class="kw">fn </span>parse&lt;T&gt;(<span class="kw-2">mut </span>cmd: Command, argv: <span class="kw-2">&amp;</span>[OsString]) -&gt; <span class="prelude-ty">Result</span>&lt;T, ParseError&gt;
+<a href=#281 id=281 data-nosnippet>281</a><span class="kw">where
+<a href=#282 id=282 data-nosnippet>282</a>    </span>T: FromArgMatches,
+<a href=#283 id=283 data-nosnippet>283</a>{
+<a href=#284 id=284 data-nosnippet>284</a>    <span class="kw">let </span><span class="kw-2">mut </span>matches = cmd.try_get_matches_from_mut(argv)<span class="question-mark">?</span>;
+<a href=#285 id=285 data-nosnippet>285</a>    T::from_arg_matches_mut(<span class="kw-2">&amp;mut </span>matches).map_err(|err| ParseError::Clap(err.format(<span class="kw-2">&amp;mut </span>cmd)))
+<a href=#286 id=286 data-nosnippet>286</a>}
+<a href=#287 id=287 data-nosnippet>287</a>
+<a href=#288 id=288 data-nosnippet>288</a><span class="attr">#[cfg(test)]
+<a href=#289 id=289 data-nosnippet>289</a></span><span class="kw">mod </span>tests {
+<a href=#290 id=290 data-nosnippet>290</a>    <span class="attr">#[cfg(all(unix, feature = <span class="string">"interactive"</span>))]
+<a href=#291 id=291 data-nosnippet>291</a>    </span><span class="kw">use </span>std::{os::unix::process::ExitStatusExt <span class="kw">as _</span>, process::Command};
+<a href=#292 id=292 data-nosnippet>292</a>
+<a href=#293 id=293 data-nosnippet>293</a>    <span class="attr">#[cfg(all(unix, feature = <span class="string">"interactive"</span>))]
+<a href=#294 id=294 data-nosnippet>294</a>    </span><span class="kw">use </span>rstest::rstest;
+<a href=#295 id=295 data-nosnippet>295</a>
 <a href=#296 id=296 data-nosnippet>296</a>    <span class="attr">#[cfg(all(unix, feature = <span class="string">"interactive"</span>))]
-<a href=#297 id=297 data-nosnippet>297</a>    </span><span class="kw">use </span><span class="kw">crate</span>::os::signal::Signal;
-<a href=#298 id=298 data-nosnippet>298</a>
-<a href=#299 id=299 data-nosnippet>299</a>    <span class="attr">#[cfg(all(unix, feature = <span class="string">"interactive"</span>))]
-<a href=#300 id=300 data-nosnippet>300</a>    </span><span class="doccomment">/// Set to the signal for [`die_in_child`] to die of, or empty for none.
-<a href=#301 id=301 data-nosnippet>301</a>    </span><span class="kw">const </span>DIE_OF: <span class="kw-2">&amp;</span>str = <span class="string">"CLAP_COUTURE_TEST_DIE_OF"</span>;
-<a href=#302 id=302 data-nosnippet>302</a>
-<a href=#303 id=303 data-nosnippet>303</a>    <span class="attr">#[cfg(all(unix, feature = <span class="string">"interactive"</span>))]
-<a href=#304 id=304 data-nosnippet>304</a>    </span><span class="doccomment">/// Run by [`a_cancelled_parse_dies_of_its_signal`] in a child process of this binary.
-<a href=#305 id=305 data-nosnippet>305</a>    </span><span class="attr">#[test]
-<a href=#306 id=306 data-nosnippet>306</a>    #[ignore = <span class="string">"run in a child process by `a_cancelled_parse_dies_of_its_signal`"</span>]
-<a href=#307 id=307 data-nosnippet>307</a>    </span><span class="kw">fn </span>die_in_child() {
-<a href=#308 id=308 data-nosnippet>308</a>        <span class="kw">let </span><span class="prelude-val">Ok</span>(signal) = std::env::var(DIE_OF) <span class="kw">else </span>{ <span class="kw">return </span>};
-<a href=#309 id=309 data-nosnippet>309</a>        <span class="kw">let </span>signal = signal.parse().ok().and_then(Signal::from_raw).unwrap_or(Signal::Interrupt);
-<a href=#310 id=310 data-nosnippet>310</a>        ParseError::Cancelled(signal).exit();
-<a href=#311 id=311 data-nosnippet>311</a>    }
-<a href=#312 id=312 data-nosnippet>312</a>
-<a href=#313 id=313 data-nosnippet>313</a>    <span class="attr">#[cfg(all(unix, feature = <span class="string">"interactive"</span>))]
-<a href=#314 id=314 data-nosnippet>314</a>    #[rstest]
-<a href=#315 id=315 data-nosnippet>315</a>    #[case::backed_out(<span class="string">""</span>, libc::SIGINT)]
-<a href=#316 id=316 data-nosnippet>316</a>    #[case::editor_hung_up(<span class="string">"1"</span>, libc::SIGHUP)]
-<a href=#317 id=317 data-nosnippet>317</a>    #[case::editor_interrupted(<span class="string">"2"</span>, libc::SIGINT)]
-<a href=#318 id=318 data-nosnippet>318</a>    </span><span class="kw">fn </span>a_cancelled_parse_dies_of_its_signal(<span class="attr">#[case] </span>editor_signal: <span class="kw-2">&amp;</span>str, <span class="attr">#[case] </span>died_of: i32) {
-<a href=#319 id=319 data-nosnippet>319</a>        <span class="kw">let </span>status = std::env::current_exe().and_then(|test_binary| {
-<a href=#320 id=320 data-nosnippet>320</a>            Command::new(test_binary)
-<a href=#321 id=321 data-nosnippet>321</a>                .args([<span class="string">"parser::tests::die_in_child"</span>, <span class="string">"--exact"</span>, <span class="string">"--ignored"</span>, <span class="string">"--quiet"</span>])
-<a href=#322 id=322 data-nosnippet>322</a>                .env(DIE_OF, editor_signal)
-<a href=#323 id=323 data-nosnippet>323</a>                .output()
-<a href=#324 id=324 data-nosnippet>324</a>        });
-<a href=#325 id=325 data-nosnippet>325</a>        <span class="kw">let </span>signal = status.ok().and_then(|output| output.status.signal());
-<a href=#326 id=326 data-nosnippet>326</a>        <span class="macro">assert_eq!</span>(signal, <span class="prelude-val">Some</span>(died_of));
-<a href=#327 id=327 data-nosnippet>327</a>    }
-<a href=#328 id=328 data-nosnippet>328</a>}
+<a href=#297 id=297 data-nosnippet>297</a>    </span><span class="kw">use </span><span class="kw">super</span>::ParseError;
+<a href=#298 id=298 data-nosnippet>298</a>    <span class="attr">#[cfg(all(unix, feature = <span class="string">"interactive"</span>))]
+<a href=#299 id=299 data-nosnippet>299</a>    </span><span class="kw">use </span><span class="kw">crate</span>::os::signal::Signal;
+<a href=#300 id=300 data-nosnippet>300</a>
+<a href=#301 id=301 data-nosnippet>301</a>    <span class="attr">#[cfg(all(unix, feature = <span class="string">"interactive"</span>))]
+<a href=#302 id=302 data-nosnippet>302</a>    </span><span class="doccomment">/// Set to the signal for [`die_in_child`] to die of, or empty for none.
+<a href=#303 id=303 data-nosnippet>303</a>    </span><span class="kw">const </span>DIE_OF: <span class="kw-2">&amp;</span>str = <span class="string">"CLAP_COUTURE_TEST_DIE_OF"</span>;
+<a href=#304 id=304 data-nosnippet>304</a>
+<a href=#305 id=305 data-nosnippet>305</a>    <span class="attr">#[cfg(all(unix, feature = <span class="string">"interactive"</span>))]
+<a href=#306 id=306 data-nosnippet>306</a>    </span><span class="doccomment">/// Run by [`a_cancelled_parse_dies_of_its_signal`] in a child process of this binary.
+<a href=#307 id=307 data-nosnippet>307</a>    </span><span class="attr">#[test]
+<a href=#308 id=308 data-nosnippet>308</a>    #[ignore = <span class="string">"run in a child process by `a_cancelled_parse_dies_of_its_signal`"</span>]
+<a href=#309 id=309 data-nosnippet>309</a>    </span><span class="kw">fn </span>die_in_child() {
+<a href=#310 id=310 data-nosnippet>310</a>        <span class="kw">let </span><span class="prelude-val">Ok</span>(signal) = std::env::var(DIE_OF) <span class="kw">else </span>{ <span class="kw">return </span>};
+<a href=#311 id=311 data-nosnippet>311</a>        <span class="kw">let </span>signal = signal.parse().ok().and_then(Signal::from_raw).unwrap_or(Signal::Interrupt);
+<a href=#312 id=312 data-nosnippet>312</a>        <span class="comment">// A test ignoring the signal in the runner meanwhile would hand that down.
+<a href=#313 id=313 data-nosnippet>313</a>        // SAFETY: the default action is valid for every signal.
+<a href=#314 id=314 data-nosnippet>314</a>        </span><span class="kw">unsafe </span>{
+<a href=#315 id=315 data-nosnippet>315</a>            libc::signal(signal.to_raw(), libc::SIG_DFL);
+<a href=#316 id=316 data-nosnippet>316</a>        }
+<a href=#317 id=317 data-nosnippet>317</a>        ParseError::Cancelled(signal).exit();
+<a href=#318 id=318 data-nosnippet>318</a>    }
+<a href=#319 id=319 data-nosnippet>319</a>
+<a href=#320 id=320 data-nosnippet>320</a>    <span class="attr">#[cfg(all(unix, feature = <span class="string">"interactive"</span>))]
+<a href=#321 id=321 data-nosnippet>321</a>    #[rstest]
+<a href=#322 id=322 data-nosnippet>322</a>    #[case::backed_out(<span class="string">""</span>, libc::SIGINT)]
+<a href=#323 id=323 data-nosnippet>323</a>    #[case::editor_hung_up(<span class="string">"1"</span>, libc::SIGHUP)]
+<a href=#324 id=324 data-nosnippet>324</a>    #[case::editor_interrupted(<span class="string">"2"</span>, libc::SIGINT)]
+<a href=#325 id=325 data-nosnippet>325</a>    </span><span class="kw">fn </span>a_cancelled_parse_dies_of_its_signal(<span class="attr">#[case] </span>editor_signal: <span class="kw-2">&amp;</span>str, <span class="attr">#[case] </span>died_of: i32) {
+<a href=#326 id=326 data-nosnippet>326</a>        <span class="kw">let </span>status = std::env::current_exe().and_then(|test_binary| {
+<a href=#327 id=327 data-nosnippet>327</a>            Command::new(test_binary)
+<a href=#328 id=328 data-nosnippet>328</a>                .args([<span class="string">"parser::tests::die_in_child"</span>, <span class="string">"--exact"</span>, <span class="string">"--ignored"</span>, <span class="string">"--quiet"</span>])
+<a href=#329 id=329 data-nosnippet>329</a>                .env(DIE_OF, editor_signal)
+<a href=#330 id=330 data-nosnippet>330</a>                .output()
+<a href=#331 id=331 data-nosnippet>331</a>        });
+<a href=#332 id=332 data-nosnippet>332</a>        <span class="kw">let </span>signal = status.ok().and_then(|output| output.status.signal());
+<a href=#333 id=333 data-nosnippet>333</a>        <span class="macro">assert_eq!</span>(signal, <span class="prelude-val">Some</span>(died_of));
+<a href=#334 id=334 data-nosnippet>334</a>    }
+<a href=#335 id=335 data-nosnippet>335</a>}
 </code></pre></div></section></main></body></html>

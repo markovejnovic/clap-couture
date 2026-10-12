@@ -119,7 +119,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git switch -c "$BRANCH"
           git add Cargo.toml Cargo.lock assets/ crates/clap-couture/docs/
-          git commit -m "feat: Support clap $LATEST"
+          git commit -m "build: Support clap $LATEST"
           git push origin "HEAD:refs/heads/$BRANCH"
 
   # All of CI, on the bump branch.
@@ -156,7 +156,7 @@ jobs:
           fi
           body+=$'\n\n'"The full CI passed on this branch in $RUN_URL."
           url=$(gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$BRANCH" \
-            --title "feat: Support clap $LATEST" --body "$body")
+            --title "build: Support clap $LATEST" --body "$body")
           echo "Opened $url for clap $LATEST." | tee -a "$GITHUB_STEP_SUMMARY"
 
   # Leaves no branch behind, so next week's run tries again. A failed `check` pushed

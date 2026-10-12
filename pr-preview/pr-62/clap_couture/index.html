@@ -1,0 +1,395 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Haute couture for your command line."><title>clap_couture - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-203241e4.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="clap_couture" data-themes="" data-resource-suffix="" data-rustdoc-version="1.101.0-nightly (080cc2714 2026-10-11)" data-channel="nightly" data-search-js="search-b167f383.js" data-stringdex-js="stringdex-b5109af9.js" data-settings-js="settings-170eb4bf.js" ><script src="../static.files/storage-41dd4d93.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-1814ead3.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-9f56287d.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/markovejnovic/clap-couture/edcce6186e2aa74f8daa258aeef085fb49d20c30/assets/favicon.svg"><!-- Passed to rustdoc with `--html-in-header`; see `[package.metadata.docs.rs]` in Cargo.toml. -->
+<style>
+  /* The logo is near-black, so invert it on rustdoc's dark and ayu themes. */
+  :root:not([data-theme="light"]) .logo-container img { filter: invert(1); }
+</style>
+
+</head><body class="rustdoc mod crate"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Crate clap_couture</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><a class="logo-container" href="../clap_couture/index.html"><img src="https://raw.githubusercontent.com/markovejnovic/clap-couture/edcce6186e2aa74f8daa258aeef085fb49d20c30/assets/logo.svg" alt="logo"></a><h2><a href="../clap_couture/index.html">clap_<wbr>couture</a><span class="version">0.1.0</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#getting-started" title="Getting Started">Getting Started</a><ul><li><a href="#categories" title="Categories">Categories</a></li><li><a href="#markdown-support" title="Markdown Support">Markdown Support</a></li><li><a href="#interactive-input" title="Interactive Input">Interactive Input</a></li></ul></li><li><a href="#internationalization" title="Internationalization">Internationalization</a></li></ul><h3><a href="#modules">Crate Items</a></h3><ul class="block"><li><a href="#modules" title="Modules">Modules</a></li><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#enums" title="Enums">Enums</a></li><li><a href="#traits" title="Traits">Traits</a></li><li><a href="#derives" title="Derive Macros">Derive Macros</a></li></ul></section><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1>Crate <span>clap_<wbr>couture</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/clap_couture/lib.rs.html#1-979">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p><strong>Haute couture for your command line.</strong></p>
+<p><a href="index.html" title="mod clap_couture"><code>clap_couture</code></a> is a semi-opinionated extension set for
+<a href="https://crates.io/crates/clap"><code>clap</code></a> that:</p>
+<ul>
+<li>Organizes CLI subcommands in <strong>categories</strong>, improving readability and making your CLIs less
+intimidating.</li>
+<li><strong>Interactive input</strong> for flags.</li>
+<li><strong>Markdown</strong> support.</li>
+</ul>
+<style>
+  .couture-light { display: none; }
+  :root[data-theme="light"] .couture-light { display: revert; }
+  :root[data-theme="light"] .couture-dark { display: none; }
+  .docblock img.couture-dark, .docblock img.couture-light {
+    max-width: 100%;
+    height: auto;
+    border-radius: var(--code-block-border-radius, 6px);
+  }
+</style>
+<img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/edcce6186e2aa74f8daa258aeef085fb49d20c30/assets/99-full-example-dark.gif" alt="orbit --help listing its commands under Ship, Config and Account headings, with bold and italic text; orbit deploy --help; orbit deploy --app web with ORBIT_TOKEN set, asking only for release notes in vim, the region, the replicas, the sidecars and a confirmation; orbit login masking the password; then the same login with the password piped in, asking nothing" width="846">
+<img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/edcce6186e2aa74f8daa258aeef085fb49d20c30/assets/99-full-example-light.gif" alt="orbit --help listing its commands under Ship, Config and Account headings, with bold and italic text; orbit deploy --help; orbit deploy --app web with ORBIT_TOKEN set, asking only for release notes in vim, the region, the replicas, the sidecars and a confirmation; orbit login masking the password; then the same login with the password piped in, asking nothing" width="846">
+<p>See <a href="https://github.com/markovejnovic/clap-couture/blob/main/crates/clap-couture/examples/99-full-example.rs"><code>examples/99-full-example.rs</code></a>.</p>
+<h2 id="getting-started"><a class="doc-anchor" href="#getting-started">§</a>Getting Started</h2>
+<p>This section will provide you with a tour guide through <a href="index.html" title="mod clap_couture"><code>clap_couture</code></a>’s features. For
+some more in-depth examples, please have a look at the
+<a href="https://github.com/markovejnovic/clap-couture/tree/main/crates/clap-couture/examples">examples</a>
+directory. I’ve put some good love into making those examples as helpful as I can.</p>
+<h3 id="categories"><a class="doc-anchor" href="#categories">§</a>Categories</h3>
+<p>As CLIs grow, the total set of subcommands grows very quickly, and a first-time user running
+your application <code>foobar --help</code>, sees a massive wall of text. Making your application less
+intimidating makes it more accessible to the beginner user, which makes it more inviting and
+friendly.</p>
+<p>With clap:</p>
+<pre><code>Deploy and manage your apps from the terminal
+
+<span style="font-weight: bold"></span><span style="font-weight: bold; text-decoration: underline">Usage:</span> <span style="font-weight: bold">orbit</span> &lt;COMMAND&gt;
+
+<span style="font-weight: bold"></span><span style="font-weight: bold; text-decoration: underline">Commands:</span>
+  <span style="font-weight: bold">deploy</span>    Ship the current project
+  <span style="font-weight: bold">login</span>     Sign in to your account
+  <span style="font-weight: bold">logs</span>      Tail live logs
+  <span style="font-weight: bold">rollback</span>  Roll back to a previous release
+  <span style="font-weight: bold">search</span>    Search your deployment history
+  <span style="font-weight: bold">secrets</span>   Manage environment secrets
+  <span style="font-weight: bold">status</span>    Show recent activity
+  <span style="font-weight: bold">sync</span>      Sync settings across machines
+  <span style="font-weight: bold">help</span>      Print this message or the help of the given subcommand(s)
+
+<span style="font-weight: bold"></span><span style="font-weight: bold; text-decoration: underline">Options:</span>
+  <span style="font-weight: bold">-h</span>, <span style="font-weight: bold">--help</span>  Print help
+</code></pre>
+<p>With clap-couture:</p>
+<pre><code>Deploy and manage your apps from the terminal
+
+<span style="font-weight: bold"></span><span style="font-weight: bold; text-decoration: underline">Usage:</span> <span style="font-weight: bold">orbit</span> &lt;COMMAND&gt;
+
+  <span style="font-weight: bold">logs</span>      Tail live logs
+  <span style="font-weight: bold">search</span>    Search your deployment history
+  <span style="font-weight: bold">status</span>    Show recent activity
+
+<span style="font-weight: bold"></span><span style="font-weight: bold; text-decoration: underline">Deploy:</span>
+  <span style="font-weight: bold">deploy</span>    Ship the current project
+  <span style="font-weight: bold">rollback</span>  Roll back to a previous release
+  <span style="font-weight: bold">secrets</span>   Manage environment secrets
+
+<span style="font-weight: bold"></span><span style="font-weight: bold; text-decoration: underline">Account &amp; sync:</span>  Who you are, on every machine
+  <span style="font-weight: bold">login</span>     Sign in to your account
+  <span style="font-weight: bold">sync</span>      Sync settings across machines
+
+  <span style="font-weight: bold">help</span>      Print this message or the help of the given subcommand(s)
+
+<span style="font-weight: bold"></span><span style="font-weight: bold; text-decoration: underline">Options:</span>
+  <span style="font-weight: bold">-h</span>, <span style="font-weight: bold">--help</span>  Print help
+</code></pre>
+<p>To get started with this feature, take your existing code:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="attr">#[derive(Parser)]
+</span><span class="kw">struct </span>Cli {
+    <span class="attr">#[command(subcommand)]
+    </span>cmd: Cmd,
+}
+
+<span class="attr">#[derive(Subcommand)]
+</span><span class="kw">enum </span>Cmd {
+    <span class="doccomment">/// Ship the current project.
+    </span>Deploy,
+    <span class="doccomment">/// Sign in to your account.
+    </span>Login,
+    <span class="doccomment">/// Tail live logs.
+    </span>Logs,
+    <span class="doccomment">/// Roll back to a previous release.
+    </span>Rollback,
+    <span class="doccomment">/// Search your deployment history.
+    </span>Search,
+    <span class="doccomment">/// Manage environment secrets.
+    </span>Secrets,
+    <span class="doccomment">/// Show recent activity.
+    </span>Status,
+    <span class="doccomment">/// Sync settings across machines.
+    </span>Sync,
+}</code></pre></div>
+<p>Derive <a href="derive.Couture.html" title="derive clap_couture::Couture"><code>Couture</code></a> on your command and organize your commands in different
+categories.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>clap_couture::{Couture, CoutureParser <span class="kw">as _</span>};
+
+<span class="attr">#[derive(Parser, Couture)]
+</span><span class="kw">struct </span>Cli {
+    <span class="attr">#[command(subcommand)]
+    </span>cmd: Cmd,
+}
+
+<span class="attr">#[derive(Subcommand, Couture)]
+#[couture(categories = { <span class="string">"everyday" </span>= {}, <span class="string">"deploy" </span>= {}, <span class="string">"account" </span>= {} })]
+</span><span class="kw">enum </span>Cmd {
+    <span class="doccomment">/// Ship the current project.
+    </span><span class="attr">#[couture(category = <span class="string">"deploy"</span>)]
+    </span>Deploy,
+    <span class="doccomment">/// Sign in to your account.
+    </span><span class="attr">#[couture(category = <span class="string">"account"</span>)]
+    </span>Login,
+    <span class="doccomment">/// Tail live logs.
+    </span><span class="attr">#[couture(category = <span class="string">"everyday"</span>)]
+    </span>Logs,
+    <span class="doccomment">/// Roll back to a previous release.
+    </span><span class="attr">#[couture(category = <span class="string">"deploy"</span>)]
+    </span>Rollback,
+    <span class="doccomment">/// Search your deployment history.
+    </span><span class="attr">#[couture(category = <span class="string">"everyday"</span>)]
+    </span>Search,
+    <span class="doccomment">/// Manage environment secrets.
+    </span><span class="attr">#[couture(category = <span class="string">"deploy"</span>)]
+    </span>Secrets,
+    <span class="doccomment">/// Show recent activity.
+    </span><span class="attr">#[couture(category = <span class="string">"everyday"</span>)]
+    </span>Status,
+    <span class="doccomment">/// Sync settings across machines.
+    </span><span class="attr">#[couture(category = <span class="string">"account"</span>)]
+    </span>Sync,
+}</code></pre></div>
+<p>You need to call <a href="trait.CoutureParser.html#method.couture_parse" title="associated function clap_couture::CoutureParser::couture_parse"><code>CoutureParser::couture_parse</code></a> instead of
+<a href="clap::Parser::parse"><code>Parser::parse</code></a>, and you’ll get the organized <code>--help</code> menu.</p>
+<h3 id="markdown-support"><a class="doc-anchor" href="#markdown-support">§</a>Markdown Support</h3>
+<p><a href="index.html" title="mod clap_couture"><code>clap_couture</code></a> also has support for markdown with the <code>markdown</code> feature flag, which is
+off by default. Help text is then CommonMark, so <code>*</code>, <code>_</code> and <code>&lt;...&gt;</code> mean what they do there.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>clap::{Parser, Subcommand};
+<span class="kw">use </span>clap_couture::Couture;
+
+<span class="attr">#[derive(Parser, Couture)]
+</span><span class="kw">struct </span>Cli {
+    <span class="attr">#[command(subcommand)]
+    </span>cmd: Cmd,
+}
+
+<span class="attr">#[derive(Subcommand, Couture)]
+</span><span class="kw">enum </span>Cmd {
+    <span class="doccomment">/// Ship the **current** project.
+    </span>Deploy,
+    <span class="doccomment">/// Sign in to *your* account.
+    </span>Login,
+}</code></pre></div>
+<p>This results in:</p>
+<pre><code><span style="font-weight: bold"></span><span style="font-weight: bold; text-decoration: underline">Usage:</span> <span style="font-weight: bold">markdown</span> &lt;COMMAND&gt;
+
+  <span style="font-weight: bold">deploy</span>  Ship the <span style="font-style: italic">current project</span>
+  <span style="font-weight: bold">login</span>   Sign in to <span style="font-style: italic">your</span> account
+  <span style="font-weight: bold">help</span>    Print this message or the help of the given subcommand(s)
+
+<span style="font-weight: bold"></span><span style="font-weight: bold; text-decoration: underline">Options:</span>
+  <span style="font-weight: bold">-h</span>, <span style="font-weight: bold">--help</span>  Print help
+</code></pre>
+<h3 id="interactive-input"><a class="doc-anchor" href="#interactive-input">§</a>Interactive Input</h3>
+<p>Finally, <code>clap-couture</code> lets you easily add interactive input, straight into your clap structs.
+Often enough, you might want to express the idea of “if the user doesn’t provide a CLI argument,
+we should ask the user for input on stdin”. With <a href="index.html" title="mod clap_couture"><code>clap_couture</code></a>, that’s just a tiny
+macro away.</p>
+<p>You can decorate your argument flag fields:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>clap::{Parser, ValueEnum};
+<span class="kw">use </span>clap_couture::{Couture, CoutureParser <span class="kw">as _</span>};
+
+<span class="attr">#[derive(Parser, Couture)]
+</span><span class="kw">struct </span>Cli {
+    <span class="attr">#[arg(long)]
+    #[couture(prompt = <span class="string">"Which app?"</span>)]
+    </span>app: String,
+
+    <span class="attr">#[arg(long)]
+    #[couture(prompt = <span class="string">"Tail the logs afterwards?"</span>)]
+    </span>follow: bool,
+
+    <span class="attr">#[arg(long, value_enum)]
+    #[couture(prompt = <span class="string">"Which region?"</span>)]
+    </span>region: Region,
+
+    <span class="attr">#[arg(long, default_value_t = <span class="number">2</span>)]
+    #[couture(prompt = <span class="string">"How many replicas?"</span>)]
+    </span>replicas: u16,
+}
+
+<span class="attr">#[derive(Clone, Debug, PartialEq, ValueEnum)]
+</span><span class="kw">enum </span>Region {
+    Apac,
+    Eu,
+    Us,
+}
+
+<span class="kw">let </span>cli = Cli::couture_parse();</code></pre></div>
+<p>This results in support for interactive input:</p>
+<img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/edcce6186e2aa74f8daa258aeef085fb49d20c30/assets/03-interactive-dark.gif" alt="running orbit-deploy with no flags: it asks for the app as text, whether to tail the logs as yes/no, and the region from a list, then asks for the replicas again after an answer that isn't a number" width="846">
+<img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/edcce6186e2aa74f8daa258aeef085fb49d20c30/assets/03-interactive-light.gif" alt="running orbit-deploy with no flags: it asks for the app as text, whether to tail the logs as yes/no, and the region from a list, then asks for the replicas again after an answer that isn't a number" width="846">
+<h4 id="neat-features"><a class="doc-anchor" href="#neat-features">§</a>Neat features</h4>
+<ul>
+<li><code>#[couture(prompt)]</code> asks the field’s doc comment, and <code>#[couture(prompt = "...")]</code> asks
+whatever you write instead.</li>
+<li><code>#[couture(prompt)]</code> on an arg with a <code>default_value</code> prompts the user, pre-filling the input
+form.</li>
+<li>Couture parses rich types the same way <code>clap</code> does in interactive mode. Types like <code>u16</code> (or
+any <a href="https://doc.rust-lang.org/nightly/core/str/traits/trait.FromStr.html" title="trait core::str::traits::FromStr"><code>FromStr</code></a> type, really) get correctly parsed, even in interactive
+mode.</li>
+<li><code>#[couture(prompt)]</code> will avoid inquiring about fields the user passed either through the CLI
+flags or the environment.</li>
+<li><code>#[couture(prompt)]</code> only queries the input field if stdin and stderr are terminals. If the
+user is not in a terminal (e.g. scripts, CI), couture will skip interactive prompts.</li>
+</ul>
+<h4 id="input-types"><a class="doc-anchor" href="#input-types">§</a>Input Types</h4>
+<p><a href="index.html" title="mod clap_couture"><code>clap_couture</code></a> has support for different types of fields:</p>
+<div class="table"><table><thead><tr><th>Field Type</th><th>Example</th><th>Prompt</th><th>Example</th></tr></thead><tbody>
+<tr><td><code>bool</code></td><td><code>force: bool</code></td><td><code>[y/N]</code></td><td>Do you want to force input [y/N]: <strong>y</strong></td></tr>
+<tr><td>Possible values</td><td><code>region: RegionEnum</code></td><td>Picker</td><td>Which region (eu)? <strong>us</strong></td></tr>
+<tr><td>Arbitrary types</td><td><code>count: u16</code></td><td>Free text</td><td>How many: <strong>32</strong></td></tr>
+<tr><td><code>Option&lt;T&gt;</code></td><td><code>fruit: Option&lt;String&gt;</code></td><td>Optional input</td><td>Which fruit (none): <strong><code>&lt;enter&gt;</code></strong></td></tr>
+<tr><td><code>Vec&lt;T&gt;</code>, possible values</td><td><code>envs: Vec&lt;Env&gt;</code></td><td>Multi-picker</td><td>Which envs? <strong>dev, stage</strong></td></tr>
+<tr><td><code>Vec&lt;T&gt;</code>, arbitrary type</td><td><code>tags: Vec&lt;String&gt;</code></td><td>Repeated input</td><td>Which tags <code>(&lt;enter&gt; to finish)</code>: <strong><code>&lt;enter&gt;</code></strong></td></tr>
+<tr><td><code>SecretString</code>, <code>secret</code></td><td><code>token: SecretString</code></td><td>Masked input</td><td>Deploy token: <strong>▪▪▪▪▪▪▪</strong></td></tr>
+</tbody></table>
+</div><h4 id="confirmation"><a class="doc-anchor" href="#confirmation">§</a>Confirmation</h4>
+<p><code>#[couture(confirm = "...")]</code> on a <code>bool</code> flag asks before going ahead. A yes sets the flag, a
+no exits with status 1. Passing the flag skips the question, and without a terminal it must be
+passed, so a parse that returns always has the flag set. <code>{arg}</code> in the question stands for
+that arg’s value; <code>{{</code> and <code>}}</code> are literal braces.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>clap::Parser;
+<span class="kw">use </span>clap_couture::{Couture, CoutureParser <span class="kw">as _</span>};
+
+<span class="attr">#[derive(Parser, Couture)]
+</span><span class="kw">struct </span>Cli {
+    <span class="attr">#[arg(long)]
+    </span>name: String,
+
+    <span class="attr">#[arg(long)]
+    #[couture(confirm = <span class="string">"Delete {name} for good?"</span>)]
+    </span>force: bool,
+}
+
+<span class="kw">let </span>cli = Cli::couture_parse_from([<span class="string">"delete"</span>, <span class="string">"--name"</span>, <span class="string">"web"</span>, <span class="string">"--force"</span>]);</code></pre></div>
+<p>An example of this interaction is:</p>
+<img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/edcce6186e2aa74f8daa258aeef085fb49d20c30/assets/05-interactive-confirm-dark.gif" alt="running orbit-destroy with no flags: it asks for the app and the region, then asks whether to destroy web in eu, and goes ahead on a yes" width="623">
+<img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/edcce6186e2aa74f8daa258aeef085fb49d20c30/assets/05-interactive-confirm-light.gif" alt="running orbit-destroy with no flags: it asks for the app and the region, then asks whether to destroy web in eu, and goes ahead on a yes" width="623">
+<p>See <a href="https://github.com/markovejnovic/clap-couture/blob/main/crates/clap-couture/examples/05-interactive-confirm.rs"><code>examples/05-interactive-confirm.rs</code></a>.</p>
+<h4 id="secrets"><a class="doc-anchor" href="#secrets">§</a>Secrets</h4>
+<p><code>#[couture(prompt, secret)]</code> on a <a href="interactive::secrecy::SecretString"><code>SecretString</code></a> field
+asks without echoing the answer, just like <code>sudo</code>. Note that this flag is refused on the CLI,
+by default, as that is considered unsafe. <code>secret(allow_argv)</code> allows it.</p>
+<p>A value from its env var is used without asking, and <code>--help</code> hides it.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>clap::Parser;
+<span class="kw">use </span>clap_couture::{Couture, CoutureParser <span class="kw">as _</span>, interactive::secrecy::SecretString};
+
+<span class="attr">#[derive(Parser, Couture)]
+</span><span class="kw">struct </span>Cli {
+    <span class="doccomment">/// Deploy token.
+    </span><span class="attr">#[arg(long, env = <span class="string">"ORBIT_TOKEN"</span>)]
+    #[couture(prompt, secret)]
+    </span>token: SecretString,
+}
+
+<span class="kw">let </span>cli = Cli::couture_parse();</code></pre></div>
+<p>An example of this interaction is:</p>
+<img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/edcce6186e2aa74f8daa258aeef085fb49d20c30/assets/07-interactive-secret-dark.gif" alt="running orbit-deploy with no flags: it asks for the app, then for the deploy token, showing only a mask as it is typed, and deploys" width="623">
+<img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/edcce6186e2aa74f8daa258aeef085fb49d20c30/assets/07-interactive-secret-light.gif" alt="running orbit-deploy with no flags: it asks for the app, then for the deploy token, showing only a mask as it is typed, and deploys" width="623">
+<p>See <a href="https://github.com/markovejnovic/clap-couture/blob/main/crates/clap-couture/examples/07-interactive-secret.rs"><code>examples/07-interactive-secret.rs</code></a>.</p>
+<h4 id="piped-input"><a class="doc-anchor" href="#piped-input">§</a>Piped input</h4>
+<p><code>#[couture(stdin)]</code> reads stdin into an arg the user passes <code>-</code>, so <code>post --message -</code> takes
+the message from a pipe or a file. <code>#[couture(stdin(piped))]</code> takes a pipe unasked as well:
+<code>echo hi | post</code> works like <code>post --message hi</code>. Only a pipe is read that way, so a terminal, a
+file or <code>/dev/null</code> on stdin never blocks the parse, but a pipe nobody writes to does, as under
+<code>ssh host cli</code>; read <a href="interactive/index.html#reading-stdin" title="mod clap_couture::interactive">the warning</a> before choosing it. Beside
+<code>prompt</code>, the arg is asked when nothing is piped; beside <code>secret</code>, it works like <code>docker login --password-stdin</code>.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>clap::Parser;
+<span class="kw">use </span>clap_couture::{Couture, CoutureParser <span class="kw">as _</span>};
+
+<span class="attr">#[derive(Parser, Couture)]
+</span><span class="kw">struct </span>Cli {
+    <span class="doccomment">/// Message to post.
+    </span><span class="attr">#[arg(long)]
+    #[couture(prompt, stdin(piped))]
+    </span>message: String,
+}
+
+<span class="kw">let </span>cli = Cli::couture_parse_from([<span class="string">"post"</span>, <span class="string">"--message"</span>, <span class="string">"hi"</span>]);</code></pre></div>
+<p>An example of this interaction is:</p>
+<img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/edcce6186e2aa74f8daa258aeef085fb49d20c30/assets/10-interactive-stdin-dark.gif" alt="piping release notes into orbit-release, which takes them without asking, then running orbit-release alone, which asks for the notes" width="623">
+<img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/edcce6186e2aa74f8daa258aeef085fb49d20c30/assets/10-interactive-stdin-light.gif" alt="piping release notes into orbit-release, which takes them without asking, then running orbit-release alone, which asks for the notes" width="623">
+<p>See <a href="https://github.com/markovejnovic/clap-couture/blob/main/crates/clap-couture/examples/10-interactive-stdin.rs"><code>examples/10-interactive-stdin.rs</code></a>.</p>
+<p>Only one arg on a command may take stdin, as stdin can only be read once. See
+<a href="interactive/index.html#reading-stdin" title="mod clap_couture::interactive">the <code>interactive</code> module</a> for the details.</p>
+<h4 id="dash-input"><a class="doc-anchor" href="#dash-input">§</a>Dash input</h4>
+<p><code>#[couture(prompt(dash))]</code> asks for an argument interactively if the user passes <code>-</code> as the
+command line flag.</p>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="attr">#[arg(short, long)]
+#[couture(prompt(dash), editor)] </span><span class="comment">// `commit -m -` opens your $EDITOR
+</span>message: <span class="prelude-ty">Option</span>&lt;String&gt;,
+
+<span class="attr">#[arg(long)]
+#[couture(prompt, secret, stdin)] </span><span class="comment">// `login --password -` reads stdin
+</span>password: SecretString,</code></pre></div><img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/edcce6186e2aa74f8daa258aeef085fb49d20c30/assets/11-interactive-dash-dark.gif" alt="running orbit-release --title -, which asks for the title, then piping release notes into orbit-release --notes -, which reads them from stdin" width="623">
+<img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/edcce6186e2aa74f8daa258aeef085fb49d20c30/assets/11-interactive-dash-light.gif" alt="running orbit-release --title -, which asks for the title, then piping release notes into orbit-release --notes -, which reads them from stdin" width="623">
+<p>See <a href="https://github.com/markovejnovic/clap-couture/blob/main/crates/clap-couture/examples/11-interactive-dash.rs"><code>examples/11-interactive-dash.rs</code></a>,
+and <a href="interactive/index.html#dash-as-a-value" title="mod clap_couture::interactive">the <code>interactive</code> module</a> for the details.</p>
+<h4 id="custom-interactive-input"><a class="doc-anchor" href="#custom-interactive-input">§</a>Custom interactive input</h4>
+<p>Some questions only make sense after the parse. <a href="trait.CoutureParser.html#method.prompter" title="associated function clap_couture::CoutureParser::prompter"><code>CoutureParser::prompter</code></a> asks them in the
+same UI, styles and behavior as clap-couture does.
+<a href="interactive/struct.Prompter.html#method.secret" title="method clap_couture::interactive::Prompter::secret"><code>Prompter::secret</code></a> asks for a secret without echoing it, and
+with <code>interactive-editor</code>, <a href="interactive/struct.Prompter.html#method.editor" title="method clap_couture::interactive::Prompter::editor"><code>Prompter::editor</code></a> asks in the
+user’s <code>$EDITOR</code>.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>clap::{Parser, ValueEnum};
+<span class="kw">use </span>clap_couture::{Couture, CoutureParser <span class="kw">as _</span>};
+
+<span class="attr">#[derive(Parser, Couture)]
+</span><span class="kw">struct </span>Cli;
+
+<span class="attr">#[derive(Clone, ValueEnum)]
+</span><span class="kw">enum </span>Engine {
+    Postgres,
+    Sqlite,
+}
+
+<span class="kw">if let </span><span class="prelude-val">Some</span>(prompter) = Cli::prompter()
+    &amp;&amp; prompter.confirm(<span class="string">"Add a database?"</span>, <span class="bool-val">true</span>)<span class="question-mark">?
+</span>{
+    <span class="kw">let </span>engine = prompter.select::&lt;Engine&gt;(<span class="string">"Which engine?"</span>)<span class="question-mark">?</span>;
+}</code></pre></div>
+<p>An example of this interaction is:</p>
+<img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/edcce6186e2aa74f8daa258aeef085fb49d20c30/assets/08-interactive-prompter-dark.gif" alt="running orbit-create with no flags: it asks for the app, then whether to add a database, and on a yes, which engine" width="623">
+<img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/edcce6186e2aa74f8daa258aeef085fb49d20c30/assets/08-interactive-prompter-light.gif" alt="running orbit-create with no flags: it asks for the app, then whether to add a database, and on a yes, which engine" width="623">
+<p>See <a href="https://github.com/markovejnovic/clap-couture/blob/main/crates/clap-couture/examples/08-interactive-prompter.rs"><code>examples/08-interactive-prompter.rs</code></a>.</p>
+<h4 id="backends"><a class="doc-anchor" href="#backends">§</a>Backends</h4>
+<p>You can pick from three interactive backends:</p>
+<ul>
+<li><a href="interactive/struct.Cliclack.html" title="struct clap_couture::interactive::Cliclack"><code>interactive-cliclack</code></a> uses the <a href="https://docs.rs/cliclack/latest/cliclack/">cliclack</a>
+crate to ask the user for input.</li>
+<li><a href="interactive/struct.Inquire.html" title="struct clap_couture::interactive::Inquire"><code>interactive-inquire</code></a> uses the <a href="https://docs.rs/inquire/latest/inquire/">inquire</a>
+crate to ask the user for input.</li>
+<li><a href="interactive/struct.Dialoguer.html" title="struct clap_couture::interactive::Dialoguer"><code>interactive-dialoguer</code></a> uses the <a href="https://docs.rs/dialoguer/latest/dialoguer/">dialoguer</a>
+crate to ask the user for input.</li>
+</ul>
+<h2 id="internationalization"><a class="doc-anchor" href="#internationalization">§</a>Internationalization</h2>
+<p><code>clap-couture</code> allows you to accept <em>any</em> expression instead of plain strings, which can be
+useful to localize with something like <a href="https://projectfluent.org/">fluent</a>.</p>
+
+<div class="example-wrap ignore"><a href="#" class="tooltip" title="This example is not tested">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="attr">#[couture(messages = {
+    none = <span class="macro">fl!</span>(<span class="string">"none-opt"</span>),
+    options = <span class="macro">fl!</span>(<span class="string">"options-opt"</span>),
+    usage = <span class="macro">fl!</span>(<span class="string">"usage-opt"</span>),
+})]
+</span><span class="kw">struct </span>Cli {
+    <span class="attr">#[arg(long, value_enum)]
+    #[couture(prompt)]
+    </span>region: <span class="prelude-ty">Option</span>&lt;Region&gt;,
+
+    <span class="attr">#[command(subcommand)]
+    </span>cmd: Cmd,
+}
+
+<span class="attr">#[couture(categories = { <span class="string">"deploy" </span>= { title = <span class="macro">fl!</span>(<span class="string">"deploy-opt"</span>) } })]
+</span><span class="kw">enum </span>Cmd {
+    <span class="attr">#[couture(category = <span class="string">"deploy"</span>)]
+    </span>Ship,
+}
+
+Cli::couture_command().print_help().unwrap();</code></pre></div>
+<p>For a full example, see
+<a href="https://github.com/markovejnovic/clap-couture/blob/main/crates/clap-couture/examples/04-interactive-i18n.rs"><code>examples/04-interactive-i18n.rs</code></a>.</p>
+</div></details><h2 id="modules" class="section-header">Modules<a href="#modules" class="anchor">§</a></h2><dl class="item-table"><dt><a class="mod" href="interactive/index.html" title="mod clap_couture::interactive">interactive</a></dt><dd>Ask on the terminal for prompted args the user left out.</dd></dl><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.Category.html" title="struct clap_couture::Category">Category</a></dt><dd>Defines a category of similar commands.</dd><dt><a class="struct" href="struct.CommandCategoryEntries.html" title="struct clap_couture::CommandCategoryEntries">Command<wbr>Category<wbr>Entries</a></dt><dd>The <code>(command, category)</code> pairs of a <a href="struct.CommandCategoryMap.html" title="struct clap_couture::CommandCategoryMap"><code>CommandCategoryMap</code></a>, depth first.</dd><dt><a class="struct" href="struct.CommandCategoryMap.html" title="struct clap_couture::CommandCategoryMap">Command<wbr>Category<wbr>Map</a></dt><dd>A static map from subcommand name to the category it belongs to.</dd><dt><a class="struct" href="struct.CommandName.html" title="struct clap_couture::CommandName">Command<wbr>Name</a></dt><dd>A clap subcommand name, eg. <code>foo</code> in <code>app foo</code>.</dd><dt><a class="struct" href="struct.Messages.html" title="struct clap_couture::Messages">Messages</a></dt><dd>The text couture prints itself, for localizing it.</dd></dl><h2 id="enums" class="section-header">Enums<a href="#enums" class="anchor">§</a></h2><dl class="item-table"><dt><a class="enum" href="enum.ParseError.html" title="enum clap_couture::ParseError">Parse<wbr>Error</a></dt><dd>Why a <a href="trait.CoutureParser.html" title="trait clap_couture::CoutureParser"><code>CoutureParser</code></a> parse produced no value.</dd><dt><a class="enum" href="enum.Text.html" title="enum clap_couture::Text">Text</a></dt><dd>User-facing text from a <code>#[couture(...)]</code> attribute.</dd></dl><h2 id="traits" class="section-header">Traits<a href="#traits" class="anchor">§</a></h2><dl class="item-table"><dt><a class="trait" href="trait.CommandExt.html" title="trait clap_couture::CommandExt">Command<wbr>Ext</a></dt><dd>Extension trait adding categorized help to a [<code>clap::Command</code>].</dd><dt><a class="trait" href="trait.Couture.html" title="trait clap_couture::Couture">Couture</a></dt><dd>A type’s command categories, usually from <code>#[derive(Couture)]</code> on a subcommand enum.</dd><dt><a class="trait" href="trait.CoutureParser.html" title="trait clap_couture::CoutureParser">Couture<wbr>Parser</a></dt><dd>clap’s [<code>Parser</code>] entry points, with couture’s help installed.</dd></dl><h2 id="derives" class="section-header">Derive Macros<a href="#derives" class="anchor">§</a></h2><dl class="item-table"><dt><a class="derive" href="derive.Couture.html" title="derive clap_couture::Couture">Couture</a></dt><dd>Enable <a href="https://docs.rs/clap-couture"><code>clap-couture</code></a> on your clap subcommand enum.</dd></dl></section></div></main></body></html>

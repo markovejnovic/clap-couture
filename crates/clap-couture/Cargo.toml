@@ -23,7 +23,7 @@ inquire = { workspace = true, optional = true }
 tempfile = { workspace = true, optional = true }
 encoding_rs = { workspace = true, optional = true }
 which = { workspace = true, optional = true }
-anstream = { workspace = true, optional = true }
+anstream = { workspace = true, optional = true, features = ["auto"] }
 secrecy = { workspace = true, optional = true }
 
 [target.'cfg(unix)'.dependencies]
@@ -47,6 +47,7 @@ interactive = [
     "clap/env",
     "clap/string",
     "clap-couture-derive/interactive",
+    "dep:anstream",
     "dep:libc",
     "dep:secrecy",
     "dep:thiserror",

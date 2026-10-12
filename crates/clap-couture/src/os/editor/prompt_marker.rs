@@ -1,5 +1,7 @@
 use std::io;
 
+use anstream::adapter::strip_str;
+
 use crate::strings;
 
 /// What every header line starts with. Markdown headings take `# ` and shell comments `# `, so
@@ -13,6 +15,7 @@ impl PromptMarker {
     /// Where the header written for `prompt` starts in `lines`: at its last copy of the header's
     /// first line, else, when the user edited that line, at the marked lines ending the file.
     fn header_start(&self, lines: &[&str], prompt: &str) -> usize {
+        let prompt = strip_str(prompt).to_string();
         let first = format!("{} {}", self.0, prompt.lines().next().unwrap_or_default());
         lines.iter().rposition(|line| line.trim() == first.trim()).unwrap_or_else(|| {
             let is_answer = |line: &&str| !line.trim().is_empty() && !self.marks(line);
@@ -59,7 +62,9 @@ impl PromptMarker {
         if let Some(prompt) = prompt {
             writeln!(out)?;
             // The marker, then a space before the text.
-            strings::prefix_lines_into(out, &format!("{} ", self.0), [prompt])?;
+            // A styled question's escapes would show in the file as text.
+            let prompt = strip_str(prompt).to_string();
+            strings::prefix_lines_into(out, &format!("{} ", self.0), [prompt.as_str()])?;
         }
         Ok(())
     }
@@ -90,6 +95,22 @@ mod tests {
     fn render_puts_the_answer_before_the_prompt() {
         let file = rendered("Fixed it.", Some(PROMPT));
         assert_eq!(file, "Fixed it.\n\n#| Release notes\n#|\n#| Leave the file empty to cancel.\n");
+    }
+
+    #[test]
+    fn render_drops_a_styled_prompts_escapes() {
+        let file = rendered("", Some("Release notes, in \u{1b}[1mmarkdown\u{1b}[0m"));
+        assert_eq!(file, "\n#| Release notes, in markdown\n");
+    }
+
+    #[test]
+    fn strip_finds_a_styled_prompts_header() {
+        let prompt = "\u{1b}[1mRelease\u{1b}[0m notes";
+        let file = format!("#| Release notes\nbody\n{}", rendered("", Some(prompt)));
+        assert_eq!(
+            PromptMarker::default().strip(&file, Some(prompt)).as_deref(),
+            Some("#| Release notes\nbody")
+        );
     }
 
     #[test]

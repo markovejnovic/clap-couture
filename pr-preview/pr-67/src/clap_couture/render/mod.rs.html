@@ -156,7 +156,7 @@
 <a href=#150 id=150 data-nosnippet>150</a>
 <a href=#151 id=151 data-nosnippet>151</a><span class="kw">impl</span>&lt;<span class="lifetime">'cmd</span>&gt; Menu&lt;<span class="lifetime">'cmd</span>&gt; {
 <a href=#152 id=152 data-nosnippet>152</a>    <span class="doccomment">/// Ends the `{subcommands}` template, so clap's trim of the help keeps the last row's padding.
-<a href=#153 id=153 data-nosnippet>153</a>    </span><span class="kw">const </span>LISTING_END: <span class="kw-2">&amp;</span>str = <span class="string">"\u{E000}"</span>;
+<a href=#153 id=153 data-nosnippet>153</a>    </span><span class="kw">const </span>LISTING_END: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str = <span class="string">"\u{E000}"</span>;
 <a href=#154 id=154 data-nosnippet>154</a>
 <a href=#155 id=155 data-nosnippet>155</a>    <span class="doccomment">/// The distinct categories with at least one visible member, in first-appearance order.
 <a href=#156 id=156 data-nosnippet>156</a>    </span><span class="kw">fn </span>categories(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'static </span>Category&gt; {

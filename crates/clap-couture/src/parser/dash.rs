@@ -150,9 +150,8 @@ impl DashArgs {
             let attr = prompted_arg.attr.dash?;
             Some((&prompted_arg.subcommand_path, prompted_arg.attr.arg_id, attr, true))
         });
-        let reading = stdin_args.iter().filter_map(|stdin_arg| {
-            let attr = stdin_arg.attr.dash?;
-            Some((&stdin_arg.subcommand_path, stdin_arg.attr.arg_id, attr, false))
+        let reading = stdin_args.iter().map(|stdin_arg| {
+            (&stdin_arg.subcommand_path, stdin_arg.attr.arg_id, stdin_arg.attr.dash, false)
         });
         for (path, arg_id, attr, asks) in asking.chain(reading) {
             match dash_args.iter_mut().find(|dash_arg| dash_arg.is(path, arg_id)) {

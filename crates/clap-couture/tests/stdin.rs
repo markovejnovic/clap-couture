@@ -1,6 +1,6 @@
-//! `#[couture(stdin(piped))]` takes piped stdin as the value of an arg the user left out, and
-//! leaves any other stdin alone. Each case runs this binary again as a child, so its stdin can be
-//! a pipe, a file or the null device.
+//! `#[couture(stdin(piped))]` takes piped stdin as the value of an arg the user left out or passed
+//! `-`, and leaves any other stdin alone. Each case runs this binary again as a child, so its stdin
+//! can be a pipe, a file or the null device.
 #![cfg(feature = "interactive")]
 
 #[expect(dead_code, reason = "only text replies are scripted here")]
@@ -314,6 +314,14 @@ fn a_dash_reads_a_secret_the_command_line_may_not_pass() {
 #[case::from_the_null_device(Stdin::Null, "message=Some(\"\")")]
 fn a_dash_that_may_ask_reads_stdin_that_is_no_terminal(#[case] stdin: Stdin, #[case] parsed: &str) {
     assert_eq!(run("draft", &["--message", "-"], stdin).as_deref(), Ok(parsed));
+}
+
+#[rstest]
+#[case::piped(&["--message", "-"], Stdin::Piped(b"hello\n"))]
+#[case::piped_with_equals(&["--message=-"], Stdin::Piped(b"hello\n"))]
+#[case::from_a_file(&["--message", "-"], Stdin::File(b"hello\n"))]
+fn a_dash_reads_stdin_into_a_piped_arg_too(#[case] argv: &[&str], #[case] stdin: Stdin) {
+    assert_eq!(run("post", argv, stdin).as_deref(), Ok("message=\"hello\" template=None"));
 }
 
 #[rstest]

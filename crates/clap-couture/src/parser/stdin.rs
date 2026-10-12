@@ -1,5 +1,5 @@
 //! `#[couture(stdin)]`: an arg passed `-` takes all of stdin, and a `stdin(piped)` one the user
-//! left out takes what is piped into it.
+//! left out also takes what is piped into it.
 
 use std::ffi::OsString;
 
@@ -44,7 +44,7 @@ impl StdinArgs {
     /// The stdin arg on the path the user took, if it got no value, and the text piped in for it.
     /// `None` when nothing is piped, or the arg conflicts with one the user passed. Stdin is read
     /// only once the rest of `argv` parses, so `--help` never waits on it. An arg passed `-` has
-    /// a value, so no pipe fills it, and a `stdin` one takes only what `-` reads.
+    /// a value, so no pipe fills it, and a `stdin` one without `piped` takes only what `-` reads.
     ///
     /// # Errors
     /// - Reading stdin failed.
@@ -57,7 +57,7 @@ impl StdinArgs {
         stdin: &impl Stdin,
     ) -> Result<Option<StdinValue<'_>>, ParseError> {
         let implicit: Vec<&StdinArg> =
-            self.iter().filter(|stdin_arg| stdin_arg.attr.dash.is_none()).collect();
+            self.iter().filter(|stdin_arg| stdin_arg.attr.piped).collect();
         if implicit.is_empty() {
             return Ok(None);
         }

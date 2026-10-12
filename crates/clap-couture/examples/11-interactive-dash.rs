@@ -1,7 +1,7 @@
 //! Example demonstrating clap-couture's `-` as an arg's value.
 //!
 //! clap-couture can give `-` a meaning, and leave the arg alone otherwise. You do so by adding
-//! `dash` to `#[couture(prompt)]` or `#[couture(stdin(piped))]`.
+//! `dash` to `#[couture(prompt)]`, or with `#[couture(stdin)]`.
 //!
 //!   - `orbit-release --title -` asks for the title; left out, it is not asked.
 //!   - `orbit-release --notes -` reads the notes from stdin, be it a pipe, a file or the terminal;

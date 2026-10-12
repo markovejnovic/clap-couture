@@ -11,7 +11,7 @@ use std::{
 
 use clap::{
     Arg, Command,
-    builder::{StyledStr, Styles, TypedValueParser},
+    builder::{Resettable, StyledStr, Styles, TypedValueParser},
     error::ErrorKind,
     parser::ValueSource,
 };
@@ -24,6 +24,26 @@ use crate::interactive::PromptedArg;
 /// What a prompted secret's placeholder starts with. Neither argv nor env vars can hold NUL, so no
 /// user input can forge one.
 const PLACEHOLDER_PREFIX: &str = "\0couture-secret:";
+
+/// The default a required refused secret holds in place of `required`, so clap neither offers its
+/// flag in usage nor names it as missing; resolving it fails the parse with how to give the secret.
+const UNSUPPLIED: &str = "\0couture-secret:unsupplied";
+
+/// What a confirmation shows in place of each of a secret's values.
+pub(super) const MASKED: &str = "********";
+
+/// A refused secret's requirement, held as its [`UNSUPPLIED`] default.
+pub(super) trait SecretRequirement {
+    /// Check whether it holds the [`UNSUPPLIED`] default.
+    fn is_required_by_default(&self) -> bool;
+
+    /// A required arg made optional to clap and given the [`UNSUPPLIED`] default; any other
+    /// unchanged.
+    fn required_by_default(self) -> Self;
+
+    /// Without the [`UNSUPPLIED`] default, so it may be left out.
+    fn without_required_default(self) -> Self;
+}
 
 /// The prompted secret answers of one parse, shared by every `Command` clone that resolves their
 /// placeholders, and zeroized when the last one drops.
@@ -88,6 +108,9 @@ impl TypedValueParser for SecretValueParser {
         if source == ValueSource::CommandLine && !self.allow_argv {
             return Err(command_line_refusal(cmd, arg));
         }
+        if source == ValueSource::DefaultValue && value == UNSUPPLIED {
+            return Err(unsupplied(cmd, arg));
+        }
         let value =
             value.to_str().ok_or_else(|| clap::Error::new(ErrorKind::InvalidUtf8).with_cmd(cmd))?;
         if !value.starts_with(PLACEHOLDER_PREFIX) {
@@ -128,8 +151,23 @@ impl HiddenSecrets<'_> {
     }
 }
 
+impl SecretRequirement for Arg {
+    fn is_required_by_default(&self) -> bool {
+        self.get_default_values() == [UNSUPPLIED]
+    }
+
+    fn required_by_default(self) -> Self {
+        if self.is_required_set() { self.required(false).default_value(UNSUPPLIED) } else { self }
+    }
+
+    fn without_required_default(self) -> Self {
+        if self.is_required_by_default() { self.default_value(Resettable::Reset) } else { self }
+    }
+}
+
 /// Give each secret arg in `prompted_args` a [`SecretValueParser`] on `vault`, and keep its env
-/// var's value and any placeholder default out of `--help`.
+/// var's value and any placeholder default out of `--help`. A refused one is kept out of usage
+/// too, and a required one is required through [`SecretRequirement`].
 pub(crate) fn guard(
     cmd: Command,
     prompted_args: &[PromptedArg],
@@ -144,9 +182,10 @@ pub(crate) fn guard(
             arg.value_parser(parser).hide_default_value(true).hide_env_values(true)
         })
     });
-    // Help offers no flag the command line can only fail with; the env vars that pass those
-    // secret args are listed instead. An arg already hidden is left alone, so guarding twice adds
-    // nothing.
+    // Help, usage and clap's missing-arg error offer no flag the command line can only fail with;
+    // the env vars that pass those secret args are listed instead, and a required one left out
+    // fails through its `UNSUPPLIED` default. An arg already hidden lists no env var, so guarding
+    // twice adds nothing.
     let mut hidden: Vec<HiddenSecrets<'_>> = Vec::new();
     let refused = prompted_args.iter().filter(|prompted_arg| {
         prompted_arg.attr.secret.as_ref().is_some_and(|secret| !secret.allow_argv())
@@ -159,7 +198,7 @@ pub(crate) fn guard(
                 return level;
             };
             if arg.is_hide_set() {
-                return level;
+                return level.mut_arg(id, SecretRequirement::required_by_default);
             }
             if let Some(env) = arg.get_env() {
                 let help = arg.get_help().map(|help| help.ansi().to_string()).unwrap_or_default();
@@ -169,7 +208,7 @@ pub(crate) fn guard(
                     None => hidden.push(HiddenSecrets { env_vars: vec![env_var], path }),
                 }
             }
-            level.mut_arg(id, |arg| arg.hide(true))
+            level.mut_arg(id, |arg| arg.hide(true).required_by_default())
         })
     });
     hidden.into_iter().fold(cmd, |cmd, level_secrets| {
@@ -198,19 +237,36 @@ fn command_line_refusal(cmd: &Command, arg: Option<&Arg>) -> clap::Error {
     );
     secret_error(
         cmd,
+        ErrorKind::ValueValidation,
         &format!("{} is a secret and can't be passed on the command line; {hint}", arg_name(arg)),
     )
 }
 
 /// `message` with clap's usage and `--help` pointer, as clap formats its own errors.
-fn secret_error(cmd: &Command, message: &str) -> clap::Error {
-    clap::Error::raw(ErrorKind::ValueValidation, message).format(&mut cmd.clone())
+fn secret_error(cmd: &Command, kind: ErrorKind, message: &str) -> clap::Error {
+    clap::Error::raw(kind, message).format(&mut cmd.clone())
+}
+
+/// The error for a required secret nothing gave, naming the ways it may come in but not its flag.
+fn unsupplied(cmd: &Command, arg: Option<&Arg>) -> clap::Error {
+    let name = arg.map_or("a required secret", |arg| arg.get_id().as_str());
+    let env = arg.and_then(Arg::get_env).map(OsStr::to_string_lossy);
+    let hint = env.map_or_else(
+        || "run at a terminal to be asked for it".to_owned(),
+        |env| format!("set {env} or run at a terminal to be asked for it"),
+    );
+    secret_error(
+        cmd,
+        ErrorKind::MissingRequiredArgument,
+        &format!("the secret {name} was not given; {hint}"),
+    )
 }
 
 /// The error for a placeholder this parse did not inject: stale, or typed in.
 fn unresolved_placeholder(cmd: &Command, arg: Option<&Arg>) -> clap::Error {
     secret_error(
         cmd,
+        ErrorKind::ValueValidation,
         &format!("{} got a secret placeholder with no answer behind it", arg_name(arg)),
     )
 }

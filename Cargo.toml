@@ -15,7 +15,7 @@ quote = "1"
 syn = { version = "3", features = ["full"] }
 # couture copies clap internals, so only tested releases are allowed; CI tests both
 # ends, and `.github/workflows/clap-bump.yml` raises the max.
-clap = ">=4.6.7, <=4.6.7"
+clap = ">=4.5.44, <=4.6.7"
 pulldown-cmark = { version = "0.13", default-features = false }
 unicode-width = "0.2"
 darling = "0.24"

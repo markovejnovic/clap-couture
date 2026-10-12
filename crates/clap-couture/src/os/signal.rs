@@ -536,7 +536,7 @@ pub(crate) mod tests {
 
     /// Held by every test that changes or reads this process's signal handling, which is
     /// process-wide, so that no two overlap.
-    #[cfg(feature = "interactive-editor")]
+    #[cfg(any(feature = "interactive-editor", feature = "interactive-dialoguer"))]
     pub(crate) fn lock_handling() -> std::sync::MutexGuard<'static, ()> {
         static HANDLING: std::sync::Mutex<()> = std::sync::Mutex::new(());
         HANDLING.lock().unwrap_or_else(std::sync::PoisonError::into_inner)

@@ -9,7 +9,7 @@
 //! plaintext. clap-couture will not render terminal escape codes if it's not writing to a
 //! terminal.
 //!
-//! `cargo run -p clap-couture --example 02-markdown-simple -- --help` outputs:
+//! `cargo run -p clap-couture --features markdown --example 02-markdown-simple -- --help` outputs:
 //!
 //! ```terminal
 //! Usage:

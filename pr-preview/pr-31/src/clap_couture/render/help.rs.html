@@ -71,103 +71,108 @@
 <a href=#65 id=65 data-nosnippet>65</a>        }
 <a href=#66 id=66 data-nosnippet>66</a>    }
 <a href=#67 id=67 data-nosnippet>67</a>
-<a href=#68 id=68 data-nosnippet>68</a>    <span class="doccomment">/// The body for `cmd`, its subcommands filed by `categories`, its headings worded by
-<a href=#69 id=69 data-nosnippet>69</a>    /// `messages`.
-<a href=#70 id=70 data-nosnippet>70</a>    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(cmd: <span class="kw-2">&amp;</span>Command, categories: CommandCategoryMap, messages: <span class="kw-2">&amp;</span>Messages) -&gt; <span class="self">Self </span>{
-<a href=#71 id=71 data-nosnippet>71</a>        <span class="kw">let </span><span class="kw-2">mut </span>menu = StyledStr::new();
-<a href=#72 id=72 data-nosnippet>72</a>        <span class="comment">// `StyledStr`'s `fmt::Write` is infallible.
-<a href=#73 id=73 data-nosnippet>73</a>        </span>cmd.write_command_sections(<span class="kw-2">&amp;mut </span>menu, categories).ok();
-<a href=#74 id=74 data-nosnippet>74</a>        <span class="kw">let </span>menu = menu.ansi().to_string();
-<a href=#75 id=75 data-nosnippet>75</a>
-<a href=#76 id=76 data-nosnippet>76</a>        <span class="kw">let </span><span class="kw-2">mut </span>args_only = cmd
-<a href=#77 id=77 data-nosnippet>77</a>            .clone()
-<a href=#78 id=78 data-nosnippet>78</a>            .disable_help_subcommand(<span class="bool-val">true</span>)
-<a href=#79 id=79 data-nosnippet>79</a>            .mut_subcommands(|subcommand| subcommand.hide(<span class="bool-val">true</span>))
-<a href=#80 id=80 data-nosnippet>80</a>            .help_template(<span class="string">"{all-args}"</span>);
-<a href=#81 id=81 data-nosnippet>81</a>        <span class="kw">let </span>headings = Headings { cmd, messages };
-<a href=#82 id=82 data-nosnippet>82</a>        <span class="kw">let </span>short_args = headings.reword(<span class="kw-2">&amp;</span>args_only.clone().render_help());
-<a href=#83 id=83 data-nosnippet>83</a>        <span class="kw">let </span>long_args = headings.reword(<span class="kw-2">&amp;</span>args_only.render_long_help());
-<a href=#84 id=84 data-nosnippet>84</a>
-<a href=#85 id=85 data-nosnippet>85</a>        <span class="kw">let </span>after_help = cmd.get_after_help().map(|text| text.ansi().to_string());
-<a href=#86 id=86 data-nosnippet>86</a>        <span class="kw">let </span>after_long_help = cmd.get_after_long_help().map(|text| text.ansi().to_string());
-<a href=#87 id=87 data-nosnippet>87</a>        <span class="kw">let </span>short = <span class="self">Self</span>::paragraphs([<span class="kw-2">&amp;</span>menu, <span class="kw-2">&amp;</span>short_args, after_help.as_deref().unwrap_or(<span class="string">""</span>)]);
-<a href=#88 id=88 data-nosnippet>88</a>        <span class="kw">let </span>long = cmd.has_long_help().then(|| {
-<a href=#89 id=89 data-nosnippet>89</a>            <span class="kw">let </span>after = after_long_help.or(after_help);
-<a href=#90 id=90 data-nosnippet>90</a>            <span class="self">Self</span>::paragraphs([<span class="kw-2">&amp;</span>menu, <span class="kw-2">&amp;</span>long_args, after.as_deref().unwrap_or(<span class="string">""</span>)])
-<a href=#91 id=91 data-nosnippet>91</a>        });
-<a href=#92 id=92 data-nosnippet>92</a>        <span class="self">Self </span>{ long, short }
-<a href=#93 id=93 data-nosnippet>93</a>    }
-<a href=#94 id=94 data-nosnippet>94</a>
-<a href=#95 id=95 data-nosnippet>95</a>    <span class="doccomment">/// `parts` that aren't empty, a blank line apart.
-<a href=#96 id=96 data-nosnippet>96</a>    </span><span class="kw">fn </span>paragraphs&lt;<span class="kw">const </span>N: usize&gt;(parts: [<span class="kw-2">&amp;</span>str; N]) -&gt; String {
-<a href=#97 id=97 data-nosnippet>97</a>        parts.into_iter().filter(|part| !part.is_empty()).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;().join(<span class="string">"\n\n"</span>)
+<a href=#68 id=68 data-nosnippet>68</a>    <span class="doccomment">/// The body for `cmd`, its subcommands filed by `categories` and wrapped to `width`, its
+<a href=#69 id=69 data-nosnippet>69</a>    /// headings worded by `messages`.
+<a href=#70 id=70 data-nosnippet>70</a>    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>new(
+<a href=#71 id=71 data-nosnippet>71</a>        cmd: <span class="kw-2">&amp;</span>Command,
+<a href=#72 id=72 data-nosnippet>72</a>        categories: CommandCategoryMap,
+<a href=#73 id=73 data-nosnippet>73</a>        messages: <span class="kw-2">&amp;</span>Messages,
+<a href=#74 id=74 data-nosnippet>74</a>        width: <span class="prelude-ty">Option</span>&lt;usize&gt;,
+<a href=#75 id=75 data-nosnippet>75</a>    ) -&gt; <span class="self">Self </span>{
+<a href=#76 id=76 data-nosnippet>76</a>        <span class="kw">let </span><span class="kw-2">mut </span>menu = StyledStr::new();
+<a href=#77 id=77 data-nosnippet>77</a>        <span class="comment">// `StyledStr`'s `fmt::Write` is infallible.
+<a href=#78 id=78 data-nosnippet>78</a>        </span>cmd.write_command_sections(<span class="kw-2">&amp;mut </span>menu, categories, width).ok();
+<a href=#79 id=79 data-nosnippet>79</a>        <span class="kw">let </span>menu = menu.ansi().to_string();
+<a href=#80 id=80 data-nosnippet>80</a>
+<a href=#81 id=81 data-nosnippet>81</a>        <span class="kw">let </span><span class="kw-2">mut </span>args_only = cmd
+<a href=#82 id=82 data-nosnippet>82</a>            .clone()
+<a href=#83 id=83 data-nosnippet>83</a>            .disable_help_subcommand(<span class="bool-val">true</span>)
+<a href=#84 id=84 data-nosnippet>84</a>            .mut_subcommands(|subcommand| subcommand.hide(<span class="bool-val">true</span>))
+<a href=#85 id=85 data-nosnippet>85</a>            .help_template(<span class="string">"{all-args}"</span>);
+<a href=#86 id=86 data-nosnippet>86</a>        <span class="kw">let </span>headings = Headings { cmd, messages };
+<a href=#87 id=87 data-nosnippet>87</a>        <span class="kw">let </span>short_args = headings.reword(<span class="kw-2">&amp;</span>args_only.clone().render_help());
+<a href=#88 id=88 data-nosnippet>88</a>        <span class="kw">let </span>long_args = headings.reword(<span class="kw-2">&amp;</span>args_only.render_long_help());
+<a href=#89 id=89 data-nosnippet>89</a>
+<a href=#90 id=90 data-nosnippet>90</a>        <span class="kw">let </span>after_help = cmd.get_after_help().map(|text| text.ansi().to_string());
+<a href=#91 id=91 data-nosnippet>91</a>        <span class="kw">let </span>after_long_help = cmd.get_after_long_help().map(|text| text.ansi().to_string());
+<a href=#92 id=92 data-nosnippet>92</a>        <span class="kw">let </span>short = <span class="self">Self</span>::paragraphs([<span class="kw-2">&amp;</span>menu, <span class="kw-2">&amp;</span>short_args, after_help.as_deref().unwrap_or(<span class="string">""</span>)]);
+<a href=#93 id=93 data-nosnippet>93</a>        <span class="kw">let </span>long = cmd.has_long_help().then(|| {
+<a href=#94 id=94 data-nosnippet>94</a>            <span class="kw">let </span>after = after_long_help.or(after_help);
+<a href=#95 id=95 data-nosnippet>95</a>            <span class="self">Self</span>::paragraphs([<span class="kw-2">&amp;</span>menu, <span class="kw-2">&amp;</span>long_args, after.as_deref().unwrap_or(<span class="string">""</span>)])
+<a href=#96 id=96 data-nosnippet>96</a>        });
+<a href=#97 id=97 data-nosnippet>97</a>        <span class="self">Self </span>{ long, short }
 <a href=#98 id=98 data-nosnippet>98</a>    }
-<a href=#99 id=99 data-nosnippet>99</a>}
-<a href=#100 id=100 data-nosnippet>100</a>
-<a href=#101 id=101 data-nosnippet>101</a><span class="kw">impl </span>Headings&lt;<span class="lifetime">'_</span>&gt; {
-<a href=#102 id=102 data-nosnippet>102</a>    <span class="doccomment">/// `rendered`, clap's `{all-args}`, with its default section headings reworded, its trailing
-<a href=#103 id=103 data-nosnippet>103</a>    /// newline dropped.
-<a href=#104 id=104 data-nosnippet>104</a>    </span><span class="kw">fn </span>reword(<span class="kw-2">&amp;</span><span class="self">self</span>, rendered: <span class="kw-2">&amp;</span>StyledStr) -&gt; String {
-<a href=#105 id=105 data-nosnippet>105</a>        <span class="kw">let </span>header = <span class="self">self</span>.cmd.get_styles().get_header();
-<a href=#106 id=106 data-nosnippet>106</a>        <span class="kw">let </span>styled = |heading: <span class="kw-2">&amp;</span>str| <span class="macro">format!</span>(<span class="string">"{header}{heading}{header:#}\n"</span>);
-<a href=#107 id=107 data-nosnippet>107</a>        <span class="kw">let </span><span class="kw-2">mut </span>text = rendered.ansi().to_string().trim_end().to_owned();
-<a href=#108 id=108 data-nosnippet>108</a>        <span class="kw">let </span>defaults = Messages::DEFAULT;
-<a href=#109 id=109 data-nosnippet>109</a>        <span class="kw">for </span>(default, worded) <span class="kw">in </span>[
-<a href=#110 id=110 data-nosnippet>110</a>            (defaults.arguments.get(), <span class="self">self</span>.messages.arguments.get()),
-<a href=#111 id=111 data-nosnippet>111</a>            (defaults.options.get(), <span class="self">self</span>.messages.options.get()),
-<a href=#112 id=112 data-nosnippet>112</a>        ] {
-<a href=#113 id=113 data-nosnippet>113</a>            <span class="kw">if </span>default == worded {
-<a href=#114 id=114 data-nosnippet>114</a>                <span class="kw">continue</span>;
-<a href=#115 id=115 data-nosnippet>115</a>            }
-<a href=#116 id=116 data-nosnippet>116</a>            <span class="kw">let </span>(clap_heading, couture_heading) = (styled(<span class="kw-2">&amp;</span>default), styled(<span class="kw-2">&amp;</span>worded));
-<a href=#117 id=117 data-nosnippet>117</a>            <span class="comment">// A section starts the text or follows a blank line; clap writes the arguments first.
-<a href=#118 id=118 data-nosnippet>118</a>            </span><span class="kw">let </span>at = <span class="kw">if </span>text.starts_with(<span class="kw-2">&amp;</span>clap_heading) {
-<a href=#119 id=119 data-nosnippet>119</a>                <span class="prelude-val">Some</span>(<span class="number">0</span>)
-<a href=#120 id=120 data-nosnippet>120</a>            } <span class="kw">else </span>{
-<a href=#121 id=121 data-nosnippet>121</a>                text.find(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"\n\n{clap_heading}"</span>)).map(|blank| blank.saturating_add(<span class="number">2</span>))
-<a href=#122 id=122 data-nosnippet>122</a>            };
-<a href=#123 id=123 data-nosnippet>123</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(at) = at {
-<a href=#124 id=124 data-nosnippet>124</a>                text.replace_range(at..at.saturating_add(clap_heading.len()), <span class="kw-2">&amp;</span>couture_heading);
-<a href=#125 id=125 data-nosnippet>125</a>            }
-<a href=#126 id=126 data-nosnippet>126</a>        }
-<a href=#127 id=127 data-nosnippet>127</a>        text
-<a href=#128 id=128 data-nosnippet>128</a>    }
-<a href=#129 id=129 data-nosnippet>129</a>}
-<a href=#130 id=130 data-nosnippet>130</a>
-<a href=#131 id=131 data-nosnippet>131</a><span class="kw">impl </span>HelpTemplates <span class="kw">for </span>Command {
-<a href=#132 id=132 data-nosnippet>132</a>    <span class="kw">fn </span>couture_template(<span class="kw-2">&amp;</span><span class="self">self</span>, messages: <span class="kw-2">&amp;</span>Messages) -&gt; String {
-<a href=#133 id=133 data-nosnippet>133</a>        <span class="kw">let </span>usage = <span class="self">self</span>.get_styles().get_usage();
-<a href=#134 id=134 data-nosnippet>134</a>        <span class="kw">let </span>usage_heading = messages.usage.get();
-<a href=#135 id=135 data-nosnippet>135</a>        <span class="comment">// clap's `{usage-heading}` is always English, so the heading is written out.
-<a href=#136 id=136 data-nosnippet>136</a>        </span><span class="macro">format!</span>(
-<a href=#137 id=137 data-nosnippet>137</a>            <span class="string">"{{before-help}}{{about-with-newline}}\n{usage}{usage_heading}{usage:#}\n  \
-<a href=#138 id=138 data-nosnippet>138</a>             {{usage}}{{after-help}}"
-<a href=#139 id=139 data-nosnippet>139</a>        </span>)
-<a href=#140 id=140 data-nosnippet>140</a>    }
-<a href=#141 id=141 data-nosnippet>141</a>
-<a href=#142 id=142 data-nosnippet>142</a>    <span class="kw">fn </span>has_long_help(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-<a href=#143 id=143 data-nosnippet>143</a>        <span class="kw">let </span>shows_more_long = |arg: <span class="kw-2">&amp;</span>Arg| {
-<a href=#144 id=144 data-nosnippet>144</a>            !arg.is_hide_set()
-<a href=#145 id=145 data-nosnippet>145</a>                &amp;&amp; (arg.get_long_help().is_some()
-<a href=#146 id=146 data-nosnippet>146</a>                    || arg.is_hide_long_help_set()
-<a href=#147 id=147 data-nosnippet>147</a>                    || arg.is_hide_short_help_set()
-<a href=#148 id=148 data-nosnippet>148</a>                    || !arg.is_hide_possible_values_set()
-<a href=#149 id=149 data-nosnippet>149</a>                        &amp;&amp; arg
-<a href=#150 id=150 data-nosnippet>150</a>                            .get_possible_values()
-<a href=#151 id=151 data-nosnippet>151</a>                            .iter()
-<a href=#152 id=152 data-nosnippet>152</a>                            .any(|value| !value.is_hide_set() &amp;&amp; value.get_help().is_some()))
-<a href=#153 id=153 data-nosnippet>153</a>        };
-<a href=#154 id=154 data-nosnippet>154</a>        <span class="self">self</span>.get_long_about().is_some()
-<a href=#155 id=155 data-nosnippet>155</a>            || <span class="self">self</span>.get_before_long_help().is_some()
-<a href=#156 id=156 data-nosnippet>156</a>            || <span class="self">self</span>.get_after_long_help().is_some()
-<a href=#157 id=157 data-nosnippet>157</a>            || <span class="self">self</span>.get_arguments().any(shows_more_long)
-<a href=#158 id=158 data-nosnippet>158</a>    }
-<a href=#159 id=159 data-nosnippet>159</a>
-<a href=#160 id=160 data-nosnippet>160</a>    <span class="kw">fn </span>has_own_template(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-<a href=#161 id=161 data-nosnippet>161</a>        <span class="kw">let </span>rendered = <span class="self">self</span>.clone().render_help().ansi().to_string();
-<a href=#162 id=162 data-nosnippet>162</a>        <span class="self">Self</span>::CLAP_DEFAULTS.iter().all(|template| {
-<a href=#163 id=163 data-nosnippet>163</a>            <span class="self">self</span>.clone().help_template(<span class="kw-2">*</span>template).render_help().ansi().to_string() != rendered
-<a href=#164 id=164 data-nosnippet>164</a>        })
-<a href=#165 id=165 data-nosnippet>165</a>    }
-<a href=#166 id=166 data-nosnippet>166</a>}
+<a href=#99 id=99 data-nosnippet>99</a>
+<a href=#100 id=100 data-nosnippet>100</a>    <span class="doccomment">/// `parts` that aren't empty, a blank line apart.
+<a href=#101 id=101 data-nosnippet>101</a>    </span><span class="kw">fn </span>paragraphs&lt;<span class="kw">const </span>N: usize&gt;(parts: [<span class="kw-2">&amp;</span>str; N]) -&gt; String {
+<a href=#102 id=102 data-nosnippet>102</a>        parts.into_iter().filter(|part| !part.is_empty()).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;().join(<span class="string">"\n\n"</span>)
+<a href=#103 id=103 data-nosnippet>103</a>    }
+<a href=#104 id=104 data-nosnippet>104</a>}
+<a href=#105 id=105 data-nosnippet>105</a>
+<a href=#106 id=106 data-nosnippet>106</a><span class="kw">impl </span>Headings&lt;<span class="lifetime">'_</span>&gt; {
+<a href=#107 id=107 data-nosnippet>107</a>    <span class="doccomment">/// `rendered`, clap's `{all-args}`, with its default section headings reworded, its trailing
+<a href=#108 id=108 data-nosnippet>108</a>    /// newline dropped.
+<a href=#109 id=109 data-nosnippet>109</a>    </span><span class="kw">fn </span>reword(<span class="kw-2">&amp;</span><span class="self">self</span>, rendered: <span class="kw-2">&amp;</span>StyledStr) -&gt; String {
+<a href=#110 id=110 data-nosnippet>110</a>        <span class="kw">let </span>header = <span class="self">self</span>.cmd.get_styles().get_header();
+<a href=#111 id=111 data-nosnippet>111</a>        <span class="kw">let </span>styled = |heading: <span class="kw-2">&amp;</span>str| <span class="macro">format!</span>(<span class="string">"{header}{heading}{header:#}\n"</span>);
+<a href=#112 id=112 data-nosnippet>112</a>        <span class="kw">let </span><span class="kw-2">mut </span>text = rendered.ansi().to_string().trim_end().to_owned();
+<a href=#113 id=113 data-nosnippet>113</a>        <span class="kw">let </span>defaults = Messages::DEFAULT;
+<a href=#114 id=114 data-nosnippet>114</a>        <span class="kw">for </span>(default, worded) <span class="kw">in </span>[
+<a href=#115 id=115 data-nosnippet>115</a>            (defaults.arguments.get(), <span class="self">self</span>.messages.arguments.get()),
+<a href=#116 id=116 data-nosnippet>116</a>            (defaults.options.get(), <span class="self">self</span>.messages.options.get()),
+<a href=#117 id=117 data-nosnippet>117</a>        ] {
+<a href=#118 id=118 data-nosnippet>118</a>            <span class="kw">if </span>default == worded {
+<a href=#119 id=119 data-nosnippet>119</a>                <span class="kw">continue</span>;
+<a href=#120 id=120 data-nosnippet>120</a>            }
+<a href=#121 id=121 data-nosnippet>121</a>            <span class="kw">let </span>(clap_heading, couture_heading) = (styled(<span class="kw-2">&amp;</span>default), styled(<span class="kw-2">&amp;</span>worded));
+<a href=#122 id=122 data-nosnippet>122</a>            <span class="comment">// A section starts the text or follows a blank line; clap writes the arguments first.
+<a href=#123 id=123 data-nosnippet>123</a>            </span><span class="kw">let </span>at = <span class="kw">if </span>text.starts_with(<span class="kw-2">&amp;</span>clap_heading) {
+<a href=#124 id=124 data-nosnippet>124</a>                <span class="prelude-val">Some</span>(<span class="number">0</span>)
+<a href=#125 id=125 data-nosnippet>125</a>            } <span class="kw">else </span>{
+<a href=#126 id=126 data-nosnippet>126</a>                text.find(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"\n\n{clap_heading}"</span>)).map(|blank| blank.saturating_add(<span class="number">2</span>))
+<a href=#127 id=127 data-nosnippet>127</a>            };
+<a href=#128 id=128 data-nosnippet>128</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(at) = at {
+<a href=#129 id=129 data-nosnippet>129</a>                text.replace_range(at..at.saturating_add(clap_heading.len()), <span class="kw-2">&amp;</span>couture_heading);
+<a href=#130 id=130 data-nosnippet>130</a>            }
+<a href=#131 id=131 data-nosnippet>131</a>        }
+<a href=#132 id=132 data-nosnippet>132</a>        text
+<a href=#133 id=133 data-nosnippet>133</a>    }
+<a href=#134 id=134 data-nosnippet>134</a>}
+<a href=#135 id=135 data-nosnippet>135</a>
+<a href=#136 id=136 data-nosnippet>136</a><span class="kw">impl </span>HelpTemplates <span class="kw">for </span>Command {
+<a href=#137 id=137 data-nosnippet>137</a>    <span class="kw">fn </span>couture_template(<span class="kw-2">&amp;</span><span class="self">self</span>, messages: <span class="kw-2">&amp;</span>Messages) -&gt; String {
+<a href=#138 id=138 data-nosnippet>138</a>        <span class="kw">let </span>usage = <span class="self">self</span>.get_styles().get_usage();
+<a href=#139 id=139 data-nosnippet>139</a>        <span class="kw">let </span>usage_heading = messages.usage.get();
+<a href=#140 id=140 data-nosnippet>140</a>        <span class="comment">// clap's `{usage-heading}` is always English, so the heading is written out.
+<a href=#141 id=141 data-nosnippet>141</a>        </span><span class="macro">format!</span>(
+<a href=#142 id=142 data-nosnippet>142</a>            <span class="string">"{{before-help}}{{about-with-newline}}\n{usage}{usage_heading}{usage:#}\n  \
+<a href=#143 id=143 data-nosnippet>143</a>             {{usage}}{{after-help}}"
+<a href=#144 id=144 data-nosnippet>144</a>        </span>)
+<a href=#145 id=145 data-nosnippet>145</a>    }
+<a href=#146 id=146 data-nosnippet>146</a>
+<a href=#147 id=147 data-nosnippet>147</a>    <span class="kw">fn </span>has_long_help(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+<a href=#148 id=148 data-nosnippet>148</a>        <span class="kw">let </span>shows_more_long = |arg: <span class="kw-2">&amp;</span>Arg| {
+<a href=#149 id=149 data-nosnippet>149</a>            !arg.is_hide_set()
+<a href=#150 id=150 data-nosnippet>150</a>                &amp;&amp; (arg.get_long_help().is_some()
+<a href=#151 id=151 data-nosnippet>151</a>                    || arg.is_hide_long_help_set()
+<a href=#152 id=152 data-nosnippet>152</a>                    || arg.is_hide_short_help_set()
+<a href=#153 id=153 data-nosnippet>153</a>                    || !arg.is_hide_possible_values_set()
+<a href=#154 id=154 data-nosnippet>154</a>                        &amp;&amp; arg
+<a href=#155 id=155 data-nosnippet>155</a>                            .get_possible_values()
+<a href=#156 id=156 data-nosnippet>156</a>                            .iter()
+<a href=#157 id=157 data-nosnippet>157</a>                            .any(|value| !value.is_hide_set() &amp;&amp; value.get_help().is_some()))
+<a href=#158 id=158 data-nosnippet>158</a>        };
+<a href=#159 id=159 data-nosnippet>159</a>        <span class="self">self</span>.get_long_about().is_some()
+<a href=#160 id=160 data-nosnippet>160</a>            || <span class="self">self</span>.get_before_long_help().is_some()
+<a href=#161 id=161 data-nosnippet>161</a>            || <span class="self">self</span>.get_after_long_help().is_some()
+<a href=#162 id=162 data-nosnippet>162</a>            || <span class="self">self</span>.get_arguments().any(shows_more_long)
+<a href=#163 id=163 data-nosnippet>163</a>    }
+<a href=#164 id=164 data-nosnippet>164</a>
+<a href=#165 id=165 data-nosnippet>165</a>    <span class="kw">fn </span>has_own_template(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+<a href=#166 id=166 data-nosnippet>166</a>        <span class="kw">let </span>rendered = <span class="self">self</span>.clone().render_help().ansi().to_string();
+<a href=#167 id=167 data-nosnippet>167</a>        <span class="self">Self</span>::CLAP_DEFAULTS.iter().all(|template| {
+<a href=#168 id=168 data-nosnippet>168</a>            <span class="self">self</span>.clone().help_template(<span class="kw-2">*</span>template).render_help().ansi().to_string() != rendered
+<a href=#169 id=169 data-nosnippet>169</a>        })
+<a href=#170 id=170 data-nosnippet>170</a>    }
+<a href=#171 id=171 data-nosnippet>171</a>}
 </code></pre></div></section></main></body></html>

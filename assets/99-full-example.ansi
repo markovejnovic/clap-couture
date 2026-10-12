@@ -1,4 +1,4 @@
-Deploy and manage your apps from the [1mterminal[0m
+Deploy and manage your apps from the [1mterminal[0m, [3mfashionably[0m
 
 [1m[35mUsage:[0m [1m[36morbit[0m [34m<COMMAND>[0m
 
@@ -6,12 +6,20 @@ Deploy and manage your apps from the [1mterminal[0m
   [1m[36mstatus[0m    Show recent activity
 
 [1m[35mShip:[0m     Get code to [1mproduction[0m
+  [1m[36mdeploy[0m    Ship the [1mcurrent[0m project
+  [1m[36mpromote[0m   Promote a release to [3mproduction[0m
   [1m[36mrollback[0m  Roll back to a previous release
-  [1m[36mdeploy[0m    Ship the current project
+  [1m[36mscale[0m     Change the [1m[36mreplicas[0m count
 
-[1m[35mAccount:[0m  Who [3myou[0m are, and what you keep
-  [1m[36mlogin[0m     Sign in to your account
+[1m[35mConfig:[0m   What your app [3mknows[0m
+  [1m[36mdomains[0m   Point a domain at your app
+  [1m[36menv[0m       Manage [1m[36mKEY=VALUE[0m variables
   [1m[36msecrets[0m   Manage environment secrets
+
+[1m[35mAccount:[0m  Who [1myou[0m are
+  [1m[36mlogin[0m     Sign in to your account
+  [1m[36mlogout[0m    Sign out of [3mthis[0m machine
+  [1m[36mwhoami[0m    Show who you're signed in as
 
   [1m[36mhelp[0m      Print this message or the help of the given subcommand(s)
 

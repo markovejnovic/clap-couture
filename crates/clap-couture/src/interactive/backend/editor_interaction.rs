@@ -27,7 +27,8 @@ pub struct EditorInteraction<'run, B: Backend + ?Sized> {
 }
 
 impl<'run, B: Backend + ?Sized> EditorInteraction<'run, B> {
-    /// Ask `prompt` in the user's `$EDITOR` returning `None` for an empty answer.
+    /// Ask `prompt` in the user's `$EDITOR` returning `None` for an empty answer. The answer ends
+    /// in a newline, as the file does.
     ///
     /// # Errors
     /// - [`PromptError::Signalled`] when the editor dies of Ctrl-C or of the terminal closing;
@@ -39,7 +40,7 @@ impl<'run, B: Backend + ?Sized> EditorInteraction<'run, B> {
         let Some(opened) = self.opened.as_mut() else {
             // `:` is git's no-op editor: the initial text is taken as written.
             let initial = self.prompt.initial.map(str::trim).filter(|initial| !initial.is_empty());
-            return Ok(initial.map(ToOwned::to_owned));
+            return Ok(initial.map(|initial| format!("{initial}\n")));
         };
 
         loop {

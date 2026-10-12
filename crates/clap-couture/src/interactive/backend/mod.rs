@@ -55,8 +55,9 @@ pub trait Backend {
     /// - [`PromptError::Cancelled`] when the user backs out.
     fn confirm(&self, prompt: &ConfirmPrompt<'_>) -> Result<bool, PromptError>;
 
-    /// Ask in the user's editor, returning `None` for an empty answer. Whether an empty answer is
-    /// allowed is decided by the caller, from `prompt.optional`.
+    /// Ask in the user's editor, returning `None` for an empty answer, else the answer ending in a
+    /// newline as a text file does. Whether an empty answer is allowed is decided by the caller,
+    /// from `prompt.optional`.
     ///
     /// The default opens the editor through
     /// [`EditorInteraction`](crate::interactive::EditorInteraction), asking with

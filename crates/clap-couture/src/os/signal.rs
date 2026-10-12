@@ -7,7 +7,10 @@ use core::sync::atomic::{AtomicBool, AtomicI32, Ordering};
 #[cfg(feature = "interactive-editor")]
 use std::process::ExitStatus;
 #[cfg(all(unix, feature = "interactive-editor"))]
-use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::{
+    io,
+    sync::{Mutex, MutexGuard, PoisonError},
+};
 
 #[cfg(windows)]
 use windows_sys::Win32::Foundation::STATUS_CONTROL_C_EXIT;
@@ -26,7 +29,8 @@ use windows_sys::{
 static HANDLING: Mutex<Handling> =
     Mutex::new(Handling { hangup: None, interrupt: None, quit: None, terminate: None });
 
-/// Set once `SIGTERM` reaches [`ForwardedTermination::forward`].
+/// Set once `SIGTERM` reaches [`ForwardedTermination::forward`]; cleared when the first guard
+/// installs it.
 #[cfg(all(unix, feature = "interactive-editor"))]
 static TERMINATION_RECEIVED: AtomicBool = AtomicBool::new(false);
 
@@ -367,7 +371,7 @@ impl ForwardedTermination {
         for recipient in &TERMINATION_RECIPIENTS {
             let child = recipient.load(Ordering::SeqCst);
             if child > 0i32 {
-                // SAFETY: `kill` is async-signal-safe; `child` is a child not yet waited for.
+                // SAFETY: `kill` is async-signal-safe; `child` is a child not yet reaped.
                 unsafe {
                     libc::kill(child, libc::SIGTERM);
                 }
@@ -384,7 +388,7 @@ impl ForwardedTermination {
         self.recipient = TERMINATION_RECIPIENTS.iter().find(|slot| {
             slot.compare_exchange(0i32, child, Ordering::SeqCst, Ordering::SeqCst).is_ok()
         });
-        if Self::received() {
+        if TERMINATION_RECEIVED.load(Ordering::SeqCst) {
             // SAFETY: `child` is a child not yet waited for.
             unsafe {
                 libc::kill(child, libc::SIGTERM);
@@ -395,6 +399,15 @@ impl ForwardedTermination {
     /// Install [`ForwardedTermination::forward`] for `SIGTERM`, held by one guard. `None` when
     /// it can't be, or `SIGTERM` doesn't have its default action: the app's own handling stays.
     fn install() -> Option<Held> {
+        // SAFETY: an all-zero `sigaction` is valid storage, only written to.
+        let mut current: libc::sigaction = unsafe { core::mem::zeroed() };
+        // SAFETY: a null new action only reads the current one into `current`.
+        let status = unsafe { libc::sigaction(libc::SIGTERM, core::ptr::null(), &raw mut current) };
+        // Checked before installing, so that a `SIGTERM` never reaches `forward` in place of the
+        // app's own handler.
+        if status != 0i32 || current.sa_sigaction != libc::SIG_DFL {
+            return None;
+        }
         #[expect(clippy::as_conversions, reason = "`sigaction` takes a handler as an address")]
         let forward = (Self::forward as extern "C" fn(libc::c_int) as *const ()).addr();
         // SAFETY: an all-zero `sigaction` is valid: `SIG_DFL`, no flags, an empty mask.
@@ -402,7 +415,9 @@ impl ForwardedTermination {
         action.sa_sigaction = forward;
         // Other threads' system calls carry on rather than fail with `EINTR`.
         action.sa_flags = libc::SA_RESTART;
+        TERMINATION_RECEIVED.store(false, Ordering::SeqCst);
         let held = Held::take_over(libc::SIGTERM, &action)?;
+        // Code that doesn't take the lock may have installed a handler since.
         if held.previous.sa_sigaction == libc::SIG_DFL {
             Some(held)
         } else {
@@ -418,21 +433,42 @@ impl ForwardedTermination {
         Self { held, recipient: None }
     }
 
-    /// Whether `SIGTERM` came while a guard was passing it on.
-    pub(crate) fn received() -> bool {
+    /// Stop passing `SIGTERM` on; whether it came while this guard did. Read once let go of, so
+    /// that one coming later takes the app's handling rather than going unnoticed.
+    pub(crate) fn release(&mut self) -> bool {
+        if let Some(recipient) = self.recipient.take() {
+            recipient.store(0i32, Ordering::SeqCst);
+        }
+        if !core::mem::take(&mut self.held) {
+            return false;
+        }
+        Handling::lock().release_termination();
         TERMINATION_RECEIVED.load(Ordering::SeqCst)
+    }
+
+    /// Wait for process `child` to exit, without reaping it, then stop passing `SIGTERM` on to
+    /// it: until reaped, its PID can't name another process.
+    pub(crate) fn wait_for_exit(&mut self, child: u32) {
+        let Some(recipient) = self.recipient.take() else { return };
+        loop {
+            // SAFETY: an all-zero `siginfo_t` is valid storage, only written to.
+            let mut info: libc::siginfo_t = unsafe { core::mem::zeroed() };
+            // SAFETY: `info` is live for the call; `WNOWAIT` leaves the child unreaped.
+            let status = unsafe {
+                libc::waitid(libc::P_PID, child, &raw mut info, libc::WEXITED | libc::WNOWAIT)
+            };
+            if status == 0i32 || io::Error::last_os_error().kind() != io::ErrorKind::Interrupted {
+                break;
+            }
+        }
+        recipient.store(0i32, Ordering::SeqCst);
     }
 }
 
 #[cfg(all(unix, feature = "interactive-editor"))]
 impl Drop for ForwardedTermination {
     fn drop(&mut self) {
-        if let Some(recipient) = self.recipient.take() {
-            recipient.store(0i32, Ordering::SeqCst);
-        }
-        if self.held {
-            Handling::lock().release_termination();
-        }
+        self.release();
     }
 }
 
@@ -458,9 +494,21 @@ impl ForwardedTermination {
         Self
     }
 
-    pub(crate) const fn received() -> bool {
+    #[expect(
+        clippy::unused_self,
+        clippy::needless_pass_by_ref_mut,
+        reason = "the Unix version lets go of its own guard"
+    )]
+    pub(crate) const fn release(&mut self) -> bool {
         false
     }
+
+    #[expect(
+        clippy::unused_self,
+        clippy::needless_pass_by_ref_mut,
+        reason = "the Unix version lets go of the child it names"
+    )]
+    pub(crate) const fn wait_for_exit(&mut self, _child: u32) {}
 }
 
 /// Ctrl+C and Ctrl+Break ignored in this process while alive; see the Unix version.
@@ -527,6 +575,10 @@ pub(crate) mod tests {
 
     #[cfg(feature = "interactive-editor")]
     const ALL: [Signal; 3] = [Signal::Interrupt, Signal::Quit, Signal::Hangup];
+
+    /// Set by [`app_termination_handler`].
+    #[cfg(feature = "interactive-editor")]
+    pub(crate) static APP_TERMINATION_RECEIVED: AtomicBool = AtomicBool::new(false);
 
     /// The handler `signal` has now.
     #[cfg(feature = "interactive-editor")]
@@ -656,6 +708,63 @@ pub(crate) mod tests {
             libc::signal(libc::SIGTERM, before);
         }
         assert_eq!(during, Some(libc::SIG_IGN));
+    }
+
+    /// An app's own `SIGTERM` handler.
+    #[cfg(feature = "interactive-editor")]
+    extern "C" fn app_termination_handler(_signal: libc::c_int) {
+        APP_TERMINATION_RECEIVED.store(true, Ordering::SeqCst);
+    }
+
+    /// Run `body` with [`app_termination_handler`] handling `SIGTERM`.
+    #[cfg(feature = "interactive-editor")]
+    pub(crate) fn with_app_termination_handler<T>(body: impl FnOnce() -> T) -> T {
+        #[expect(clippy::as_conversions, reason = "`signal` takes a handler as an address")]
+        let handler = (app_termination_handler as extern "C" fn(libc::c_int) as *const ()).addr();
+        APP_TERMINATION_RECEIVED.store(false, Ordering::SeqCst);
+        // SAFETY: `handler` is a plain function that only stores to an atomic.
+        let before = unsafe { libc::signal(libc::SIGTERM, handler) };
+        let result = body();
+        // SAFETY: `before` is the disposition `signal` reported.
+        unsafe {
+            libc::signal(libc::SIGTERM, before);
+        }
+        result
+    }
+
+    /// An app's own `SIGTERM` handler gets the signal, and no guard reports it.
+    #[cfg(feature = "interactive-editor")]
+    #[test]
+    fn an_apps_termination_handler_is_left_alone() {
+        let _handling = lock_handling();
+        let (during, received) = with_app_termination_handler(|| {
+            let mut forwarded = ForwardedTermination::new();
+            let during = termination_handler();
+            // SAFETY: the app's handler takes it.
+            unsafe {
+                libc::raise(libc::SIGTERM);
+            }
+            (during, forwarded.release())
+        });
+        let app_received = APP_TERMINATION_RECEIVED.load(Ordering::SeqCst);
+        assert!(during.is_some_and(|handler| handler != libc::SIG_DFL));
+        assert_eq!((received, app_received), (false, true));
+    }
+
+    /// A `SIGTERM` one guard saw isn't reported by a later one.
+    #[cfg(feature = "interactive-editor")]
+    #[test]
+    fn termination_received_ends_with_its_guards() {
+        let _handling = lock_handling();
+        let mut first = ForwardedTermination::new();
+        // SAFETY: `forward` takes it, with no child to pass it on to.
+        unsafe {
+            libc::raise(libc::SIGTERM);
+        }
+        let first_received = first.release();
+        let mut second = ForwardedTermination::new();
+        let second_received = second.release();
+        assert_eq!((first_received, second_received), (true, false));
     }
 
     #[cfg(feature = "interactive-editor")]

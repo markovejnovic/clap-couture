@@ -5,7 +5,7 @@ use core::iter;
 use std::{
     ffi::{OsStr, OsString},
     io,
-    process::{Child, Command},
+    process::{Child, Command, ExitStatus},
 };
 
 use super::signal::{ForwardedTermination, IgnoredSignals, Signal};
@@ -42,7 +42,7 @@ pub(crate) trait CommandExt {
         expect(dead_code, reason = "the editor spawns and waits apart")
     )]
     fn status_interactive(&mut self) -> io::Result<Exit> {
-        self.spawn_interactive()?.wait()
+        self.spawn_interactive()?.wait().exit
     }
 }
 
@@ -79,39 +79,54 @@ impl CommandExt for Command {
         let mut forwarded = ForwardedTermination::new();
         let child = self.spawn()?;
         forwarded.forward_to(child.id());
-        Ok(InteractiveChild { _forwarded: forwarded, _ignored: ignored, child: Some(child) })
+        Ok(InteractiveChild { _ignored: ignored, child: Some(child), forwarded })
     }
+}
+
+/// How an [`InteractiveChild`] ended.
+pub(crate) struct Waited {
+    pub(crate) exit: io::Result<Exit>,
+    /// `SIGTERM` came while it ran, and is this process's to die of.
+    pub(crate) terminated: bool,
 }
 
 /// A child started by [`CommandExt::spawn_interactive`]. Dropping it waits for the child.
 #[must_use = "dropping it waits for the child to exit"]
 pub(crate) struct InteractiveChild {
     /// Held until the child exits.
-    _forwarded: ForwardedTermination,
-    /// Held until the child exits.
     _ignored: IgnoredSignals,
     child: Option<Child>,
+    /// Held until the child exits.
+    forwarded: ForwardedTermination,
 }
 
 impl InteractiveChild {
+    /// Reap the child once it exits, no longer passing `SIGTERM` on to it by then.
+    fn reap(&mut self) -> Option<io::Result<ExitStatus>> {
+        let mut child = self.child.take()?;
+        self.forwarded.wait_for_exit(child.id());
+        Some(child.wait())
+    }
+
     /// Wait for the child to exit.
-    pub(crate) fn wait(mut self) -> io::Result<Exit> {
-        let Some(mut child) = self.child.take() else { return Ok(Exit::Failed) };
-        let status = child.wait()?;
-        Ok(if status.success() {
-            Exit::Success
-        } else {
-            Signal::killed(status).map_or(Exit::Failed, Exit::Killed)
-        })
+    pub(crate) fn wait(mut self) -> Waited {
+        let exit = self.reap().map_or(Ok(Exit::Failed), |status| {
+            status.map(|status| {
+                if status.success() {
+                    Exit::Success
+                } else {
+                    Signal::killed(status).map_or(Exit::Failed, Exit::Killed)
+                }
+            })
+        });
+        Waited { exit, terminated: self.forwarded.release() }
     }
 }
 
 impl Drop for InteractiveChild {
     fn drop(&mut self) {
-        if let Some(mut child) = self.child.take() {
-            // Nothing is left to report a failed wait to.
-            drop(child.wait());
-        }
+        // Nothing is left to report a failed wait to.
+        drop(self.reap());
     }
 }
 

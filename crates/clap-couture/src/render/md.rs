@@ -42,8 +42,6 @@ struct LineWriter<'out, 'src, W> {
     break_pending: bool,
     /// Whether text is a code block's.
     code_block: bool,
-    /// Each open emphasis's closing delimiter when it's written as is, `None` when it styles.
-    delimiters: Vec<Option<&'src str>>,
     /// Each open link's or image's destination, `None` when its text already shows it.
     destinations: Vec<Option<CowStr<'src>>>,
     emphasis: usize,
@@ -60,8 +58,14 @@ where
 {
     fn close(&mut self, tag: TagEnd) -> fmt::Result {
         match tag {
-            TagEnd::Emphasis => self.close_emphasis(|line| &mut line.emphasis),
-            TagEnd::Strong => self.close_emphasis(|line| &mut line.strong),
+            TagEnd::Emphasis => {
+                self.emphasis = self.emphasis.saturating_sub(1);
+                Ok(())
+            }
+            TagEnd::Strong => {
+                self.strong = self.strong.saturating_sub(1);
+                Ok(())
+            }
             TagEnd::Link | TagEnd::Image => {
                 let destination = self.destinations.pop().flatten();
                 destination.map_or(Ok(()), |url| self.write_lines(&format!(" ({url})"), None))
@@ -93,22 +97,10 @@ where
         }
     }
 
-    /// Closes the innermost emphasis, whose depth counter `depth` picks.
-    fn close_emphasis(&mut self, depth: fn(&mut Self) -> &mut usize) -> fmt::Result {
-        if let Some(closing) = self.delimiters.pop().flatten() {
-            self.write_lines(closing, None)
-        } else {
-            let depth = depth(self);
-            *depth = depth.saturating_sub(1);
-            Ok(())
-        }
-    }
-
     const fn new(out: &'out mut W, source: &'src str, literal: &Style) -> Self {
         Self {
             break_pending: false,
             code_block: false,
-            delimiters: Vec::new(),
             destinations: Vec::new(),
             emphasis: 0,
             literal: *literal,
@@ -121,8 +113,14 @@ where
 
     fn open(&mut self, tag: Tag<'src>, span: Range<usize>) -> fmt::Result {
         match tag {
-            Tag::Emphasis => self.open_emphasis(span, 1),
-            Tag::Strong => self.open_emphasis(span, 2),
+            Tag::Emphasis => {
+                self.emphasis = self.emphasis.saturating_add(1);
+                Ok(())
+            }
+            Tag::Strong => {
+                self.strong = self.strong.saturating_add(1);
+                Ok(())
+            }
             Tag::Link { link_type, dest_url, title: _, id: _ } => {
                 let shown = matches!(link_type, LinkType::Autolink | LinkType::Email);
                 self.destinations.push((!shown && !dest_url.is_empty()).then_some(dest_url));
@@ -163,25 +161,6 @@ where
                 Ok(())
             }
             Tag::Strikethrough | Tag::Superscript | Tag::Subscript => Ok(()),
-        }
-    }
-
-    /// Opens an emphasis whose delimiters are `width` long; inside a word (`2*3*4`) its
-    /// delimiters are text, not markup.
-    fn open_emphasis(&mut self, span: Range<usize>, width: usize) -> fmt::Result {
-        let before = self.source.get(..span.start).and_then(|text| text.chars().next_back());
-        let after = self.source.get(span.end..).and_then(|text| text.chars().next());
-        let in_word = [before, after].into_iter().flatten().any(char::is_alphanumeric);
-        let opening = self.source.get(span.start..span.start.saturating_add(width));
-        let closing = self.source.get(span.end.saturating_sub(width)..span.end);
-        if let (true, Some(opening), Some(closing)) = (in_word, opening, closing) {
-            self.delimiters.push(Some(closing));
-            self.write_lines(opening, None)
-        } else {
-            self.delimiters.push(None);
-            let depth = if width == 1 { &mut self.emphasis } else { &mut self.strong };
-            *depth = depth.saturating_add(1);
-            Ok(())
         }
     }
 
@@ -270,8 +249,6 @@ mod tests {
     #[case::placeholder("Delete <id> from the store", "Delete <id> from the store")]
     #[case::closing_tag("Wrap it in </id>", "Wrap it in </id>")]
     #[case::html_block("<div>\nraw\n</div>", "<div> raw </div>")]
-    #[case::intraword_asterisks("Multiply 2*3*4", "Multiply 2*3*4")]
-    #[case::intraword_double_asterisks("Raise 2**8**", "Raise 2**8**")]
     #[case::paragraphs("First para.\n\nSecond para.", "First para. Second para.")]
     #[case::soft_break("One\ntwo", "One two")]
     #[case::hard_break("One  \ntwo", "One two")]
@@ -298,6 +275,8 @@ mod tests {
     #[case::emphasis("*it*", "\u{1b}[3mit\u{1b}[0m")]
     #[case::emphasis_between_words("a *b* c", "a \u{1b}[3mb\u{1b}[0m c")]
     #[case::emphasis_in_parentheses("(*b*)", "(\u{1b}[3mb\u{1b}[0m)")]
+    #[case::emphasis_inside_a_word("2*3*4", "2\u{1b}[3m3\u{1b}[0m4")]
+    #[case::strong_before_a_word("**bold**text", "\u{1b}[1mbold\u{1b}[0mtext")]
     fn styles_emphasis(#[case] text: &str, #[case] expected: &str) {
         assert_eq!(rendered(text), expected);
     }

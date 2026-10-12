@@ -1,4 +1,4 @@
-use core::fmt::{self, Display};
+use core::fmt;
 
 use clap::builder::{StyledStr, Styles};
 
@@ -13,14 +13,6 @@ impl PlainTextRenderer {
 }
 
 impl TextRenderer for PlainTextRenderer {
-    fn render_display<W, D>(&self, out: &mut W, text: D) -> fmt::Result
-    where
-        W: fmt::Write,
-        D: Display,
-    {
-        write!(out, "{text}")
-    }
-
     fn render_str<W>(&self, out: &mut W, text: &str) -> fmt::Result
     where
         W: fmt::Write,
@@ -30,5 +22,13 @@ impl TextRenderer for PlainTextRenderer {
 
     fn restyle(&self, text: &StyledStr) -> StyledStr {
         text.clone()
+    }
+
+    fn restyle_line(&self, text: &StyledStr) -> StyledStr {
+        text.clone()
+    }
+
+    fn restyle_wrapped(&self, wrapped: &str) -> String {
+        wrapped.to_owned()
     }
 }

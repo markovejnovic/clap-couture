@@ -12,13 +12,13 @@ mod stdin;
 use core::fmt;
 use std::ffi::OsString;
 
-use clap::{Command, FromArgMatches, Parser};
+use clap::{Command, CommandFactory, FromArgMatches, Parser};
 
 #[cfg(feature = "interactive")]
 use crate::interactive::{Backend, DefaultBackend, Prompter};
 #[cfg(feature = "interactive")]
 use crate::os::signal::Signal;
-use crate::{CommandExt as _, Couture};
+use crate::{CommandExt as _, Couture, help_tree::DeferredHelp};
 
 /// clap's [`Parser`] entry points, with couture's help installed.
 ///
@@ -29,11 +29,7 @@ pub trait CoutureParser: Parser + Couture {
     /// The clap [`Command`] with couture's help installed, and its secret args guarded.
     #[must_use]
     fn couture_command() -> Command {
-        let cmd = Self::command();
-        // Guarded first, so the help couture renders hides the refused secrets.
-        #[cfg(feature = "interactive")]
-        let cmd = guard_secrets::<Self>(cmd);
-        cmd.with_couture::<Self>()
+        guarded_command::<Self>().with_couture::<Self>()
     }
 
     /// Equivalent to [`Parser::parse`], with couture's help.
@@ -102,7 +98,11 @@ pub trait CoutureParser: Parser + Couture {
         }
         #[cfg(not(feature = "interactive"))]
         {
-            parse(Self::couture_command(), &itr.into_iter().map(Into::into).collect::<Vec<_>>())
+            parse(
+                guarded_command::<Self>(),
+                &itr.into_iter().map(Into::into).collect::<Vec<_>>(),
+                &DeferredHelp::of::<Self>(guarded_command::<Self>),
+            )
         }
     }
 
@@ -119,12 +119,13 @@ pub trait CoutureParser: Parser + Couture {
         T: Into<OsString> + Clone,
     {
         prompting::parse(
-            Self::couture_command(),
+            guarded_command::<Self>(),
             &Self::PROMPTED_ARGS,
             &Self::MESSAGES,
             &itr.into_iter().map(Into::into).collect::<Vec<OsString>>(),
             &backend,
             &crate::os::stdin::ProcessStdin,
+            &DeferredHelp::of::<Self>(guarded_command::<Self>),
         )
     }
 
@@ -168,7 +169,7 @@ pub trait CoutureParser: Parser + Couture {
     where
         B: Backend,
     {
-        Prompter::new(backend, Self::MESSAGES, &Self::couture_command())
+        Prompter::new(backend, Self::MESSAGES, &Self::command())
     }
 }
 
@@ -276,12 +277,25 @@ where
     )
 }
 
-/// Parse `argv` against `cmd` as clap would, then build `T`. The prompting parse ends here too.
-fn parse<T>(mut cmd: Command, argv: &[OsString]) -> Result<T, ParseError>
+/// `T`'s command, its secret args guarded, without couture's help.
+fn guarded_command<T>() -> Command
+where
+    T: CommandFactory + Couture,
+{
+    let cmd = T::command();
+    // Guarded first, so the help couture renders hides the refused secrets.
+    #[cfg(feature = "interactive")]
+    let cmd = guard_secrets::<T>(cmd);
+    cmd
+}
+
+/// Parse `argv` against `cmd` as clap would, printing `help`, then build `T`. The prompting parse
+/// ends here too.
+fn parse<T>(mut cmd: Command, argv: &[OsString], help: &DeferredHelp) -> Result<T, ParseError>
 where
     T: FromArgMatches,
 {
-    let mut matches = cmd.try_get_matches_from_mut(argv)?;
+    let mut matches = help.matches(&mut cmd, argv)?;
     T::from_arg_matches_mut(&mut matches).map_err(|err| ParseError::Clap(err.format(&mut cmd)))
 }
 

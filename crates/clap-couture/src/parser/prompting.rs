@@ -38,6 +38,7 @@ use super::{
 };
 use crate::{
     Messages,
+    help_tree::DeferredHelp,
     interactive::{
         Backend, CommandStyles, ConfirmPrompt, MultiSelectPrompt, PromptError, PromptPurpose,
         PromptedArg, PromptedArgTree, SecretPrompt, SelectPrompt, TextPrompt,
@@ -527,7 +528,7 @@ impl<'arg> ValueCount<'arg> {
 
 /// Parse `argv` against `cmd`, filling its stdin arg from `stdin`, asking `backend` for the
 /// prompted args that got no value, and standing in for each `-` a dash arg got what was asked or
-/// read for it.
+/// read for it. The help clap prints is `help`.
 pub(super) fn parse<T>(
     cmd: Command,
     prompted_arg_tree: &'static PromptedArgTree,
@@ -535,6 +536,7 @@ pub(super) fn parse<T>(
     argv: &[OsString],
     backend: &dyn Backend,
     stdin: &impl Stdin,
+    help: &DeferredHelp,
 ) -> Result<T, ParseError>
 where
     T: FromArgMatches,
@@ -545,7 +547,7 @@ where
     let dash_args = DashArgs::of(&prompted_args, &stdin_args);
     let nothing_to_ask = prompted_args.is_empty() || !backend.is_available();
     if nothing_to_ask && stdin_args.is_empty() && dash_args.is_empty() {
-        return parse_unprompted(cmd, &prompted_args, argv);
+        return parse_unprompted(cmd, &prompted_args, argv, help);
     }
     // Re-guarded with the vault this parse's answers go into; trial and final parses share it.
     let vault = Vault::default();
@@ -556,7 +558,7 @@ where
     let can_ask = stdin.is_terminal() && backend.is_available();
     // Help, usage and errors come from clap, with `-` let through.
     let Ok(matches) = relaxed.try_get_matches_from(argv) else {
-        return super::parse(dash_args.checking(cmd), argv);
+        return super::parse(dash_args.checking(cmd), argv, help);
     };
     let dashed = dash_args.passed(&matches, can_ask);
     // `-` is the only way to ask a `prompt(dash)` arg.
@@ -572,7 +574,7 @@ where
         cmd = stdin_value.fill(cmd, &mut prompted_args, &dashed, &vault);
     }
     if prompted_args.is_empty() || !backend.is_available() {
-        return parse_unprompted(dash_args.typed(cmd), &prompted_args, argv);
+        return parse_unprompted(dash_args.typed(cmd), &prompted_args, argv, help);
     }
     let checking = dash_args.checking(cmd.clone());
     // Taken before any were dropped from `prompted_args`: a secret read from stdin is masked too.
@@ -584,7 +586,7 @@ where
     // Help, usage and errors come from the command the user sees, not the relaxed one.
     let Ok(matches) = relax(checking.clone(), prompted_args.iter()).try_get_matches_from(argv)
     else {
-        return super::parse(checking, argv);
+        return super::parse(checking, argv, help);
     };
 
     let session = Session {
@@ -628,7 +630,7 @@ where
                 if let Some(asked) = dashed.first_asked() {
                     return Err(asked.unaskable(&cmd));
                 }
-                return parse_unprompted(dash_args.typed(cmd), &prompted_args, argv);
+                return parse_unprompted(dash_args.typed(cmd), &prompted_args, argv, help);
             }
         }
     }
@@ -636,15 +638,17 @@ where
         cmd,
         answers.iter().map(|answer| (answer.prompted_arg, answer.injected_values.as_slice())),
     );
-    super::parse(dash_args.typed(cmd_with_answers), argv)
+    super::parse(dash_args.typed(cmd_with_answers), argv, help)
 }
 
 /// Parse as clap would, without asking. A confirmation left unanswered fails the parse with
-/// clap's error for a missing required arg, so only passing its flag gets past it.
+/// clap's error for a missing required arg, so only passing its flag gets past it. The help clap
+/// prints is `help`.
 fn parse_unprompted<T>(
     mut cmd: Command,
     prompted_args: &[PromptedArg],
     argv: &[OsString],
+    help: &DeferredHelp,
 ) -> Result<T, ParseError>
 where
     T: FromArgMatches,
@@ -654,11 +658,11 @@ where
         .filter(|prompted_arg| prompted_arg.attr.purpose == PromptPurpose::Confirmation)
         .collect();
     if confirmations.is_empty() {
-        return super::parse(cmd, argv);
+        return super::parse(cmd, argv, help);
     }
     // Kept unbuilt: requiring an arg on the built command makes clap show help instead.
     let declared = cmd.clone();
-    let mut matches = cmd.try_get_matches_from_mut(argv).map_err(ParseError::Clap)?;
+    let mut matches = help.matches(&mut cmd, argv).map_err(ParseError::Clap)?;
     let unconfirmed = confirmations.iter().any(|confirmation| {
         let id = confirmation.attr.arg_id;
         let passed = matches_at(&matches, &confirmation.subcommand_path)
@@ -672,7 +676,7 @@ where
                 arg.required(true)
             })
         });
-        return super::parse(required, argv);
+        return super::parse(required, argv, help);
     }
     T::from_arg_matches_mut(&mut matches).map_err(|err| ParseError::Clap(err.format(&mut cmd)))
 }
@@ -977,7 +981,8 @@ mod tests {
     use super::parse;
     use crate::{
         __private::{DashAttr, PromptAttr, PromptPurpose, PromptedArgTree, StdinAttr},
-        Messages,
+        Couture, Messages,
+        help_tree::DeferredHelp,
         interactive::{
             Backend, ConfirmPrompt, MultiSelectPrompt, PromptError, SecretPrompt, SelectPrompt,
             TextPrompt,
@@ -1013,6 +1018,8 @@ mod tests {
         #[arg(long)]
         message: Option<String>,
     }
+
+    impl Couture for Draft {}
 
     /// Stdin holding `"read"`, a terminal or not.
     struct FakeStdin {
@@ -1075,6 +1082,7 @@ mod tests {
             &argv,
             &Answering { available },
             &FakeStdin { terminal },
+            &DeferredHelp::of::<Draft>(Draft::command),
         );
         assert_eq!(draft.ok().and_then(|draft| draft.message).as_deref(), Some(message));
     }

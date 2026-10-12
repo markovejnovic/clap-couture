@@ -85,7 +85,11 @@ Deploy:     Ship code to
             back
   deploy  Ship the current
           project to every
-          region at once";
+          region at once
+
+  help    Print this message
+          or the help of the
+          given subcommand(s)";
     assert_eq!(menu(&help), expected, "{help}");
 }
 
@@ -93,7 +97,7 @@ Deploy:     Ship code to
 fn the_menu_fits_the_width(#[values(24, 27, 30, 33, 36, 40, 44, 45, 50, 60)] width: usize) {
     let help = help(Orbit::command().term_width(width));
     assert!(help.lines().all(|line| line.chars().count() <= width), "{help}");
-    assert_eq!(menu(&help).matches("\n\n").count(), 1, "{help}");
+    assert_eq!(menu(&help).matches("\n\n").count(), 2, "{help}");
 }
 
 #[rstest]

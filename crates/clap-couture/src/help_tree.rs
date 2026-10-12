@@ -104,6 +104,10 @@ impl HelpTree {
                 .unwrap_or((&Self::EMPTY, *messages));
             tree.install(subcommand, built_subcommand, tree.categories, &messages, width)
         });
+        // A flattened help lists the subcommands among the args, so there is no menu to file.
+        if built.is_flatten_help_set() {
+            return cmd;
+        }
         HelpBody::new(built, categories, messages, width).install(cmd)
     }
 

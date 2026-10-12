@@ -182,6 +182,30 @@ fn with_only_hidden_subcommands_the_help_is_clap_s() {
 }
 
 #[derive(Parser, Couture)]
+#[command(name = "copy", flatten_help = true)]
+struct Flattened {
+    #[command(subcommand)]
+    cmd: Cmd,
+
+    /// Overwrite what is there.
+    #[arg(long)]
+    force: bool,
+}
+
+#[rstest]
+#[case::short("-h")]
+#[case::long("--help")]
+fn a_flattened_help_is_clap_s(#[case] flag: &str) {
+    let help = |cmd: clap::Command| {
+        let err = cmd.try_get_matches_from(["copy", flag]).err();
+        err.map(|err| err.render().ansi().to_string())
+    };
+    let clap = help(Flattened::command());
+    assert!(clap.as_deref().is_some_and(|clap| clap.contains("copy plan")), "{clap:?}");
+    assert_eq!(help(Flattened::couture_command()), clap);
+}
+
+#[derive(Parser, Couture)]
 struct Store {
     #[command(subcommand)]
     cmd: StoreCmd,

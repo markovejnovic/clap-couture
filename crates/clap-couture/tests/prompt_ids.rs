@@ -7,12 +7,23 @@ use clap_couture::Couture;
 use rstest::rstest;
 
 #[derive(Parser, Couture)]
+#[command(rename_all = "SCREAMING_SNAKE_CASE")]
 struct Cli {
     #[command(subcommand)]
     cmd: Cmd,
 
     #[command(flatten)]
     common: Common,
+
+    // clap still ids an arg by the `name` that `id` replaced.
+    #[arg(long, name = "legacy")]
+    #[couture(prompt)]
+    old: String,
+
+    // clap ids an arg by its field, whatever its long and value names.
+    #[arg(long = "out-dir", value_name = "DIR")]
+    #[couture(prompt)]
+    output: String,
 
     #[arg(long, id = "zone")]
     #[couture(prompt)]
@@ -24,6 +35,7 @@ struct Cli {
 }
 
 #[derive(Args, Couture)]
+#[command(rename_all = "UPPER")]
 struct Common {
     #[arg(long)]
     #[couture(prompt)]
@@ -40,8 +52,20 @@ enum Cmd {
         #[couture(prompt)]
         plan: String,
     },
+    #[command(flatten)]
+    Extra(Extra),
     #[command(subcommand)]
     Remote(Remote),
+}
+
+#[derive(Subcommand, Couture)]
+enum Extra {
+    #[command(name = "first", name = "gc")]
+    Collect {
+        #[arg(long)]
+        #[couture(prompt)]
+        depth: String,
+    },
 }
 
 #[derive(Args, Couture)]
@@ -52,7 +76,14 @@ struct DeployArgs {
 }
 
 #[derive(Subcommand, Couture)]
+#[command(rename_all = "lower")]
 enum Remote {
+    #[command(rename_all = "camelCase")]
+    PullAll {
+        #[arg(long)]
+        #[couture(prompt)]
+        branch: String,
+    },
     Push {
         #[arg(long)]
         #[couture(prompt)]
@@ -73,10 +104,14 @@ fn prompted_args_follow_the_command_tree() {
         .map(|prompted_arg| (prompted_arg.subcommand_path.join(" "), prompted_arg.attr.arg_id))
         .collect();
     let expected = [
+        (String::new(), "legacy"),
+        (String::new(), "output"),
         (String::new(), "zone"),
         (String::new(), "type"),
         ("up".to_owned(), "tag"),
         ("dry_run".to_owned(), "plan"),
+        ("gc".to_owned(), "depth"),
+        ("remote pullAll".to_owned(), "branch"),
         ("remote push".to_owned(), "force_name"),
         (String::new(), "team_name"),
     ];

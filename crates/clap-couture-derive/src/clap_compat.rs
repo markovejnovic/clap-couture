@@ -224,7 +224,7 @@ pub(crate) trait ClapAttrs {
     /// The `zone` in `#[arg(id = "zone")]`, or in the deprecated `#[arg(name = "zone")]`, if any.
     fn clap_id(&self) -> Option<ClapName>;
 
-    /// The `ls` in `#[command(name = "ls")]`, if any.
+    /// The `ls` in `#[command(name = "ls")]`, if any: the last one, as clap keeps.
     fn clap_name(&self) -> Option<ClapName>;
 
     /// Walk the keys of every `#[command(...)]` / `#[arg(...)]` / `#[clap(...)]` attribute,
@@ -281,7 +281,7 @@ impl ClapAttrs for [Attribute] {
         let mut found = None;
         self.for_each_clap_key(|meta| {
             if meta.path.is_ident("name") {
-                found.get_or_insert(meta.value()?.parse::<Expr>()?.into());
+                found = Some(meta.value()?.parse::<Expr>()?.into());
             }
             Ok(())
         });

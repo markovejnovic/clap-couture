@@ -8,7 +8,7 @@ use std::{
     process::{Child, Command},
 };
 
-use super::signal::{IgnoredSignals, Signal};
+use super::signal::{ForwardedTermination, IgnoredSignals, Signal};
 
 /// The signals a terminal sends every process in its foreground: Ctrl-C, Ctrl-\\, and the
 /// terminal closing.
@@ -32,7 +32,7 @@ pub(crate) trait CommandExt {
     /// dies of it.
     ///
     /// Until the child exits, the parent process ignores the signals, so that they can't kill it
-    /// and orphan the child.
+    /// and orphan the child. It passes `SIGTERM` on to the child; see [`ForwardedTermination`].
     fn spawn_interactive(&mut self) -> io::Result<InteractiveChild>;
 
     /// Spawn the command and wait for it to exit, as [`Command::status`] does, leaving the
@@ -76,14 +76,18 @@ impl CommandExt for Command {
         }
 
         let ignored = IgnoredSignals::new(&TERMINAL_SIGNALS);
+        let mut forwarded = ForwardedTermination::new();
         let child = self.spawn()?;
-        Ok(InteractiveChild { _ignored: ignored, child: Some(child) })
+        forwarded.forward_to(child.id());
+        Ok(InteractiveChild { _forwarded: forwarded, _ignored: ignored, child: Some(child) })
     }
 }
 
 /// A child started by [`CommandExt::spawn_interactive`]. Dropping it waits for the child.
 #[must_use = "dropping it waits for the child to exit"]
 pub(crate) struct InteractiveChild {
+    /// Held until the child exits.
+    _forwarded: ForwardedTermination,
     /// Held until the child exits.
     _ignored: IgnoredSignals,
     child: Option<Child>,

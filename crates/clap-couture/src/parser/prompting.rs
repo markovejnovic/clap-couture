@@ -80,7 +80,7 @@ struct Rejected {
 }
 
 /// [`Command`], named after the binary that runs it.
-trait BinNamed {
+pub(super) trait BinNamed {
     /// `self` with the bin name clap takes from `argv[0]`, so couture's own errors show it too.
     fn bin_named(self, argv: &[OsString]) -> Self;
 }
@@ -167,7 +167,7 @@ struct Session<'run> {
 
 /// How many values one answer to an arg may hold: its `num_args`, as for one time it is passed.
 #[derive(Clone, Copy)]
-struct ValueCount<'arg> {
+pub(super) struct ValueCount<'arg> {
     arg: &'arg Arg,
     range: ValueRange,
 }
@@ -541,7 +541,7 @@ impl Session<'_> {
 
 impl<'arg> ValueCount<'arg> {
     /// Check `values` as clap checks them typed after the arg once; no values leave it unset.
-    fn check(self, values: &[String]) -> Result<(), clap::Error> {
+    pub(super) fn check(self, values: &[String]) -> Result<(), clap::Error> {
         let (min, max) = (self.range.min_values(), self.range.max_values());
         if let Some(surplus) = values.get(max) {
             return Err(self.error(ErrorKind::TooManyValues, [(
@@ -587,7 +587,7 @@ impl<'arg> ValueCount<'arg> {
 
     /// `arg`'s `num_args`; `None` when it takes one value each time and may be passed again, as a
     /// plain `Vec` does, so any number of values is one it could be typed with.
-    fn of(arg: &'arg Arg) -> Option<Self> {
+    pub(super) fn of(arg: &'arg Arg) -> Option<Self> {
         let range = arg.get_num_args()?;
         let repeats_single_values =
             matches!(arg.get_action(), ArgAction::Append) && range.max_values() <= 1;
@@ -806,7 +806,7 @@ pub(super) fn blocked(
 /// `arg`'s declared default values, split at its value delimiter.
 /// Without a delimiter, each default is one value. Defaults are set from strings, so any that
 /// is not UTF-8 is skipped.
-fn default_values(arg: &Arg) -> impl Iterator<Item = &str> {
+pub(super) fn default_values(arg: &Arg) -> impl Iterator<Item = &str> {
     let delimiter = arg.get_value_delimiter();
     arg.get_default_values()
         .iter()
@@ -1036,7 +1036,7 @@ fn parse_relaxed(
 
 /// The first line of clap's message, without its `error: ` prefix. clap quotes the rejected
 /// `values`, so a multi-line one is shortened to its first line first, keeping the reason after it.
-fn summary(err: &clap::Error, values: &[String]) -> String {
+pub(super) fn summary(err: &clap::Error, values: &[String]) -> String {
     let mut rendered = err.render().to_string();
     for value in values {
         if let Some((first_line, _)) = value.split_once('\n') {

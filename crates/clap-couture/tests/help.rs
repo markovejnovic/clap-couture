@@ -182,6 +182,17 @@ fn an_uncategorized_menu_lists_what_clap_does() {
 }
 
 #[rstest]
+#[case::as_listed(listed_with_extras())]
+#[case::on_the_next_line(listed_with_extras().next_line_help(true))]
+#[case::narrow(listed_with_extras().term_width(30))]
+fn an_uncategorized_menu_holds_clap_s_rows(#[case] cmd: clap::Command) {
+    let (mut clap, mut couture) = (cmd.clone(), cmd.with_couture::<Uncategorized>());
+    let clap = clap.render_help().ansi().to_string().replacen("\n\nCommands:\n", "\n\n", 1);
+    let clap = clap.replacen("\n\n\u{1b}[1m\u{1b}[4mCommands:\u{1b}[0m\n", "\n\n", 1);
+    assert_eq!(couture.render_help().ansi().to_string(), clap);
+}
+
+#[rstest]
 #[case::disabled(WithoutHelpSubcommand::couture_command().render_help().to_string())]
 #[case::without_subcommands(German::couture_command().render_help().to_string())]
 #[case::only_hidden_subcommands(OnlyHiddenSubcommands::couture_command().render_help().to_string())]
@@ -343,4 +354,14 @@ fn markdown_is_styled_on_a_terminal() {
 fn an_angle_bracketed_placeholder_is_kept() {
     let help = Described::couture_command().render_help().to_string();
     assert!(help.contains("Copy into <DEST>\n"), "{help}");
+}
+
+/// A command whose subcommands clap lists with more than their name and about.
+fn listed_with_extras() -> clap::Command {
+    clap::Command::new("copy")
+        .subcommand(clap::Command::new("x").about("Short name"))
+        .subcommand(clap::Command::new("plan").about("Plan it").visible_alias("p"))
+        .subcommand(clap::Command::new("run").short_flag('R').long_flag("run").about("Run it"))
+        .subcommand(clap::Command::new("check").long_about("Only a long about"))
+        .subcommand(clap::Command::new("first").about("Listed first").display_order(0))
 }

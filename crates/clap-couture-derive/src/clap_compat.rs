@@ -120,7 +120,7 @@ impl SubcommandNaming {
     /// variant's or the enum's casing applied to the ident with any `r#` stripped (`r#Type` is
     /// `type`).
     pub(crate) fn name_of(&self, variant: &VariantInput) -> ClapName {
-        variant.attrs.clap_name().unwrap_or_else(|| {
+        variant.attrs.clap_assigned_name().unwrap_or_else(|| {
             let casing = CasingStyle::from_attrs(&variant.attrs).unwrap_or(self.casing);
             ClapName::Literal(casing.apply(&variant.ident.unraw().to_string()))
         })
@@ -214,18 +214,16 @@ impl FlagAction {
 /// A container's, variant's or field's `#[command(...)]` / `#[arg(...)]` / `#[clap(...)]`
 /// attributes, read the way clap reads them.
 pub(crate) trait ClapAttrs {
+    /// The `ls` in `#[arg(id = "ls")]` or `#[command(name = "ls")]`, or in the deprecated
+    /// `#[arg(name = "ls")]` or `#[command(id = "ls")]`, if any: the last one, as clap keeps.
+    fn clap_assigned_name(&self) -> Option<ClapName>;
+
     /// Where the first key that gives the arg a default is, if any: any key starting with
     /// `default_value` or `default_missing_value`, so the conditional `default_value_if(s)` too.
     fn clap_default_span(&self) -> Option<Span>;
 
     /// The `Count` in `#[arg(action = ArgAction::Count)]`, if the arg's action takes no value.
     fn clap_flag_action(&self) -> Option<FlagAction>;
-
-    /// The `zone` in `#[arg(id = "zone")]`, or in the deprecated `#[arg(name = "zone")]`, if any.
-    fn clap_id(&self) -> Option<ClapName>;
-
-    /// The `ls` in `#[command(name = "ls")]`, if any: the last one, as clap keeps.
-    fn clap_name(&self) -> Option<ClapName>;
 
     /// Walk the keys of every `#[command(...)]` / `#[arg(...)]` / `#[clap(...)]` attribute,
     /// calling `on_key` on each: `name` then `about` for `#[command(name = "ls", about)]`. Any
@@ -240,6 +238,17 @@ pub(crate) trait ClapAttrs {
 }
 
 impl ClapAttrs for [Attribute] {
+    fn clap_assigned_name(&self) -> Option<ClapName> {
+        let mut found = None;
+        self.for_each_clap_key(|meta| {
+            if meta.path.is_ident("id") || meta.path.is_ident("name") {
+                found = Some(meta.value()?.parse::<Expr>()?.into());
+            }
+            Ok(())
+        });
+        found
+    }
+
     fn clap_default_span(&self) -> Option<Span> {
         let mut found = None;
         self.for_each_clap_key(|meta| {
@@ -260,28 +269,6 @@ impl ClapAttrs for [Attribute] {
         self.for_each_clap_key(|meta| {
             if meta.path.is_ident("action") && meta.input.peek(Token![=]) {
                 found = FlagAction::from_expr(&meta.value()?.parse::<Expr>()?);
-            }
-            Ok(())
-        });
-        found
-    }
-
-    fn clap_id(&self) -> Option<ClapName> {
-        let mut found = None;
-        self.for_each_clap_key(|meta| {
-            if meta.path.is_ident("id") || meta.path.is_ident("name") {
-                found = Some(meta.value()?.parse::<Expr>()?.into());
-            }
-            Ok(())
-        });
-        found
-    }
-
-    fn clap_name(&self) -> Option<ClapName> {
-        let mut found = None;
-        self.for_each_clap_key(|meta| {
-            if meta.path.is_ident("name") {
-                found = Some(meta.value()?.parse::<Expr>()?.into());
             }
             Ok(())
         });

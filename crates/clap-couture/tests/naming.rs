@@ -80,6 +80,18 @@ enum RenamedTwice {
     List,
 }
 
+/// clap reads the deprecated `id` of a command as its name.
+#[derive(Subcommand, Couture)]
+#[couture(categories = { "all" = {} })]
+enum RenamedById {
+    #[command(id = "via-id")]
+    #[couture(category = "all")]
+    List,
+    #[command(name = "first", id = "id-last")]
+    #[couture(category = "all")]
+    Show,
+}
+
 #[derive(Subcommand, Couture)]
 #[couture(categories = { "all" = {} })]
 enum NamedByConst {
@@ -118,6 +130,7 @@ where
 #[case::variant_rename_all(clap_and_couture_names::<VariantCasing>())]
 #[case::every_casing(clap_and_couture_names::<EveryCasing>())]
 #[case::renamed_twice(clap_and_couture_names::<RenamedTwice>())]
+#[case::renamed_by_id(clap_and_couture_names::<RenamedById>())]
 #[case::flatten(clap_and_couture_names::<Flattening>())]
 #[case::name_from_a_const(clap_and_couture_names::<NamedByConst>())]
 fn categories_name_variants_the_way_clap_does(#[case] names: (Vec<String>, Vec<String>)) {

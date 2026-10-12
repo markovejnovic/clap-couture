@@ -6,7 +6,8 @@
 //!
 //! # Example Output
 //!
-//! `cargo run -p clap-couture --example 09-interactive-custom-backend -- --help` outputs:
+//! `cargo run -p clap-couture --features markdown --example 09-interactive-custom-backend --
+//! --help` outputs:
 //!
 //! ```terminal
 //! Deploy and manage your apps from the terminal

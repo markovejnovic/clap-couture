@@ -211,8 +211,10 @@ password: SecretString,
 
 ## Markdown
 
-With the `markdown` feature, doc comments and category descriptions render in
-the terminal:
+Markdown is opt-in: with the `markdown` feature (or `full`), doc comments and
+category descriptions are CommonMark, rendered in the terminal. That gives `*`,
+`_` and `<...>` their markdown meaning, so plain help text keeps them only
+without it:
 
 ```rust
 enum Cmd {

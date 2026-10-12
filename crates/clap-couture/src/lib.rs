@@ -116,7 +116,8 @@
 //!
 //! ## Markdown Support
 //!
-//! [`clap_couture`](self) also has support for markdown with the `markdown` feature flag.
+//! [`clap_couture`](self) also has support for markdown with the `markdown` feature flag, which is
+//! off by default. Help text is then CommonMark, so `*`, `_` and `<...>` mean what they do there.
 //!
 //! ```
 //! use clap::{Parser, Subcommand};
@@ -137,8 +138,10 @@
 //!     Login,
 //! }
 //! # let help = Cli::couture_command().render_help().to_string();
-//! # assert!(help.contains("Ship the current project"));
-//! # assert!(help.contains("Sign in to your account"));
+//! # if cfg!(feature = "markdown") {
+//! #     assert!(help.contains("Ship the current project"));
+//! #     assert!(help.contains("Sign in to your account"));
+//! # }
 //! ```
 //!
 //! This results in:

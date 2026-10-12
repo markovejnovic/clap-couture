@@ -7,7 +7,7 @@ Deploy and manage your apps from the terminal
   [1msearch[0m    Search your deployment history
   [1mstatus[0m    Show recent activity
 
-[1m[4mdeploy:[0m
+[1m[4mDeploy:[0m
   [1mdeploy[0m    Ship the current project
   [1mrollback[0m  Roll back to a previous release
   [1msecrets[0m   Manage environment secrets

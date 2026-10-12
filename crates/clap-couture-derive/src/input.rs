@@ -123,7 +123,7 @@ impl FieldInput {
     /// The id clap gives this field's arg: `#[arg(id = "...")]`, else the ident with any `r#`
     /// stripped (`r#type` is `type`). `None` for a tuple field.
     pub(crate) fn clap_arg_id(&self) -> Option<ClapName> {
-        self.attrs.clap_id().or_else(|| {
+        self.attrs.clap_assigned_name().or_else(|| {
             self.ident.as_ref().map(|ident| ClapName::Literal(ident.unraw().to_string()))
         })
     }

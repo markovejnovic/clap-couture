@@ -40,6 +40,58 @@ enum VariantCasing {
     List,
 }
 
+/// Every casing clap accepts, each spelled the ways clap parses it.
+#[derive(Subcommand, Couture)]
+#[couture(categories = { "all" = {} })]
+enum EveryCasing {
+    #[command(rename_all = "camelCase")]
+    #[couture(category = "all")]
+    CamelCase,
+    #[command(rename_all = "kebab")]
+    #[couture(category = "all")]
+    KebabShort,
+    #[command(rename_all = "lower")]
+    #[couture(category = "all")]
+    LowerCase,
+    #[command(rename_all = "PascalCase")]
+    #[couture(category = "all")]
+    PascalCase,
+    #[command(rename_all = "screaming_snake")]
+    #[couture(category = "all")]
+    ScreamingSnake,
+    #[command(rename_all = "SnakeCase")]
+    #[couture(category = "all")]
+    SnakeCase,
+    #[command(rename_all = "UPPERCASE")]
+    #[couture(category = "all")]
+    UpperCase,
+    #[command(rename_all = "verbatim")]
+    #[couture(category = "all")]
+    VerbatimCase,
+}
+
+/// clap keeps the last of several `name`s.
+#[derive(Subcommand, Couture)]
+#[couture(categories = { "all" = {} })]
+enum RenamedTwice {
+    #[command(name = "first")]
+    #[command(name = "second")]
+    #[couture(category = "all")]
+    List,
+}
+
+/// clap reads the deprecated `id` of a command as its name.
+#[derive(Subcommand, Couture)]
+#[couture(categories = { "all" = {} })]
+enum RenamedById {
+    #[command(id = "via-id")]
+    #[couture(category = "all")]
+    List,
+    #[command(name = "first", id = "id-last")]
+    #[couture(category = "all")]
+    Show,
+}
+
 #[derive(Subcommand, Couture)]
 #[couture(categories = { "all" = {} })]
 enum NamedByConst {
@@ -76,6 +128,9 @@ where
 #[case::default_casing(clap_and_couture_names::<DefaultCasing>())]
 #[case::enum_rename_all(clap_and_couture_names::<EnumCasing>())]
 #[case::variant_rename_all(clap_and_couture_names::<VariantCasing>())]
+#[case::every_casing(clap_and_couture_names::<EveryCasing>())]
+#[case::renamed_twice(clap_and_couture_names::<RenamedTwice>())]
+#[case::renamed_by_id(clap_and_couture_names::<RenamedById>())]
 #[case::flatten(clap_and_couture_names::<Flattening>())]
 #[case::name_from_a_const(clap_and_couture_names::<NamedByConst>())]
 fn categories_name_variants_the_way_clap_does(#[case] names: (Vec<String>, Vec<String>)) {

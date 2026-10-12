@@ -5,6 +5,12 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 10
+    # `clap-bump.yml` raises clap's max in Cargo.toml and tests the whole range first.
+    ignore:
+      - dependency-name: clap
+      - dependency-name: clap_builder
+      - dependency-name: clap_derive
+      - dependency-name: clap_lex
     groups:
       # Batch routine dependency bumps into a single PR to cut noise.
       cargo-minor:

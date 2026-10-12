@@ -4,9 +4,18 @@ on:
   push:
     branches: [main]
   pull_request:
+  # `clap-bump.yml` runs all of CI on its bump branch before it opens a PR.
+  workflow_call:
+    inputs:
+      ref:
+        description: The branch, tag or SHA to check out; empty checks out the event's ref.
+        type: string
+        required: false
+        default: ""
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  # Under `workflow_call`, `github.*` is the caller's, so the ref keeps the groups apart.
+  group: ${{ github.workflow }}-${{ inputs.ref || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -19,6 +28,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || '' }}
       # rustfmt.toml uses unstable options, so formatting must be checked
       # with a nightly rustfmt.
       - uses: dtolnay/rust-toolchain@nightly
@@ -31,6 +42,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || '' }}
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
@@ -51,17 +64,72 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || '' }}
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --workspace --all-features
       # `--all-features` never builds `render/plain.rs`; this also covers building without the derive.
       - run: cargo build -p clap-couture --no-default-features
 
+  # couture copies clap internals, so both ends of the clap range Cargo.toml allows are tested.
+  clap-bounds:
+    name: test (clap ${{ matrix.bound }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        bound: [min, max]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || '' }}
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: clap-${{ matrix.bound }}
+      - uses: astral-sh/setup-uv@v10.3.0
+      - name: Read the clap bounds
+        id: bounds
+        shell: bash # `-o pipefail`, so a malformed clap line fails the step
+        run: uv run scripts/clap-bounds.py bounds | tee -a "$GITHUB_OUTPUT"
+      # The older `clap_*` crates the min pulls in all fit the MSRV, so the MSRV-aware
+      # resolver needs no `CARGO_RESOLVER_INCOMPATIBLE_RUST_VERSIONS` override.
+      - name: Lock clap at its ${{ matrix.bound }}
+        env:
+          CLAP: ${{ steps.bounds.outputs[matrix.bound] }}
+        run: cargo update -p clap --precise "$CLAP"
+      - name: Check Cargo.lock is at the max
+        if: matrix.bound == 'max'
+        run: |
+          if ! git diff --exit-code -- Cargo.lock; then
+            echo "::error::Cargo.lock isn't at clap's max; run \`cargo update -p clap --precise <max>\` and commit it."
+            exit 1
+          fi
+      - run: cargo tree -i clap -e normal --depth 0
+      - run: cargo test --workspace --all-features
+
+  # The Python in `scripts/`, in the environment `uv.lock` pins.
+  scripts:
+    name: scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || '' }}
+      - uses: astral-sh/setup-uv@v10.3.0
+      - run: uv run ruff check scripts
+      - run: uv run ruff format --check scripts
+      - run: uv run pyright
+      - run: uv run pytest
+
   test-windows:
     name: test (windows)
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || '' }}
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       # The editor runs without `sh` there: PATHEXT lookup, word splitting, the console's Ctrl+C.
@@ -72,6 +140,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || '' }}
       - uses: dtolnay/rust-toolchain@1.88
       - uses: Swatinem/rust-cache@v2
       - run: cargo check --workspace --all-features
@@ -81,6 +151,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || '' }}
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       # `ansi-to-html.py` runs through `uv run`, in the environment `uv.lock` pins.
@@ -103,6 +175,8 @@ jobs:
       RUSTDOCFLAGS: -D warnings
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || '' }}
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo doc --workspace --all-features --no-deps

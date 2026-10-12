@@ -8,6 +8,22 @@
 //!   - **Interactive input** for flags.
 //!   - **Markdown** support.
 //!
+//! <style>
+//!   .couture-light { display: none; }
+//!   :root[data-theme="light"] .couture-light { display: revert; }
+//!   :root[data-theme="light"] .couture-dark { display: none; }
+//!   .docblock img.couture-dark, .docblock img.couture-light {
+//!     max-width: 100%;
+//!     height: auto;
+//!     border-radius: var(--code-block-border-radius, 6px);
+//!   }
+//! </style>
+//!
+//! <img class="couture-dark" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/99-full-example-dark.gif" alt="orbit --help listing its commands under Ship and Account headings, then orbit deploy asking for the app, release notes in vim, the region from a list, the replicas again after an answer that isn't a number, the sidecars from a multi-select, a masked deploy token, and a confirmation" width="846">
+//! <img class="couture-light" src="https://raw.githubusercontent.com/markovejnovic/clap-couture/main/assets/99-full-example-light.gif" alt="orbit --help listing its commands under Ship and Account headings, then orbit deploy asking for the app, release notes in vim, the region from a list, the replicas again after an answer that isn't a number, the sidecars from a multi-select, a masked deploy token, and a confirmation" width="846">
+//!
+//! See [`examples/99-full-example.rs`](https://github.com/markovejnovic/clap-couture/blob/main/crates/clap-couture/examples/99-full-example.rs).
+//!
 //! # Getting Started
 //!
 //! This section will provide you with a tour guide through [`clap_couture`](self)'s features. For
@@ -21,17 +37,6 @@
 //! your application `foobar --help`, sees a massive wall of text. Making your application less
 //! intimidating makes it more accessible to the beginner user, which makes it more inviting and
 //! friendly.
-//!
-//! <style>
-//!   .couture-light { display: none; }
-//!   :root[data-theme="light"] .couture-light { display: revert; }
-//!   :root[data-theme="light"] .couture-dark { display: none; }
-//!   .docblock img.couture-dark, .docblock img.couture-light {
-//!     max-width: 100%;
-//!     height: auto;
-//!     border-radius: var(--code-block-border-radius, 6px);
-//!   }
-//! </style>
 //!
 //! With clap:
 #![cfg_attr(doc, doc = include_str!("../docs/01-orbit-disorganized.html"))]

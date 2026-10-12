@@ -111,6 +111,9 @@ struct Session<'run> {
     /// The args passed `-` to be asked for.
     dashed: &'run Dashed<'run>,
     messages: &'run Messages,
+    /// argv parsed before any answer; a prompted arg with no value from the user in it was left
+    /// out.
+    passed: &'run ArgMatches,
     prompted_args: &'run [PromptedArg],
     /// Every secret arg, asked or not; a confirmation masks their values.
     secret_args: &'run [PromptedArg],
@@ -308,7 +311,7 @@ impl Session<'_> {
     ) -> Result<bool, PromptError> {
         let question = self.question(prompted_arg);
         let answered = inject(
-            relax(self.cmd.clone(), self.prompted_args),
+            self.relaxed(self.prompted_args),
             answers.iter().map(|answer| (answer.prompted_arg, answer.injected_values.as_slice())),
         )
         .try_get_matches_from(self.argv);
@@ -429,14 +432,24 @@ impl Session<'_> {
         self.cmd.render_question(&question)
     }
 
+    /// `self.cmd` with `prompted_args` relaxed, and those of them the user left out excused.
+    fn relaxed<'prompted_arg>(
+        &self,
+        prompted_args: impl IntoIterator<Item = &'prompted_arg PromptedArg> + Clone,
+    ) -> Command {
+        excuse(relax(self.cmd.clone(), prompted_args.clone()), self.passed, prompted_args)
+    }
+
     /// Check whether leaving the arg being asked unset fails the parse: it is `required`, or
-    /// required through `required_unless_present` or a required group. The accepted answers go
-    /// in, and only the args still to be asked, `later`, stay relaxed, so a group another of them
-    /// can still satisfy doesn't make this one required.
+    /// required through `required_unless_present`, a required group or a passed arg's `requires`.
+    /// The accepted answers go in, and only the args still to be asked, `later`, stay relaxed, so
+    /// a group another of them can still satisfy doesn't make this one required.
     fn required(&self, answers: &[Answer<'_>], later: &[&PromptedArg]) -> bool {
         let accepted =
             answers.iter().map(|answer| (answer.prompted_arg, answer.injected_values.as_slice()));
-        let cmd = inject(relax(self.cmd.clone(), later.iter().copied()), accepted);
+        let answered = answers.iter().map(|answer| answer.prompted_arg);
+        let cmd =
+            excuse(inject(self.relaxed(later.iter().copied()), accepted), self.passed, answered);
         cmd.try_get_matches_from(self.argv)
             .is_err_and(|err| err.kind() == ErrorKind::MissingRequiredArgument)
     }
@@ -455,7 +468,7 @@ impl Session<'_> {
         for (answered, values) in &with_candidate {
             self.dash_args.fill(answered, values);
         }
-        let cmd = inject(relax(self.cmd.clone(), self.prompted_args.iter()), with_candidate);
+        let cmd = inject(self.relaxed(self.prompted_args), with_candidate);
         cmd.try_get_matches_from(self.argv).map(drop)
     }
 
@@ -569,10 +582,10 @@ where
     // terminal, as when piped.
     let can_ask = stdin.is_terminal() && backend.is_available();
     // Help, usage and errors come from clap, with `-` let through.
-    let Ok(matches) = relaxed.try_get_matches_from(argv) else {
+    let Ok(passed) = parse_relaxed(relaxed, &prompted_args, argv) else {
         return super::parse(dash_args.checking(cmd), argv, help);
     };
-    let dashed = dash_args.passed(&matches, can_ask);
+    let dashed = dash_args.passed(&passed, can_ask);
     // `-` is the only way to ask a `prompt(dash)` arg.
     prompted_args.retain(|prompted_arg| {
         prompted_arg.attr.dash.is_none()
@@ -596,8 +609,8 @@ where
         .filter(|prompted_arg| prompted_arg.attr.secret.is_some())
         .collect();
     // Help, usage and errors come from the command the user sees, not the relaxed one.
-    let Ok(matches) = relax(checking.clone(), prompted_args.iter()).try_get_matches_from(argv)
-    else {
+    let relaxed = excuse(relax(checking.clone(), &prompted_args), &passed, &prompted_args);
+    let Ok(matches) = relaxed.try_get_matches_from(argv) else {
         return super::parse(checking, argv, help);
     };
 
@@ -608,6 +621,7 @@ where
         dash_args: &dash_args,
         dashed: &dashed,
         messages,
+        passed: &passed,
         prompted_args: &prompted_args,
         secret_args: &secret_args,
         vault: &vault,
@@ -646,9 +660,13 @@ where
             }
         }
     }
-    let cmd_with_answers = inject(
-        cmd,
-        answers.iter().map(|answer| (answer.prompted_arg, answer.injected_values.as_slice())),
+    let cmd_with_answers = excuse(
+        inject(
+            cmd,
+            answers.iter().map(|answer| (answer.prompted_arg, answer.injected_values.as_slice())),
+        ),
+        &passed,
+        answers.iter().map(|answer| answer.prompted_arg),
     );
     super::parse(dash_args.typed(cmd_with_answers), argv, help)
 }
@@ -762,6 +780,34 @@ where
 
 fn command_at<'cmd>(cmd: &'cmd Command, path: &[&str]) -> Option<&'cmd Command> {
     path.iter().try_fold(cmd, |level, name| level.find_subcommand(name))
+}
+
+/// Let each of `prompted_args` the user left out in `passed` go missing though a passed arg
+/// `requires` it: clap lets a required arg go missing beside a passed arg it conflicts with, so it
+/// conflicts with every other arg of its command. Having no value from the user, it never trips
+/// that conflict. A global one is left as is, as its conflicts would reach subcommands.
+fn excuse<'prompted_arg>(
+    cmd: Command,
+    passed: &ArgMatches,
+    prompted_args: impl IntoIterator<Item = &'prompted_arg PromptedArg>,
+) -> Command {
+    prompted_args.into_iter().fold(cmd, |cmd, prompted_arg| {
+        let (path, id) = (prompted_arg.subcommand_path.as_slice(), prompted_arg.attr.arg_id);
+        if matches_at(passed, path).is_some_and(|level| explicit(level, &Id::from(id))) {
+            return cmd;
+        }
+        with_command_at(cmd, path, |level| {
+            let others: Vec<Id> = level
+                .get_arguments()
+                .map(Arg::get_id)
+                .filter(|other| *other != id)
+                .cloned()
+                .collect();
+            with_arg_at(level, &[], id, |arg| {
+                if arg.is_global_set() { arg } else { arg.conflicts_with_all(others) }
+            })
+        })
+    })
 }
 
 /// Check whether the user passed `id`, on the command line or through its env var.
@@ -930,6 +976,22 @@ pub(super) fn relax<'prompted_arg>(
     prompted_args.into_iter().fold(cmd, |cmd, prompted_arg| {
         unrequire(cmd, &prompted_arg.subcommand_path, prompted_arg.attr.arg_id)
     })
+}
+
+/// Parse `argv` with `relaxed`, whose `prompted_args` are relaxed. When a passed arg requires one
+/// left out, it is parsed again with those excused, found by a parse that sees past clap's errors.
+fn parse_relaxed(
+    relaxed: Command,
+    prompted_args: &[PromptedArg],
+    argv: &[OsString],
+) -> Result<ArgMatches, clap::Error> {
+    match relaxed.clone().try_get_matches_from(argv) {
+        Err(err) if err.kind() == ErrorKind::MissingRequiredArgument => {
+            let passed = relaxed.clone().ignore_errors(true).try_get_matches_from(argv)?;
+            excuse(relaxed, &passed, prompted_args).try_get_matches_from(argv)
+        }
+        parsed => parsed,
+    }
 }
 
 /// The first line of clap's message, without its `error: ` prefix. clap quotes the rejected

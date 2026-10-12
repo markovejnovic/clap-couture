@@ -28,11 +28,11 @@
 //! answer, or until its `num_args` is reached; fewer than `num_args` asks for more.
 //! An arg passed on the command line or through its env var is never
 //! asked, and neither is one that conflicts with a passed arg or an earlier answer. An arg
-//! required through `required_unless_present` or a required `ArgGroup` is asked as required, and
-//! an empty answer is refused; in a group of prompted args, only the last one asked is. clap can't
-//! lift `required_unless_present_all` or `required_if_eq` from an arg, so when one of those
-//! fires, parsing fails with clap's error before anything is asked. Answers are not re-checked
-//! against `requires` and similar rules between args.
+//! required through `required_unless_present`, a required `ArgGroup` or a passed arg's `requires`
+//! is asked as required, and an empty answer is refused; in a group of prompted args, only the
+//! last one asked is. clap can't lift `required_unless_present_all` or `required_if_eq` from an
+//! arg, so when one of those fires, parsing fails with clap's error before anything is asked.
+//! Answers are not re-checked against `requires` and similar rules between args.
 //!
 //! `#[couture(confirm)]` on a `bool` flag the user left out asks whether to go ahead, after every
 //! other prompt, with each `{id}` in the question replaced by arg `id`'s value. A yes sets the

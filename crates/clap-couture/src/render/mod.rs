@@ -1,3 +1,5 @@
+#[cfg(test)]
+mod clap_parity;
 mod help;
 #[cfg(feature = "markdown")]
 mod md;
@@ -470,7 +472,7 @@ impl<'text> Word<'text> {
 
     /// Lines clap wrapped, each style still open at a line's end closed there and opened again
     /// past the next line's indent, so the indent is never styled.
-    #[cfg(feature = "markdown")]
+    #[cfg(any(test, feature = "markdown"))]
     fn with_styles_reopened(&self) -> String {
         let mut reopened = String::with_capacity(self.0.len());
         // The escapes in effect at the end of the line so far.

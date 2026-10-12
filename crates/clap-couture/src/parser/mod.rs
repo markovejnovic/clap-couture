@@ -1,5 +1,7 @@
 //! Parse entry points with couture installed.
 
+#[cfg(all(test, feature = "interactive"))]
+mod clap_parity;
 #[cfg(feature = "interactive")]
 pub(crate) mod dash;
 #[cfg(feature = "interactive")]

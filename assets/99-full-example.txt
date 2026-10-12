@@ -3,7 +3,7 @@
 > orbit --help
 ────────────────────────────────────────────────────────────────────────────────
 > orbit --help
-Deploy and manage your apps from the terminal
+Deploy and manage your apps from the terminal, fashionably
 
 Usage: orbit <COMMAND>
 
@@ -11,12 +11,20 @@ Usage: orbit <COMMAND>
   status    Show recent activity
 
 Ship:     Get code to production
-  rollback  Roll back to a previous release
   deploy    Ship the current project
+  promote   Promote a release to production
+  rollback  Roll back to a previous release
+  scale     Change the replicas count
 
-Account:  Who you are, and what you keep
-  login     Sign in to your account
+Config:   What your app knows
+  domains   Point a domain at your app
+  env       Manage KEY=VALUE variables
   secrets   Manage environment secrets
+
+Account:  Who you are
+  login     Sign in to your account
+  logout    Sign out of this machine
+  whoami    Show who you're signed in as
 
   help      Print this message or the help of the given subcommand(s)
 
@@ -24,41 +32,32 @@ Options:
   -h, --help  Print help
 >
 ────────────────────────────────────────────────────────────────────────────────
-> orbit --help
-Deploy and manage your apps from the terminal
+>
+────────────────────────────────────────────────────────────────────────────────
+> orbit deploy --help
+────────────────────────────────────────────────────────────────────────────────
+> orbit deploy --help
+Ship the current project
 
-Usage: orbit <COMMAND>
-
-  logs      Tail live logs
-  status    Show recent activity
-
-Ship:     Get code to production
-  rollback  Roll back to a previous release
-  deploy    Ship the current project
-
-Account:  Who you are, and what you keep
-  login     Sign in to your account
-  secrets   Manage environment secrets
-
-  help      Print this message or the help of the given subcommand(s)
+Usage: orbit deploy [OPTIONS] --app <APP> --region <REGION>
 
 Options:
-  -h, --help  Print help
-> clear
+      --app <APP>            Application name
+      --notes <NOTES>        Release notes, in markdown
+      --region <REGION>      Region to deploy to [possible values: apac, eu, us]
+      --replicas <REPLICAS>  Replica count [default: 2]
+      --sidecars <SIDECARS>  Sidecars to run next to the app [possible values:
+                             logging, metrics, proxy]
+      --yes                  Skip the confirmation
+  -h, --help                 Print help
+
+Environment:
+  ORBIT_TOKEN  Deploy token
+>
 ────────────────────────────────────────────────────────────────────────────────
 >
 ────────────────────────────────────────────────────────────────────────────────
-> orbit deploy
-────────────────────────────────────────────────────────────────────────────────
-> orbit deploy
-◆  Application name
-│
-└
-────────────────────────────────────────────────────────────────────────────────
-> orbit deploy
-◆  Application name
-│  web
-└
+> ORBIT_TOKEN=s3cr3t orbit deploy --app web
 ────────────────────────────────────────────────────────────────────────────────
 ## Changes
 
@@ -93,7 +92,7 @@ Options:
 ~
 ~
 ~
-<028dy_91h40000gn/T/99-full-example-BVs5us/orbit-deploy-notes.md" 6L, 101B
+<028dy_91h40000gn/T/99-full-example-C7ar6X/orbit-deploy-notes.md" 6L, 101B
 ────────────────────────────────────────────────────────────────────────────────
 ## Changes
 
@@ -235,10 +234,7 @@ Options:
 ~
 :wq
 ────────────────────────────────────────────────────────────────────────────────
-> orbit deploy
-◇  Application name
-│  web
-│
+> ORBIT_TOKEN=s3cr3t orbit deploy --app web
 ◇  Release notes
 │  ## Changes…
 │
@@ -248,10 +244,7 @@ Options:
 │  ○ us
 └
 ────────────────────────────────────────────────────────────────────────────────
-> orbit deploy
-◇  Application name
-│  web
-│
+> ORBIT_TOKEN=s3cr3t orbit deploy --app web
 ◇  Release notes
 │  ## Changes…
 │
@@ -261,10 +254,7 @@ Options:
 │  ○ us
 └
 ────────────────────────────────────────────────────────────────────────────────
-> orbit deploy
-◇  Application name
-│  web
-│
+> ORBIT_TOKEN=s3cr3t orbit deploy --app web
 ◇  Release notes
 │  ## Changes…
 │
@@ -275,24 +265,7 @@ Options:
 │  2 (default)
 └
 ────────────────────────────────────────────────────────────────────────────────
-> orbit deploy
-◇  Application name
-│  web
-│
-◇  Release notes
-│  ## Changes…
-│
-◇  Which region?
-│  eu
-│
-◆  How many replicas?
-│  abc
-└
-────────────────────────────────────────────────────────────────────────────────
-> orbit deploy
-◇  Application name
-│  web
-│
+> ORBIT_TOKEN=s3cr3t orbit deploy --app web
 ◇  Release notes
 │  ## Changes…
 │
@@ -300,50 +273,7 @@ Options:
 │  eu
 │
 ◇  How many replicas?
-│  abc
-│
-■  invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
-│
-◆  How many replicas?
-│  2 (default)
-└
-────────────────────────────────────────────────────────────────────────────────
-> orbit deploy
-◇  Application name
-│  web
-│
-◇  Release notes
-│  ## Changes…
-│
-◇  Which region?
-│  eu
-│
-◇  How many replicas?
-│  abc
-│
-■  invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
-│
-◆  How many replicas?
-│  3
-└
-────────────────────────────────────────────────────────────────────────────────
-> orbit deploy
-◇  Application name
-│  web
-│
-◇  Release notes
-│  ## Changes…
-│
-◇  Which region?
-│  eu
-│
-◇  How many replicas?
-│  abc
-│
-■  invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
-│
-◇  How many replicas?
-│  3
+│  2
 │
 ◆  Which sidecars?
 │  ◻ logging
@@ -351,10 +281,7 @@ Options:
 │  ◻ proxy
 └
 ────────────────────────────────────────────────────────────────────────────────
-> orbit deploy
-◇  Application name
-│  web
-│
+> ORBIT_TOKEN=s3cr3t orbit deploy --app web
 ◇  Release notes
 │  ## Changes…
 │
@@ -362,12 +289,7 @@ Options:
 │  eu
 │
 ◇  How many replicas?
-│  abc
-│
-■  invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
-│
-◇  How many replicas?
-│  3
+│  2
 │
 ◆  Which sidecars?
 │  ◼ logging
@@ -375,10 +297,7 @@ Options:
 │  ◻ proxy
 └
 ────────────────────────────────────────────────────────────────────────────────
-> orbit deploy
-◇  Application name
-│  web
-│
+> ORBIT_TOKEN=s3cr3t orbit deploy --app web
 ◇  Release notes
 │  ## Changes…
 │
@@ -386,12 +305,7 @@ Options:
 │  eu
 │
 ◇  How many replicas?
-│  abc
-│
-■  invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
-│
-◇  How many replicas?
-│  3
+│  2
 │
 ◆  Which sidecars?
 │  ◼ logging
@@ -399,10 +313,7 @@ Options:
 │  ◼ proxy
 └
 ────────────────────────────────────────────────────────────────────────────────
-> orbit deploy
-◇  Application name
-│  web
-│
+> ORBIT_TOKEN=s3cr3t orbit deploy --app web
 ◇  Release notes
 │  ## Changes…
 │
@@ -410,80 +321,17 @@ Options:
 │  eu
 │
 ◇  How many replicas?
-│  abc
-│
-■  invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
-│
-◇  How many replicas?
-│  3
+│  2
 │
 ◇  Which sidecars?
 │  logging
 │  proxy
-│
-◆  Deploy token
-│
-└
-────────────────────────────────────────────────────────────────────────────────
-> orbit deploy
-◇  Application name
-│  web
-│
-◇  Release notes
-│  ## Changes…
-│
-◇  Which region?
-│  eu
-│
-◇  How many replicas?
-│  abc
-│
-■  invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
-│
-◇  How many replicas?
-│  3
-│
-◇  Which sidecars?
-│  logging
-│  proxy
-│
-◆  Deploy token
-│  ▪▪▪▪▪▪▪
-└
-────────────────────────────────────────────────────────────────────────────────
-> orbit deploy
-◇  Application name
-│  web
-│
-◇  Release notes
-│  ## Changes…
-│
-◇  Which region?
-│  eu
-│
-◇  How many replicas?
-│  abc
-│
-■  invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
-│
-◇  How many replicas?
-│  3
-│
-◇  Which sidecars?
-│  logging
-│  proxy
-│
-◇  Deploy token
-│  ▪▪▪▪▪▪▪
 │
 ◆  Deploy web to eu?
 │  ○ Yes  / ● No
 └
 ────────────────────────────────────────────────────────────────────────────────
-> orbit deploy
-◇  Application name
-│  web
-│
+> ORBIT_TOKEN=s3cr3t orbit deploy --app web
 ◇  Release notes
 │  ## Changes…
 │
@@ -491,25 +339,79 @@ Options:
 │  eu
 │
 ◇  How many replicas?
-│  abc
-│
-■  invalid value 'abc' for '--replicas <REPLICAS>': invalid digit found in string
-│
-◇  How many replicas?
-│  3
+│  2
 │
 ◇  Which sidecars?
 │  logging
 │  proxy
 │
-◇  Deploy token
-│  ▪▪▪▪▪▪▪
-│
 ◇  Deploy web to eu?
 │  Yes
 │
-deploying web to Eu with 3 replicas and [Logging, Proxy]
+deploying web to eu with 2 replicas and [logging, proxy]
 ## Changes
 - Ships the new billing page.
+>
+────────────────────────────────────────────────────────────────────────────────
+>
+────────────────────────────────────────────────────────────────────────────────
+> orbit login
+────────────────────────────────────────────────────────────────────────────────
+> orbit login
+◆  Your email
+│
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit login
+◆  Your email
+│  me@orbit.dev
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit login
+◇  Your email
+│  me@orbit.dev
+│
+◆  Your password
+│
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit login
+◇  Your email
+│  me@orbit.dev
+│
+◆  Your password
+│  ▪▪▪▪▪▪▪
+└
+────────────────────────────────────────────────────────────────────────────────
+> orbit login
+◇  Your email
+│  me@orbit.dev
+│
+◇  Your password
+│  ▪▪▪▪▪▪▪
+│
+signed in as me@orbit.dev
+>
+────────────────────────────────────────────────────────────────────────────────
+> orbit login
+◇  Your email
+│  me@orbit.dev
+│
+◇  Your password
+│  ▪▪▪▪▪▪▪
+│
+signed in as me@orbit.dev
+> echo hunter2 | orbit login --email me@orbit.dev --password -
+────────────────────────────────────────────────────────────────────────────────
+> orbit login
+◇  Your email
+│  me@orbit.dev
+│
+◇  Your password
+│  ▪▪▪▪▪▪▪
+│
+signed in as me@orbit.dev
+> echo hunter2 | orbit login --email me@orbit.dev --password -
+signed in as me@orbit.dev
 >
 ────────────────────────────────────────────────────────────────────────────────

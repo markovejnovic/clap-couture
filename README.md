@@ -191,6 +191,13 @@ enum Cmd {
 - [The examples](crates/clap-couture/examples), each runnable with
   `cargo run -p clap-couture --features full --example <name>`.
 
+# AI Disclosure
+
+I used Claude pretty aggressively for this project. If you're not comfortable
+with that, this may not be the project for you. All interfaces are
+hand-designed, all public docs are hand-written, but the implementation is not
+hand-written. It is all reviewed, of course.
+
 # Donationware
 
 **`clap-couture` is donationware.** That means that if you like `clap-couture`,

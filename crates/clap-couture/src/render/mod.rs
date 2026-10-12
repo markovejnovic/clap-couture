@@ -155,9 +155,13 @@ impl<'cmd> Menu<'cmd> {
         })
     }
 
-    /// The parent's subcommands, minus the hidden ones.
+    /// The parent's subcommands, minus the hidden ones, in clap's display order.
     fn subcommands(&self) -> impl Iterator<Item = &'cmd Command> {
-        self.parent.get_subcommands().filter(|cmd| !cmd.is_hide_set())
+        let mut visible: Vec<_> =
+            self.parent.get_subcommands().filter(|cmd| !cmd.is_hide_set()).collect();
+        // `mut_subcommand` moves the subcommand it edits to the end, as guarding a secret does.
+        visible.sort_by_key(|cmd| cmd.get_display_order());
+        visible.into_iter()
     }
 }
 

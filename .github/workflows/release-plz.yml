@@ -16,6 +16,8 @@ jobs:
     environment: crates-io
     permissions:
       contents: write
+      # Trusted publishing: release-plz trades this for a short-lived crates.io token.
+      id-token: write
       pull-requests: read
     steps:
       - uses: actions/checkout@v7
@@ -28,7 +30,6 @@ jobs:
           command: release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
   # Opens or updates the release PR: version bumps and CHANGELOG.md.
   release-pr:

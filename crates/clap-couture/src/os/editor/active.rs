@@ -259,7 +259,7 @@ mod tests {
             .spawn(EditorSpawnOptions::builder().prompt(PROMPT).build());
         let saved = opened.ok().and_then(|mut opened| opened.wait().ok());
         let answer = saved.and_then(|saved| Locale::decode(&saved).ok());
-        let answer = answer.map(|text| PromptMarker::default().strip(&text));
+        let answer = answer.map(|text| PromptMarker::default().strip(&text, Some(PROMPT)));
         assert_eq!(answer, Some(Some("Saved.".to_owned())));
     }
 
@@ -284,7 +284,7 @@ mod tests {
         let opened = editor(r#"sh -c 'printf "Saved.\n// edited\n" > "$0"'"#).spawn(options);
         let saved = opened.ok().and_then(|mut opened| opened.wait().ok());
         let answer = saved.and_then(|saved| Locale::decode(&saved).ok());
-        let answer = answer.map(|text| PromptMarker::new("//").strip(&text));
+        let answer = answer.map(|text| PromptMarker::new("//").strip(&text, Some(PROMPT)));
         assert_eq!(answer, Some(Some("Saved.".to_owned())));
     }
 

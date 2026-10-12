@@ -465,6 +465,8 @@ pub use clap_couture_derive::Couture;
 pub use parser::{CoutureParser, ParseError};
 pub use text::Text;
 
+use crate::render::CommandRenderExt as _;
+
 /// A clap subcommand name, eg. `foo` in `app foo`.
 pub struct CommandName(&'static str);
 
@@ -965,6 +967,8 @@ impl CommandExt for Command {
         // Built as clap builds it to parse, so each help lists what clap propagates down.
         let mut built = self.clone().disable_help_subcommand(true);
         built.build();
-        T::HELP_TREE.install(self, &built, T::CATEGORIES, &T::MESSAGES)
+        // Probed once: every built command wraps to the root's width.
+        let width = built.help_width();
+        T::HELP_TREE.install(self, &built, T::CATEGORIES, &T::MESSAGES, width)
     }
 }

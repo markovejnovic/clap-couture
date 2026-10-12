@@ -33,13 +33,14 @@ impl HelpTree {
     /// subcommand below it showing its own, from this tree.
     ///
     /// `built` is `cmd` built by clap, so each help lists what clap gives a subcommand: global
-    /// args, styles and settings from its parents.
+    /// args, styles and settings from its parents. Each menu wraps to `width`.
     pub(crate) fn install(
         &self,
         cmd: Command,
         built: &Command,
         categories: CommandCategoryMap,
         messages: &Messages,
+        width: Option<usize>,
     ) -> Command {
         let cmd = cmd.mut_subcommands(|subcommand| {
             let Some(built_subcommand) = built.find_subcommand(subcommand.get_name()) else {
@@ -48,9 +49,9 @@ impl HelpTree {
             let (tree, messages) = self
                 .subcommand(subcommand.get_name(), *messages)
                 .unwrap_or((&Self::EMPTY, *messages));
-            tree.install(subcommand, built_subcommand, tree.categories, &messages)
+            tree.install(subcommand, built_subcommand, tree.categories, &messages, width)
         });
-        HelpBody::new(built, categories, messages).install(cmd, messages)
+        HelpBody::new(built, categories, messages, width).install(cmd, messages)
     }
 
     /// The tree of the subcommand `name`, and the messages it inherits from `inherited` down

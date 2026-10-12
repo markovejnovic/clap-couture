@@ -65,12 +65,17 @@ impl HelpBody {
         }
     }
 
-    /// The body for `cmd`, its subcommands filed by `categories`, its headings worded by
-    /// `messages`.
-    pub(crate) fn new(cmd: &Command, categories: CommandCategoryMap, messages: &Messages) -> Self {
+    /// The body for `cmd`, its subcommands filed by `categories` and wrapped to `width`, its
+    /// headings worded by `messages`.
+    pub(crate) fn new(
+        cmd: &Command,
+        categories: CommandCategoryMap,
+        messages: &Messages,
+        width: Option<usize>,
+    ) -> Self {
         let mut menu = StyledStr::new();
         // `StyledStr`'s `fmt::Write` is infallible.
-        cmd.write_command_sections(&mut menu, categories).ok();
+        cmd.write_command_sections(&mut menu, categories, width).ok();
         let menu = menu.ansi().to_string();
 
         let mut args_only = cmd

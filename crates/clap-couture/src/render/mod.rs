@@ -33,18 +33,55 @@ pub(crate) trait TextRenderer {
 }
 
 pub(crate) trait CommandRenderExt {
-    /// Writes this command's visible subcommands to `out`.
-    fn write_command_sections<W>(&self, out: &mut W, categories: CommandCategoryMap) -> fmt::Result
+    /// The width clap wraps this command's help to; `None` when it doesn't wrap.
+    ///
+    /// clap's build hands a command's `term_width` and `max_term_width` to each subcommand, so
+    /// the built root's width is every built command's.
+    fn help_width(&self) -> Option<usize>;
+
+    /// Writes this command's visible subcommands to `out`, wrapped to `width`.
+    fn write_command_sections<W>(
+        &self,
+        out: &mut W,
+        categories: CommandCategoryMap,
+        width: Option<usize>,
+    ) -> fmt::Result
     where
         W: fmt::Write;
 }
 
 impl CommandRenderExt for Command {
-    fn write_command_sections<W>(&self, out: &mut W, categories: CommandCategoryMap) -> fmt::Result
+    fn help_width(&self) -> Option<usize> {
+        // clap has no getter for it: it follows `term_width`, `max_term_width`, the terminal and
+        // `COLUMNS`, and wraps only with its `wrap_help` feature. So clap wraps a probe: a line
+        // breaks after the last word ending within the width, and the words of the `a` line end
+        // at odd columns while those of the `b` line end at even ones.
+        const PROBE_WORDS: usize = 500;
+        let odd = vec!["a"; PROBE_WORDS].join(" ");
+        let even = format!("b{}", vec!["b"; PROBE_WORDS].join(" "));
+        let unwrapped = odd.len();
+        let help = self
+            .clone()
+            .help_template("{after-help}")
+            .after_help(format!("{odd}\n{even}"))
+            .render_help()
+            .to_string();
+        let first_line =
+            |letter: char| help.lines().find(|line| line.starts_with(letter)).map_or(0, str::len);
+        let width = first_line('a').max(first_line('b'));
+        (width < unwrapped).then_some(width)
+    }
+
+    fn write_command_sections<W>(
+        &self,
+        out: &mut W,
+        categories: CommandCategoryMap,
+        width: Option<usize>,
+    ) -> fmt::Result
     where
         W: fmt::Write,
     {
-        let menu = MenuView::new(self, categories, Renderer::new(self.get_styles()));
+        let menu = MenuView::new(self, categories, Renderer::new(self.get_styles()), width);
         write!(out, "{menu}")
     }
 }
@@ -98,7 +135,11 @@ where
             let col = self.view.layout.description_col;
             let pad = col.saturating_sub(heading.width());
             write!(f, "{:pad$}", "")?;
-            self.view.renderer.render_str(f, &description.get())
+            let mut rendered = String::new();
+            self.view.renderer.render_str(&mut rendered, &description.get())?;
+            // clap counts the blank line above a heading as a cell of the heading's line.
+            let width = self.view.layout.width.map(|width| width.saturating_sub(1));
+            write!(f, "{}", ColumnText { col, text: &rendered, width })
         })
     }
 }
@@ -109,12 +150,20 @@ struct MenuLayout {
     description_col: usize,
     /// The widest command name; abouts are aligned two cells past it.
     name_width: usize,
+    /// The width lines wrap to; `None` when they don't.
+    width: Option<usize>,
 }
 
 impl MenuLayout {
+    /// Where a command's about starts.
+    const fn about_col(&self) -> usize {
+        self.name_width.saturating_add(4)
+    }
+
     fn measure<'name>(
         names: impl Iterator<Item = &'name str>,
         headings: impl Iterator<Item = Cow<'static, str>>,
+        width: Option<usize>,
     ) -> Self {
         let name_width = names.map(UnicodeWidthStr::width).max().unwrap_or(0);
         let heading_width = headings.map(|h| h.width()).max().unwrap_or(0);
@@ -129,7 +178,7 @@ impl MenuLayout {
             description_col
         };
 
-        Self { description_col, name_width }
+        Self { description_col, name_width, width }
     }
 }
 
@@ -153,11 +202,17 @@ struct MenuView<'cmd, R> {
 }
 
 impl<'cmd, R> MenuView<'cmd, R> {
-    fn new(parent: &'cmd Command, categories: CommandCategoryMap, renderer: R) -> Self {
+    fn new(
+        parent: &'cmd Command,
+        categories: CommandCategoryMap,
+        renderer: R,
+        width: Option<usize>,
+    ) -> Self {
         let menu = Menu { category_map: categories, parent };
         let layout = MenuLayout::measure(
             menu.subcommands().map(Command::get_name),
             menu.categories().map(Category::heading),
+            width,
         );
         Self { layout, menu, renderer, styles: parent.get_styles() }
     }
@@ -195,8 +250,80 @@ where
         write!(f, "  {literal}{name}{literal:#}{:pad$}", "")?;
         self.cmd.get_about().map_or(Ok(()), |about| {
             f.write_str("  ")?;
-            self.view.renderer.render_display(f, about)
+            let mut rendered = String::new();
+            self.view.renderer.render_display(&mut rendered, about)?;
+            let (col, width) = (self.view.layout.about_col(), self.view.layout.width);
+            write!(f, "{}", ColumnText { col, text: &rendered, width })
         })
+    }
+}
+
+/// Rendered text starting at `col`, broken between words to fit `width`, each line after the
+/// first indented to `col`.
+struct ColumnText<'text> {
+    col: usize,
+    text: &'text str,
+    width: Option<usize>,
+}
+
+impl Display for ColumnText<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Some(width) = self.width else {
+            return f.write_str(self.text);
+        };
+        let indent = self.col;
+        let mut column = indent;
+        // The escapes in effect, reopened past the indent of each new line.
+        let mut open = String::new();
+        for (index, word) in self.text.split(' ').map(Word).enumerate() {
+            if index > 0 {
+                if column.saturating_add(1).saturating_add(word.width()) > width {
+                    if !open.is_empty() {
+                        f.write_str(Word::RESET)?;
+                    }
+                    write!(f, "\n{:indent$}{open}", "")?;
+                    column = indent;
+                } else {
+                    f.write_str(" ")?;
+                    column = column.saturating_add(1);
+                }
+            }
+            f.write_str(word.0)?;
+            column = column.saturating_add(word.width());
+            for escape in word.escapes() {
+                if escape == Word::RESET {
+                    open.clear();
+                } else {
+                    open.push_str(escape);
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+/// A run of rendered text between spaces, its ANSI SGR escapes taking no cells.
+struct Word<'text>(&'text str);
+
+impl<'text> Word<'text> {
+    /// The escape that ends every style.
+    const RESET: &'static str = "\u{1b}[0m";
+
+    /// The escapes in this word, in order.
+    fn escapes(&self) -> impl Iterator<Item = &'text str> {
+        let text = self.0;
+        text.match_indices('\u{1b}').map(move |(start, _)| {
+            let escape = text.get(start..).unwrap_or_default();
+            escape.find('m').and_then(|end| escape.get(..=end)).unwrap_or(escape)
+        })
+    }
+
+    /// The cells this word takes on screen.
+    fn width(&self) -> usize {
+        let visible = |(index, piece): (usize, &'text str)| {
+            if index == 0 { piece } else { piece.split_once('m').map_or("", |(_, text)| text) }
+        };
+        self.0.split('\u{1b}').enumerate().map(visible).map(UnicodeWidthStr::width).sum()
     }
 }
 

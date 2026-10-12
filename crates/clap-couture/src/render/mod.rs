@@ -157,9 +157,11 @@ impl<'cmd> Menu<'cmd> {
         self.members(None).next().is_some()
     }
 
-    /// The `help` subcommand clap generated for the parent; `None` when it didn't.
+    /// The `help` subcommand clap generated for the parent; `None` when it didn't, or when clap
+    /// lists no subcommands, as when every other one is hidden.
     fn help_subcommand(&self) -> Option<&'cmd Command> {
-        self.subcommands().find(|cmd| self.is_help_subcommand(cmd))
+        let listed = self.subcommands().any(|cmd| cmd.get_name() != "help");
+        self.subcommands().find(|cmd| listed && self.is_help_subcommand(cmd))
     }
 
     /// Check whether `cmd` is the `help` subcommand clap generated for the parent.

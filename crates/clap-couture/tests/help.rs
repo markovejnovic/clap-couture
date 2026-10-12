@@ -77,6 +77,20 @@ struct WithoutHelpSubcommand {
 
 #[derive(Parser, Couture)]
 #[command(name = "copy")]
+struct OnlyHiddenSubcommands {
+    #[command(subcommand)]
+    cmd: HiddenCmd,
+}
+
+#[derive(Subcommand, Couture)]
+enum HiddenCmd {
+    /// Show what would be copied.
+    #[command(hide = true)]
+    Plan,
+}
+
+#[derive(Parser, Couture)]
+#[command(name = "copy")]
 struct Uncategorized {
     #[command(subcommand)]
     cmd: UncategorizedCmd,
@@ -156,8 +170,15 @@ fn an_uncategorized_menu_lists_what_clap_does() {
 #[rstest]
 #[case::disabled(WithoutHelpSubcommand::couture_command().render_help().to_string())]
 #[case::without_subcommands(German::couture_command().render_help().to_string())]
+#[case::only_hidden_subcommands(OnlyHiddenSubcommands::couture_command().render_help().to_string())]
 fn clap_help_subcommand_is_listed_only_when_clap_adds_it(#[case] help: String) {
     assert!(!help.contains("Print this message"), "{help}");
+}
+
+#[rstest]
+fn with_only_hidden_subcommands_the_help_is_clap_s() {
+    let helps = Helps::of::<OnlyHiddenSubcommands>();
+    assert_eq!(helps.couture, helps.clap);
 }
 
 #[derive(Parser, Couture)]

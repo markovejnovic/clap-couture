@@ -936,53 +936,51 @@
 <a href=#930 id=930 data-nosnippet>930</a>    /// any it already has; a [`before_help`](Command::before_help) is kept. A
 <a href=#931 id=931 data-nosnippet>931</a>    /// [`help_template`](Command::help_template) set before this call is kept too: place
 <a href=#932 id=932 data-nosnippet>932</a>    /// `{after-help}` in it rather than `{all-args}` or `{subcommands}`. Add args and subcommands
-<a href=#933 id=933 data-nosnippet>933</a>    /// before this call, as the listing is rendered here. A command set to
-<a href=#934 id=934 data-nosnippet>934</a>    /// [`flatten_help`](Command::flatten_help) keeps clap's help, which lists its subcommands
-<a href=#935 id=935 data-nosnippet>935</a>    /// among the args.
-<a href=#936 id=936 data-nosnippet>936</a>    ///
-<a href=#937 id=937 data-nosnippet>937</a>    /// Leaves `#[couture(secret)]` args unguarded; take the command from
-<a href=#938 id=938 data-nosnippet>938</a>    /// [`CoutureParser::couture_command`] to refuse them on the command line.
+<a href=#933 id=933 data-nosnippet>933</a>    /// before this call, as the listing is rendered here.
+<a href=#934 id=934 data-nosnippet>934</a>    ///
+<a href=#935 id=935 data-nosnippet>935</a>    /// Leaves `#[couture(secret)]` args unguarded; take the command from
+<a href=#936 id=936 data-nosnippet>936</a>    /// [`CoutureParser::couture_command`] to refuse them on the command line.
+<a href=#937 id=937 data-nosnippet>937</a>    ///
+<a href=#938 id=938 data-nosnippet>938</a>    /// # Example
 <a href=#939 id=939 data-nosnippet>939</a>    ///
-<a href=#940 id=940 data-nosnippet>940</a>    /// # Example
-<a href=#941 id=941 data-nosnippet>941</a>    ///
-<a href=#942 id=942 data-nosnippet>942</a>    /// ```
-<a href=#943 id=943 data-nosnippet>943</a>    /// use clap::{CommandFactory, Parser, Subcommand};
-<a href=#944 id=944 data-nosnippet>944</a>    /// use clap_couture::{CommandExt, Couture};
-<a href=#945 id=945 data-nosnippet>945</a>    ///
-<a href=#946 id=946 data-nosnippet>946</a>    /// #[derive(Parser)]
-<a href=#947 id=947 data-nosnippet>947</a>    /// struct Cli {
-<a href=#948 id=948 data-nosnippet>948</a>    ///     #[command(subcommand)]
-<a href=#949 id=949 data-nosnippet>949</a>    ///     cmd: Cmd,
-<a href=#950 id=950 data-nosnippet>950</a>    /// }
-<a href=#951 id=951 data-nosnippet>951</a>    ///
-<a href=#952 id=952 data-nosnippet>952</a>    /// #[derive(Subcommand, Couture)]
-<a href=#953 id=953 data-nosnippet>953</a>    /// #[couture(categories = { "everyday" = { description = "daily drivers" } })]
-<a href=#954 id=954 data-nosnippet>954</a>    /// enum Cmd {
-<a href=#955 id=955 data-nosnippet>955</a>    ///     /// Search your deployment history
-<a href=#956 id=956 data-nosnippet>956</a>    ///     #[couture(category = "everyday")]
-<a href=#957 id=957 data-nosnippet>957</a>    ///     Search,
-<a href=#958 id=958 data-nosnippet>958</a>    /// }
-<a href=#959 id=959 data-nosnippet>959</a>    ///
-<a href=#960 id=960 data-nosnippet>960</a>    /// let mut cmd = Cli::command().with_couture::&lt;Cmd&gt;();
-<a href=#961 id=961 data-nosnippet>961</a>    /// assert!(cmd.render_help().to_string().contains("everyday"));
-<a href=#962 id=962 data-nosnippet>962</a>    /// ```
-<a href=#963 id=963 data-nosnippet>963</a>    </span><span class="attr">#[must_use]
-<a href=#964 id=964 data-nosnippet>964</a>    </span><span class="kw">fn </span>with_couture&lt;T&gt;(<span class="self">self</span>) -&gt; <span class="self">Self
-<a href=#965 id=965 data-nosnippet>965</a>    </span><span class="kw">where
-<a href=#966 id=966 data-nosnippet>966</a>        </span>T: Couture;
-<a href=#967 id=967 data-nosnippet>967</a>}
-<a href=#968 id=968 data-nosnippet>968</a>
-<a href=#969 id=969 data-nosnippet>969</a><span class="kw">impl </span>CommandExt <span class="kw">for </span>Command {
-<a href=#970 id=970 data-nosnippet>970</a>    <span class="kw">fn </span>with_couture&lt;T&gt;(<span class="self">self</span>) -&gt; <span class="self">Self
-<a href=#971 id=971 data-nosnippet>971</a>    </span><span class="kw">where
-<a href=#972 id=972 data-nosnippet>972</a>        </span>T: Couture,
-<a href=#973 id=973 data-nosnippet>973</a>    {
-<a href=#974 id=974 data-nosnippet>974</a>        <span class="comment">// Built as clap builds it to parse, so each help lists what clap propagates down.
-<a href=#975 id=975 data-nosnippet>975</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>built = <span class="self">self</span>.clone();
-<a href=#976 id=976 data-nosnippet>976</a>        built.build();
-<a href=#977 id=977 data-nosnippet>977</a>        <span class="comment">// Probed once: every built command wraps to the root's width.
-<a href=#978 id=978 data-nosnippet>978</a>        </span><span class="kw">let </span>width = built.help_width();
-<a href=#979 id=979 data-nosnippet>979</a>        T::HELP_TREE.install(<span class="self">self</span>, <span class="kw-2">&amp;</span>built, T::CATEGORIES, <span class="kw-2">&amp;</span>T::MESSAGES, width)
-<a href=#980 id=980 data-nosnippet>980</a>    }
-<a href=#981 id=981 data-nosnippet>981</a>}
+<a href=#940 id=940 data-nosnippet>940</a>    /// ```
+<a href=#941 id=941 data-nosnippet>941</a>    /// use clap::{CommandFactory, Parser, Subcommand};
+<a href=#942 id=942 data-nosnippet>942</a>    /// use clap_couture::{CommandExt, Couture};
+<a href=#943 id=943 data-nosnippet>943</a>    ///
+<a href=#944 id=944 data-nosnippet>944</a>    /// #[derive(Parser)]
+<a href=#945 id=945 data-nosnippet>945</a>    /// struct Cli {
+<a href=#946 id=946 data-nosnippet>946</a>    ///     #[command(subcommand)]
+<a href=#947 id=947 data-nosnippet>947</a>    ///     cmd: Cmd,
+<a href=#948 id=948 data-nosnippet>948</a>    /// }
+<a href=#949 id=949 data-nosnippet>949</a>    ///
+<a href=#950 id=950 data-nosnippet>950</a>    /// #[derive(Subcommand, Couture)]
+<a href=#951 id=951 data-nosnippet>951</a>    /// #[couture(categories = { "everyday" = { description = "daily drivers" } })]
+<a href=#952 id=952 data-nosnippet>952</a>    /// enum Cmd {
+<a href=#953 id=953 data-nosnippet>953</a>    ///     /// Search your deployment history
+<a href=#954 id=954 data-nosnippet>954</a>    ///     #[couture(category = "everyday")]
+<a href=#955 id=955 data-nosnippet>955</a>    ///     Search,
+<a href=#956 id=956 data-nosnippet>956</a>    /// }
+<a href=#957 id=957 data-nosnippet>957</a>    ///
+<a href=#958 id=958 data-nosnippet>958</a>    /// let mut cmd = Cli::command().with_couture::&lt;Cmd&gt;();
+<a href=#959 id=959 data-nosnippet>959</a>    /// assert!(cmd.render_help().to_string().contains("everyday"));
+<a href=#960 id=960 data-nosnippet>960</a>    /// ```
+<a href=#961 id=961 data-nosnippet>961</a>    </span><span class="attr">#[must_use]
+<a href=#962 id=962 data-nosnippet>962</a>    </span><span class="kw">fn </span>with_couture&lt;T&gt;(<span class="self">self</span>) -&gt; <span class="self">Self
+<a href=#963 id=963 data-nosnippet>963</a>    </span><span class="kw">where
+<a href=#964 id=964 data-nosnippet>964</a>        </span>T: Couture;
+<a href=#965 id=965 data-nosnippet>965</a>}
+<a href=#966 id=966 data-nosnippet>966</a>
+<a href=#967 id=967 data-nosnippet>967</a><span class="kw">impl </span>CommandExt <span class="kw">for </span>Command {
+<a href=#968 id=968 data-nosnippet>968</a>    <span class="kw">fn </span>with_couture&lt;T&gt;(<span class="self">self</span>) -&gt; <span class="self">Self
+<a href=#969 id=969 data-nosnippet>969</a>    </span><span class="kw">where
+<a href=#970 id=970 data-nosnippet>970</a>        </span>T: Couture,
+<a href=#971 id=971 data-nosnippet>971</a>    {
+<a href=#972 id=972 data-nosnippet>972</a>        <span class="comment">// Built as clap builds it to parse, so each help lists what clap propagates down.
+<a href=#973 id=973 data-nosnippet>973</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>built = <span class="self">self</span>.clone();
+<a href=#974 id=974 data-nosnippet>974</a>        built.build();
+<a href=#975 id=975 data-nosnippet>975</a>        <span class="comment">// Probed once: every built command wraps to the root's width.
+<a href=#976 id=976 data-nosnippet>976</a>        </span><span class="kw">let </span>width = built.help_width();
+<a href=#977 id=977 data-nosnippet>977</a>        T::HELP_TREE.install(<span class="self">self</span>, <span class="kw-2">&amp;</span>built, T::CATEGORIES, <span class="kw-2">&amp;</span>T::MESSAGES, width)
+<a href=#978 id=978 data-nosnippet>978</a>    }
+<a href=#979 id=979 data-nosnippet>979</a>}
 </code></pre></div></section></main></body></html>

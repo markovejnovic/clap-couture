@@ -971,7 +971,7 @@
 <a href=#965 id=965 data-nosnippet>965</a>        </span>T: Couture,
 <a href=#966 id=966 data-nosnippet>966</a>    {
 <a href=#967 id=967 data-nosnippet>967</a>        <span class="comment">// Built as clap builds it to parse, so each help lists what clap propagates down.
-<a href=#968 id=968 data-nosnippet>968</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>built = <span class="self">self</span>.clone().disable_help_subcommand(<span class="bool-val">true</span>);
+<a href=#968 id=968 data-nosnippet>968</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>built = <span class="self">self</span>.clone();
 <a href=#969 id=969 data-nosnippet>969</a>        built.build();
 <a href=#970 id=970 data-nosnippet>970</a>        <span class="comment">// Probed once: every built command wraps to the root's width.
 <a href=#971 id=971 data-nosnippet>971</a>        </span><span class="kw">let </span>width = built.help_width();

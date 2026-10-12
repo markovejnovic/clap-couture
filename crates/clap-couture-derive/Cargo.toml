@@ -28,7 +28,7 @@ strsim = { workspace = true }
 [dev-dependencies]
 clap = { workspace = true, features = ["derive"] }
 # Renamed, so the tests prove `#[couture(crate = ...)]` works without a `clap_couture` in scope.
-couture = { package = "clap-couture", path = "../clap-couture", version = "0.1.0", features = ["interactive"] }
+couture = { package = "clap-couture", path = "../clap-couture", features = ["interactive"] }
 
 [lints]
 workspace = true

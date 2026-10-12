@@ -7,7 +7,9 @@ use quote::{ToTokens, quote};
 use syn::Type;
 
 use crate::{
-    clap_compat::{ClapAttrs as _, ClapFieldType as _, ClapName, FieldKind, SubcommandNaming},
+    clap_compat::{
+        ClapAttrs as _, ClapFieldType as _, ClapName, FieldKind, FlagAction, SubcommandNaming,
+    },
     input::{BareOr, EditorOptions, FieldInput, StdinOptions, VariantInput},
     runtime::Runtime,
     text::{OptionalText, TextExpr},
@@ -35,7 +37,7 @@ enum PromptedArgBranch {
 
 /// A `dash` in `prompt(dash)`, or a `stdin`.
 struct DashAttr {
-    /// The field's type, `Option` peeled: what `-` becomes.
+    /// The type clap parses the field's value as: what `-` becomes.
     field_type: Type,
 }
 
@@ -109,7 +111,7 @@ impl PromptedArgTree {
     /// # Errors
     /// - A `#[couture(prompt)]` or `#[couture(confirm)]` without the `interactive` feature.
     /// - Either on a field that is not a single named arg, or both on one field.
-    /// - A `#[couture(confirm)]` on a field that is not a `bool`.
+    /// - A `#[couture(confirm)]` on a field that is not a `bool`, or whose action sets no `true`.
     /// - A `#[couture(stdin)]` on more than one field, or on one that is not a single named arg
     ///   taking one value.
     /// - A `dash` on an arg that does not take one value.
@@ -197,8 +199,7 @@ impl PromptedArgBranch {
 impl EditorAttr {
     /// # Errors
     /// - `editor` without the `interactive-editor` feature.
-    /// - `editor` on a `bool` flag, which has no value to edit; a `bool` given an `action` may take
-    ///   one.
+    /// - `editor` on a flag, which has no value to edit.
     /// - An `extension` that is empty, starts with a dot or holds a path separator.
     fn new(field: &FieldInput, editor: &BareOr<EditorOptions>) -> darling::Result<Self> {
         let span = editor.span();
@@ -208,7 +209,7 @@ impl EditorAttr {
             )
             .with_span(&span));
         }
-        if field.ty.is_bool() && !field.attrs.has_clap_key("action") {
+        if !field.takes_value() {
             return Err(Error::custom("`#[couture(editor)]` needs an arg that takes a value")
                 .with_span(&span));
         }
@@ -259,6 +260,14 @@ impl PromptAttr {
         };
         if purpose == Purpose::Confirmation && !field.ty.is_bool() {
             return Err(Error::custom(format!("{attr} marks a `bool` flag")).with_span(&span));
+        }
+        if purpose == Purpose::Confirmation
+            && field.attrs.clap_flag_action().is_some_and(|action| action != FlagAction::SetTrue)
+        {
+            return Err(Error::custom(format!(
+                "{attr} marks a flag that a yes sets to `true`; this one's action doesn't"
+            ))
+            .with_span(&span));
         }
         let dash = dash.map(|span| DashAttr::new(field, span)).transpose()?;
         let editor =
@@ -487,7 +496,7 @@ impl StdinAttr {
         let Some(arg_id) = field.clap_arg_id() else {
             return error("`#[couture(stdin)]` needs a named field");
         };
-        if field.confirm.is_some() || field.ty.is_bool() && !field.attrs.has_clap_key("action") {
+        if field.confirm.is_some() || !field.takes_value() {
             return error("`#[couture(stdin)]` needs an arg that takes a value");
         }
         if field.ty.is_multi_value() {
@@ -507,7 +516,7 @@ impl DashAttr {
     /// # Errors
     /// The field is a flag that takes no value, or takes many.
     fn new(field: &FieldInput, span: Span) -> darling::Result<Self> {
-        if field.ty.is_bool() && !field.attrs.has_clap_key("action") {
+        if !field.takes_value() {
             return Err(Error::custom("`dash` needs an arg that takes a value").with_span(&span));
         }
         if field.ty.is_multi_value() {
@@ -515,7 +524,7 @@ impl DashAttr {
                 Error::custom("`dash` needs an arg that takes a single value").with_span(&span)
             );
         }
-        Ok(Self { field_type: field.ty.peel_option().clone() })
+        Ok(Self { field_type: field.ty.value_type().clone() })
     }
 }
 

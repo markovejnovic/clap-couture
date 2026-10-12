@@ -57,6 +57,15 @@ struct Login {
     token: Option<SecretString>,
 }
 
+#[derive(Parser, Couture)]
+struct Greet {
+    /// Name to greet.
+    #[arg(long)]
+    #[couture(prompt(dash))]
+    #[expect(clippy::option_option, reason = "clap's arg whose value may be left out")]
+    name: Option<Option<String>>,
+}
+
 /// The questions `backend` asked, oldest first.
 fn questions(backend: &ScriptedBackend) -> Vec<String> {
     backend.asked().into_iter().map(|asked| asked.question).collect()
@@ -122,6 +131,30 @@ fn without_a_dash_nothing_is_asked(#[case] argv: &[&str], #[case] message: Optio
     let commit = Commit::couture_try_parse_from_with(&backend, argv);
     assert_eq!(commit.map(|commit| commit.message).ok(), Some(message.map(str::to_owned)));
     assert_eq!(questions(&backend), Vec::<String>::new());
+}
+
+#[rstest]
+#[case::left_out(&["greet"], "None")]
+#[case::without_a_value(&["greet", "--name"], "Some(None)")]
+#[case::passed(&["greet", "--name", "ada"], "Some(Some(\"ada\"))")]
+fn an_optional_value_without_a_dash_parses_as_clap_parses_it(
+    #[case] argv: &[&str],
+    #[case] name: &str,
+) {
+    let backend = ScriptedBackend::new([]);
+    let greet = Greet::couture_try_parse_from_with(&backend, argv);
+    let parsed = greet.map(|greet| format!("{:?}", greet.name)).map_err(|err| err.to_string());
+    assert_eq!(parsed.as_deref(), Ok(name));
+    assert_eq!(questions(&backend), Vec::<String>::new());
+}
+
+#[test]
+fn a_dash_asks_for_an_optional_value() {
+    let backend = ScriptedBackend::new([Reply::Text(Some("ada"))]);
+    let greet = Greet::couture_try_parse_from_with(&backend, ["greet", "--name", "-"]);
+    let parsed = greet.map(|greet| greet.name).map_err(|err| err.to_string());
+    assert_eq!(parsed, Ok(Some(Some("ada".to_owned()))));
+    assert_eq!(questions(&backend), ["Name to greet"]);
 }
 
 #[test]

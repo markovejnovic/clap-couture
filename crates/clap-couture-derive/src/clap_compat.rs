@@ -29,8 +29,8 @@ use heck::{
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::ToTokens;
 use syn::{
-    Attribute, Expr, ExprLit, GenericArgument, Lit, LitStr, PathArguments, PathSegment, Token,
-    Type, TypePath, ext::IdentExt as _, meta::ParseNestedMeta, spanned::Spanned as _,
+    Attribute, Expr, ExprLit, ExprPath, GenericArgument, Lit, LitStr, PathArguments, PathSegment,
+    Token, Type, TypePath, ext::IdentExt as _, meta::ParseNestedMeta, spanned::Spanned as _,
 };
 
 use crate::input::VariantInput;
@@ -176,12 +176,50 @@ impl From<&[Attribute]> for FieldKind {
     }
 }
 
+/// An `ArgAction` that takes no value, as `Count` in `#[arg(action = ArgAction::Count)]`.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum FlagAction {
+    Count,
+    Help,
+    HelpLong,
+    HelpShort,
+    SetFalse,
+    SetTrue,
+    Version,
+}
+
+impl FlagAction {
+    /// The action `expr` names: a path ending in one of the variants, bare or after `ArgAction`.
+    /// `None` for any other expression, which may take a value.
+    fn from_expr(expr: &Expr) -> Option<Self> {
+        let Expr::Path(ExprPath { attrs: _, qself: None, path }) = expr else { return None };
+        let mut segments = path.segments.iter().rev();
+        let variant = segments.next()?;
+        if segments.next().is_some_and(|enum_segment| enum_segment.ident != "ArgAction") {
+            return None;
+        }
+        Some(match variant.ident.to_string().as_str() {
+            "Count" => Self::Count,
+            "Help" => Self::Help,
+            "HelpLong" => Self::HelpLong,
+            "HelpShort" => Self::HelpShort,
+            "SetFalse" => Self::SetFalse,
+            "SetTrue" => Self::SetTrue,
+            "Version" => Self::Version,
+            _ => return None,
+        })
+    }
+}
+
 /// A container's, variant's or field's `#[command(...)]` / `#[arg(...)]` / `#[clap(...)]`
 /// attributes, read the way clap reads them.
 pub(crate) trait ClapAttrs {
     /// Where the first key that gives the arg a default is, if any: any key starting with
     /// `default_value` or `default_missing_value`, so the conditional `default_value_if(s)` too.
     fn clap_default_span(&self) -> Option<Span>;
+
+    /// The `Count` in `#[arg(action = ArgAction::Count)]`, if the arg's action takes no value.
+    fn clap_flag_action(&self) -> Option<FlagAction>;
 
     /// The `zone` in `#[arg(id = "zone")]`, or in the deprecated `#[arg(name = "zone")]`, if any.
     fn clap_id(&self) -> Option<ClapName>;
@@ -211,6 +249,17 @@ impl ClapAttrs for [Attribute] {
             });
             if gives_default {
                 found.get_or_insert_with(|| meta.path.span());
+            }
+            Ok(())
+        });
+        found
+    }
+
+    fn clap_flag_action(&self) -> Option<FlagAction> {
+        let mut found = None;
+        self.for_each_clap_key(|meta| {
+            if meta.path.is_ident("action") && meta.input.peek(Token![=]) {
+                found = FlagAction::from_expr(&meta.value()?.parse::<Expr>()?);
             }
             Ok(())
         });
@@ -301,6 +350,10 @@ pub(crate) trait ClapFieldType {
     /// Peel one `Option`, which clap reads as "may be absent": `Option<Cmd>` becomes `Cmd`, any
     /// other type comes back unchanged.
     fn peel_option(&self) -> &Self;
+
+    /// The type clap parses each value as, for a field taking at most one: `Option<Option<T>>`,
+    /// `Option<T>` and `T` all give `T`.
+    fn value_type(&self) -> &Self;
 }
 
 /// `clap_derive`'s type matching (`src/utils/ty.rs`), ported as is: a type counts only as a
@@ -331,6 +384,10 @@ impl ClapFieldType for Type {
 
     fn peel_option(&self) -> &Self {
         self.subtype_if_named("Option").unwrap_or(self)
+    }
+
+    fn value_type(&self) -> &Self {
+        self.peel_option().peel_option()
     }
 }
 

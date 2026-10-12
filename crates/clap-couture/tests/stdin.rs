@@ -76,6 +76,14 @@ struct Note {
 }
 
 #[derive(Parser, Couture, Debug)]
+struct Annotate {
+    #[arg(long)]
+    #[couture(stdin)]
+    #[expect(clippy::option_option, reason = "clap's arg whose value may be left out")]
+    comment: Option<Option<String>>,
+}
+
+#[derive(Parser, Couture, Debug)]
 struct Draft {
     #[arg(long)]
     #[couture(prompt(dash), stdin)]
@@ -133,6 +141,8 @@ fn child() {
         }
         "note" => Note::couture_try_parse_from_with(NonInteractive, argv)
             .map(|note| format!("body={:?}", note.body)),
+        "annotate" => Annotate::couture_try_parse_from_with(NonInteractive, argv)
+            .map(|annotate| format!("comment={:?}", annotate.comment)),
         "draft" => {
             // Available, yet stdin is no terminal: a `-` reads it.
             let backend = ScriptedBackend::new([]);
@@ -300,6 +310,18 @@ fn a_dash_reads_any_stdin(#[case] argv: &[&str], #[case] stdin: Stdin, #[case] p
 #[case::passed(&["--body", "typed"], "body=Some(\"typed\")")]
 fn without_a_dash_stdin_is_left_unread(#[case] argv: &[&str], #[case] parsed: &str) {
     assert_eq!(run("note", argv, Stdin::PipedOpen).as_deref(), Ok(parsed));
+}
+
+#[rstest]
+#[case::dash(&["--comment", "-"], Stdin::Piped(b"hello\n"), "comment=Some(Some(\"hello\"))")]
+#[case::without_a_value(&["--comment"], Stdin::PipedOpen, "comment=Some(None)")]
+#[case::left_out(&[], Stdin::PipedOpen, "comment=None")]
+fn a_dash_reads_stdin_into_an_optional_value(
+    #[case] argv: &[&str],
+    #[case] stdin: Stdin,
+    #[case] parsed: &str,
+) {
+    assert_eq!(run("annotate", argv, stdin).as_deref(), Ok(parsed));
 }
 
 #[test]

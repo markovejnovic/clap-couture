@@ -16,7 +16,7 @@ use darling::{
 use syn::{Attribute, Expr, Generics, Ident, LitStr, Type, ext::IdentExt as _};
 
 use crate::{
-    clap_compat::{ClapAttrs as _, ClapName},
+    clap_compat::{ClapAttrs as _, ClapFieldType as _, ClapName},
     text::TextExpr,
 };
 
@@ -126,5 +126,12 @@ impl FieldInput {
         self.attrs.clap_id().or_else(|| {
             self.ident.as_ref().map(|ident| ClapName::Literal(ident.unraw().to_string()))
         })
+    }
+
+    /// Check whether this field's arg may take a value: not a `bool` flag, nor given an action
+    /// that takes none. An action the derive can't read counts as taking one.
+    pub(crate) fn takes_value(&self) -> bool {
+        let bool_flag = self.ty.is_bool() && !self.attrs.has_clap_key("action");
+        !bool_flag && self.attrs.clap_flag_action().is_none()
     }
 }

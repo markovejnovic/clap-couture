@@ -64,11 +64,6 @@ struct Flags {
     #[arg(long, action = ArgAction::Set)]
     #[couture(prompt, editor)]
     draft: bool,
-
-    /// How loud.
-    #[arg(short, action = ArgAction::Count)]
-    #[couture(prompt, editor)]
-    verbose: u8,
 }
 
 #[derive(Parser, Couture, Debug)]
@@ -331,18 +326,8 @@ fn the_file_is_named_after_the_subcommand_path() {
 #[rstest]
 fn a_bool_that_takes_a_value_opens_the_editor() {
     let editor = Editor::new([Some("true")]);
-    let flags = Flags::couture_try_parse_from_with(&editor, ["flags", "-v"]);
+    let flags = Flags::couture_try_parse_from_with(&editor, ["flags"]);
     assert_eq!(flags.ok().map(|flags| flags.draft), Some(true));
-}
-
-#[rstest]
-fn a_counted_flag_is_not_edited() {
-    let editor = Editor::new([]);
-    let flags = Flags::couture_try_parse_from_with(&editor, ["flags", "--draft", "true"]);
-    let err = flags.err().map(|err| err.to_string()).unwrap_or_default();
-    // It takes no value, so it is asked as a plain prompt, which this backend refuses.
-    assert!(err.contains("only editor prompts should be asked"), "{err}");
-    assert_eq!(editor.opened.take(), []);
 }
 
 #[rstest]

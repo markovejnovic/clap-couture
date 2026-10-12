@@ -108,14 +108,23 @@ impl Shape {
     fn corpus() -> impl Iterator<Item = Self> {
         (0..SHAPES).map(|seed| Self { root: CommandShapes::new(seed).root(), seed })
     }
+
+    /// The root built as couture decides long help on.
+    fn deciding(&self) -> Command {
+        let mut deciding = self.root.clone().without_command_hide_possible_values();
+        deciding.build();
+        deciding
+    }
 }
 
 impl Couture for Uncategorized {}
 
-/// Whether clap's `-h` on built `level` points to `--help`, which it does exactly when `--help`
-/// shows more; `None` without clap's help flag to tell.
-fn clap_shows_more_for_long_help(level: &Command) -> Option<bool> {
-    let help_flag = level
+/// Whether clap's `-h` on the command at `path` below `root` points to `--help`, which it does
+/// exactly when `--help` shows more; a command without clap's help flag is given it back to tell.
+fn clap_shows_more_for_long_help(root: &Command, path: &[String]) -> Option<bool> {
+    let mut built = with_help_flag_at(root.clone(), path);
+    built.build();
+    let help_flag = command_at(&built, path)?
         .get_arguments()
         .find(|arg| arg.get_id() == "help" && matches!(arg.get_action(), ArgAction::Help))?;
     Some(help_flag.get_help().is_some_and(|help| help.to_string().contains("(see more with")))
@@ -140,11 +149,17 @@ fn displayed_help(cmd: &Command, argv: &[String]) -> Option<StyledStr> {
     (err.kind() == ErrorKind::DisplayHelp).then(|| err.render())
 }
 
-/// Check whether every line of `help` fits `width`. clap wraps couture's body as it wraps an
-/// after-help, so a line clap itself lets overflow, like a long arg's flags, breaks there.
+/// Check whether every line of `help` below its usage fits `width`. clap wraps couture's body as
+/// it wraps an after-help, so a line clap itself lets overflow, like a long arg's flags, breaks
+/// there.
 fn fits(help: &StyledStr, width: Option<usize>) -> bool {
     let help = help.to_string();
-    width.is_none_or(|width| help.lines().all(|line| line.width() <= width))
+    let below_usage = help
+        .find("Usage:")
+        .and_then(|usage| help.get(usage..))
+        .and_then(|usage| usage.split_once("\n\n"))
+        .map_or(help.as_str(), |(_, below)| below);
+    width.is_none_or(|width| below_usage.lines().all(|line| line.width() <= width))
 }
 
 /// Check whether clap generated a `help` subcommand for built `cmd`.
@@ -170,6 +185,14 @@ fn paths(cmd: &Command) -> Vec<Vec<String>> {
         }
     }
     all
+}
+
+/// `cmd` with clap's help flag on the command at `path`.
+fn with_help_flag_at(cmd: Command, path: &[String]) -> Command {
+    match path.split_first() {
+        Some((name, below)) => cmd.mut_subcommand(name, |sub| with_help_flag_at(sub, below)),
+        None => cmd.disable_help_flag(false),
+    }
 }
 
 /// `help` styled, with each style still open at a line's end closed there and opened again past
@@ -250,10 +273,12 @@ fn clap_renders_every_command_under_a_template_couture_copied() {
 fn long_help_exists_where_clap_says_so() {
     let (mut built_checked, mut declared_checked) = (0usize, 0usize);
     for shape in Shape::corpus() {
-        let built = shape.built();
-        for path in paths(&built) {
-            let Some(level) = command_at(&built, &path) else { continue };
-            let Some(clap_says) = clap_shows_more_for_long_help(level) else { continue };
+        let deciding = shape.deciding();
+        for path in paths(&deciding) {
+            let Some(level) = command_at(&deciding, &path) else { continue };
+            let Some(clap_says) = clap_shows_more_for_long_help(&shape.root, &path) else {
+                continue;
+            };
             assert_eq!(level.has_long_help(), clap_says, "for seed {} at {path:?}", shape.seed);
             built_checked = built_checked.saturating_add(1);
             // As declared, before clap's build adds a help flag that holds its answer; only where

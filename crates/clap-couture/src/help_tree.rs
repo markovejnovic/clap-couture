@@ -205,6 +205,10 @@ impl DeferredHelp {
         else {
             return Err(err);
         };
+        // A flattened help lists the subcommands among the args, so there is no menu to file.
+        if built_at.is_flatten_help_set() {
+            return Err(err);
+        }
         let (categories, messages) = self.tree.help_at(&path, self.categories, self.messages);
         let body = HelpBody::new(built_at, categories, &messages, built.help_width());
         *cmd = mem::take(cmd).with_edited_at(&path, |printed| {

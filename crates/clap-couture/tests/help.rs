@@ -1,7 +1,7 @@
 //! couture's `--help` keeps everything clap shows besides the subcommand listing.
 
 use clap::{CommandFactory, Parser, Subcommand};
-use clap_couture::{CommandExt as _, Couture, CoutureParser as _};
+use clap_couture::{CommandExt as _, Couture, CoutureParser as _, ParseError};
 use rstest::rstest;
 
 #[derive(Parser, Couture)]
@@ -203,6 +203,11 @@ fn a_flattened_help_is_clap_s(#[case] flag: &str) {
     let clap = help(Flattened::command());
     assert!(clap.as_deref().is_some_and(|clap| clap.contains("copy plan")), "{clap:?}");
     assert_eq!(help(Flattened::couture_command()), clap);
+    let parsed = match Flattened::couture_try_parse_from(["copy", flag]) {
+        Err(ParseError::Clap(err)) => Some(err.render().ansi().to_string()),
+        other => Some(format!("{:?}", other.err())),
+    };
+    assert_eq!(parsed, clap);
 }
 
 #[derive(Parser, Couture)]

@@ -24,7 +24,7 @@ use core::iter;
 use std::ffi::{OsStr, OsString};
 
 use clap::{
-    Arg, ArgAction, ArgGroup, ArgMatches, Command, FromArgMatches, Id,
+    Arg, ArgAction, ArgMatches, Command, FromArgMatches, Id,
     builder::{PossibleValue, Resettable, ValueRange},
     error::{ContextKind, ContextValue, ErrorKind},
     parser::ValueSource,
@@ -98,6 +98,50 @@ impl BinNamed for Command {
             Some(bin_name) => self.bin_name(bin_name.to_owned()),
             None => self,
         }
+    }
+}
+
+/// [`Command`], asked whether its args conflict.
+trait Conflicting {
+    /// Check whether clap refuses `together` passed at once. Parses a `--{id}` flag per arg, with
+    /// the conflicts and exclusivity of those in `together`, beside `self`'s groups as declared:
+    /// clap has no getter for a group's own conflicts. `inherited` are globals a group may name.
+    fn refuses_together(&self, together: &[&str], inherited: &[&Arg]) -> bool;
+}
+
+impl Conflicting for Command {
+    fn refuses_together(&self, together: &[&str], inherited: &[&Arg]) -> bool {
+        let mut args: Vec<&Arg> = self.get_arguments().collect();
+        for global in inherited {
+            if !args.iter().any(|arg| arg.get_id() == global.get_id()) {
+                args.push(global);
+            }
+        }
+        let flags = args.iter().map(|arg| {
+            let flag = Arg::new(arg.get_id().clone())
+                .long(arg.get_id().clone())
+                .action(ArgAction::SetTrue)
+                .exclusive(arg.is_exclusive_set());
+            if !together.iter().any(|id| arg.get_id() == id) {
+                return flag;
+            }
+            let conflicts: Vec<Id> = self
+                .get_arg_conflicts_with(arg)
+                .into_iter()
+                .map(Arg::get_id)
+                .filter(|conflict| args.iter().any(|arg| arg.get_id() == *conflict))
+                .cloned()
+                .collect();
+            flag.conflicts_with_all(conflicts)
+        });
+        Self::new("conflicts")
+            .no_binary_name(true)
+            .disable_help_flag(true)
+            .disable_version_flag(true)
+            .args(flags)
+            .groups(self.get_groups().cloned())
+            .try_get_matches_from(together.iter().map(|id| format!("--{id}")))
+            .is_err_and(|err| err.kind() == ErrorKind::ArgumentConflict)
     }
 }
 
@@ -731,26 +775,32 @@ pub(super) fn blocked(
     else {
         return false;
     };
-    let Some(arg) = level.get_arguments().find(|arg| arg.get_id() == id) else {
+    if !level.get_arguments().any(|arg| arg.get_id() == id) {
         return false;
-    };
+    }
     let answered = |other: &Id| {
         answers.iter().any(|answer| {
             answer.prompted_arg.subcommand_path == path && answer.prompted_arg.attr.arg_id == other
         })
     };
-    let conflicts = level.get_arg_conflicts_with(arg);
-    level
+    let together: Vec<&str> = level
         .get_arguments()
-        .filter(|other| other.get_id() != arg.get_id())
-        .filter(|other| answered(other.get_id()) || explicit(level_matches, other.get_id()))
-        .any(|other| {
-            arg.is_exclusive_set()
-                || other.is_exclusive_set()
-                || conflicts.iter().any(|conflict| conflict.get_id() == other.get_id())
-                || level.get_arg_conflicts_with(other).iter().any(|c| c.get_id() == arg.get_id())
-                || group_mates(level, arg).any(|mate| mate == other.get_id())
-        })
+        .map(Arg::get_id)
+        .filter(|other| *other != id)
+        .filter(|other| answered(other) || explicit(level_matches, other))
+        .map(Id::as_str)
+        .chain(iter::once(id))
+        .collect();
+    // Alone, it conflicts with nothing.
+    if together.len() < 2 {
+        return false;
+    }
+    let inherited: Vec<&Arg> = (0..path.len())
+        .filter_map(|depth| command_at(cmd, path.get(..depth)?))
+        .flat_map(Command::get_arguments)
+        .filter(|arg| arg.is_global_set())
+        .collect();
+    level.refuses_together(&together, &inherited)
 }
 
 /// `arg`'s declared default values, split at its value delimiter.
@@ -816,16 +866,6 @@ fn explicit(matches: &ArgMatches, id: &Id) -> bool {
         matches.value_source(id.as_str()),
         Some(ValueSource::CommandLine | ValueSource::EnvVariable)
     )
-}
-
-/// The args sharing an exclusive `ArgGroup` with `arg`.
-fn group_mates<'cmd>(level: &'cmd Command, arg: &Arg) -> impl Iterator<Item = &'cmd Id> {
-    level
-        .get_groups()
-        .filter(|group| {
-            !ArgGroup::clone(group).is_multiple() && group.get_args().any(|id| id == arg.get_id())
-        })
-        .flat_map(ArgGroup::get_args)
 }
 
 /// For a flag, whether a "yes" stores `false`; `None` for an arg that takes a value.
@@ -1049,14 +1089,15 @@ where
 mod tests {
     use std::{ffi::OsString, io};
 
-    use clap::{CommandFactory as _, Parser};
+    use clap::{Arg, ArgGroup, Command, CommandFactory as _, Parser, error::ErrorKind};
     use rstest::rstest;
     use secrecy::SecretString;
 
-    use super::parse;
+    use super::{blocked, parse};
     use crate::{
         __private::{DashAttr, PromptAttr, PromptPurpose, PromptedArgTree, StdinAttr},
         Couture, Messages,
+        command_shapes::Choices,
         help_tree::DeferredHelp,
         interactive::{
             Backend, ConfirmPrompt, MultiSelectPrompt, PromptError, SecretPrompt, SelectPrompt,
@@ -1064,6 +1105,9 @@ mod tests {
         },
         os::stdin::{ReadWhen, Stdin},
     };
+
+    /// The args of a generated conflict command, each a `--name <VALUE>` option.
+    const IDS: [&str; 5] = ["alpha", "beta", "gamma", "delta", "omega"];
 
     /// `#[couture(prompt(dash), stdin)]` on `--message`.
     static ASKED_OR_READ: PromptedArgTree = PromptedArgTree {
@@ -1160,5 +1204,69 @@ mod tests {
             &DeferredHelp::of::<Draft>(Draft::command),
         );
         assert_eq!(draft.ok().and_then(|draft| draft.message).as_deref(), Some(message));
+    }
+
+    /// A command of options from [`IDS`], related by random conflicts, exclusivity and a group,
+    /// and the same command without the group's own conflict.
+    fn conflict_commands(choices: &mut Choices) -> (Command, Command) {
+        let members: Vec<&str> = IDS.iter().copied().filter(|_| choices.one_in(2)).collect();
+        let mut cmd = Command::new("app");
+        for id in IDS {
+            let mut arg = Arg::new(id).long(id).exclusive(choices.one_in(12));
+            for other in IDS.iter().filter(|other| **other != id) {
+                if choices.one_in(8) {
+                    arg = arg.conflicts_with(*other);
+                }
+            }
+            // A member conflicting with its own group could never be passed.
+            if !members.contains(&id) && choices.one_in(6) {
+                arg = arg.conflicts_with("pair");
+            }
+            cmd = cmd.arg(arg);
+        }
+        let group = ArgGroup::new("pair").args(members.clone()).multiple(choices.one_in(2));
+        let outsider = IDS.iter().find(|id| !members.contains(id)).filter(|_| choices.one_in(4));
+        let without_group_conflict = cmd.clone().group(group.clone());
+        let group = match outsider {
+            Some(outsider) => group.conflicts_with(*outsider),
+            None => group,
+        };
+        (cmd.group(group), without_group_conflict)
+    }
+
+    #[rstest]
+    fn an_arg_couture_asks_for_conflicts_where_clap_says_so() {
+        let (mut checked, mut only_by_group_conflict) = (0usize, 0usize);
+        for seed in 0u64..400u64 {
+            let (cmd, without_group_conflict) = conflict_commands(&mut Choices::new(seed));
+            let mut built = cmd.clone();
+            built.build();
+            for passed in IDS {
+                let passed_flag = format!("--{passed}=1");
+                let Ok(matches) = cmd.clone().try_get_matches_from(["app", &passed_flag]) else {
+                    continue;
+                };
+                for asked in IDS.iter().filter(|asked| **asked != passed) {
+                    let both = ["app", &passed_flag, &format!("--{asked}=2")];
+                    let refuses = |cmd: &Command| {
+                        cmd.clone()
+                            .try_get_matches_from(both)
+                            .is_err_and(|err| err.kind() == ErrorKind::ArgumentConflict)
+                    };
+                    let clap_refuses = refuses(&cmd);
+                    only_by_group_conflict = only_by_group_conflict.saturating_add(usize::from(
+                        refuses(&without_group_conflict) != clap_refuses,
+                    ));
+                    assert_eq!(
+                        blocked(&built, &matches, &[], asked, &[]),
+                        clap_refuses,
+                        "asking --{asked} after --{passed}, for seed {seed}",
+                    );
+                    checked = checked.saturating_add(1);
+                }
+            }
+        }
+        assert!(checked > 5000, "only {checked} pairs were checked");
+        assert!(only_by_group_conflict > 0, "no group conflict was generated");
     }
 }

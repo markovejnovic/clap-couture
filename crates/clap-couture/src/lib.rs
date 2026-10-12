@@ -448,6 +448,8 @@ extern crate alloc;
 #[doc(hidden)]
 #[path = "private.rs"]
 pub mod __private;
+#[cfg(all(test, feature = "interactive"))]
+mod command_shapes;
 #[cfg(feature = "interactive-editor")]
 mod fs;
 mod help_tree;

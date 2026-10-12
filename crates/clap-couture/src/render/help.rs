@@ -108,7 +108,7 @@ impl HelpBody {
 impl Headings<'_> {
     /// Ends the `{all-args}` template, so clap's trim of the help leaves the args as clap writes
     /// them above an after-help: an arg without help keeps its indent.
-    const ARGS_END: &str = "\u{E000}";
+    const ARGS_END: &'static str = "\u{E000}";
 
     /// `rendered`, clap's `{all-args}` and [`Self::ARGS_END`], cut at the marker, with its default
     /// section headings reworded.

@@ -7,7 +7,7 @@ use clap::{ArgMatches, Command, error::ErrorKind};
 
 use crate::{
     CommandCategoryMap, Couture, Messages,
-    render::{CommandRenderExt as _, HelpBody},
+    render::{CommandRenderExt as _, HelpBody, HelpTemplates as _},
 };
 
 /// Starts the help template [`CommandPath::marked`] gives each command, before its path.
@@ -86,29 +86,41 @@ impl HelpTree {
     /// subcommand below it showing its own, from this tree.
     ///
     /// `built` is `cmd` built by clap, so each help lists what clap gives a subcommand: global
-    /// args, styles and settings from its parents. Each menu wraps to `width`.
+    /// args, styles and settings from its parents. `deciding` is `cmd` built from
+    /// [`without_command_hide_possible_values`](crate::render::HelpTemplates::without_command_hide_possible_values),
+    /// to decide on each long help. Each menu wraps to `width`.
     pub(crate) fn install(
         &self,
         cmd: Command,
         built: &Command,
+        deciding: &Command,
         categories: CommandCategoryMap,
         messages: &Messages,
         width: Option<usize>,
     ) -> Command {
         let cmd = cmd.mut_subcommands(|subcommand| {
-            let Some(built_subcommand) = built.find_subcommand(subcommand.get_name()) else {
+            let name = subcommand.get_name();
+            let (Some(built_subcommand), Some(deciding_subcommand)) =
+                (built.find_subcommand(name), deciding.find_subcommand(name))
+            else {
                 return subcommand;
             };
-            let (tree, messages) = self
-                .subcommand(subcommand.get_name(), *messages)
-                .unwrap_or((&Self::EMPTY, *messages));
-            tree.install(subcommand, built_subcommand, tree.categories, &messages, width)
+            let (tree, messages) =
+                self.subcommand(name, *messages).unwrap_or((&Self::EMPTY, *messages));
+            tree.install(
+                subcommand,
+                built_subcommand,
+                deciding_subcommand,
+                tree.categories,
+                &messages,
+                width,
+            )
         });
         // A flattened help lists the subcommands among the args, so there is no menu to file.
         if built.is_flatten_help_set() {
             return cmd;
         }
-        HelpBody::new(built, categories, messages, width).install(cmd)
+        HelpBody::new(built, deciding, categories, messages, width).install(cmd)
     }
 
     /// The tree of the subcommand `name`, and the messages it inherits from `inherited` down
@@ -200,8 +212,11 @@ impl DeferredHelp {
         // Built as clap builds it to parse, so the help lists what clap propagates down.
         let mut built = declared.clone();
         built.build();
+        let mut deciding = declared.clone().without_command_hide_possible_values();
+        deciding.build();
         // clap's own `help` subcommand is not declared, so its help stays clap's.
-        let (Some(declared_at), Some(built_at)) = (declared.at_path(&path), built.at_path(&path))
+        let (Some(declared_at), Some(built_at), Some(deciding_at)) =
+            (declared.at_path(&path), built.at_path(&path), deciding.at_path(&path))
         else {
             return Err(err);
         };
@@ -210,7 +225,7 @@ impl DeferredHelp {
             return Err(err);
         }
         let (categories, messages) = self.tree.help_at(&path, self.categories, self.messages);
-        let body = HelpBody::new(built_at, categories, &messages, built.help_width());
+        let body = HelpBody::new(built_at, deciding_at, categories, &messages, built.help_width());
         *cmd = mem::take(cmd).with_edited_at(&path, |printed| {
             // As `with_couture` renders every command's, for a template that lists them.
             let printed = printed.mut_subcommands(|subcommand| {

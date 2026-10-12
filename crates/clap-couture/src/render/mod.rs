@@ -22,7 +22,7 @@ use md::MdTextRenderer as Renderer;
 use plain::PlainTextRenderer as Renderer;
 use unicode_width::UnicodeWidthStr;
 
-pub(crate) use self::help::HelpBody;
+pub(crate) use self::help::{HelpBody, HelpTemplates};
 use crate::{Category, CommandCategoryMap};
 
 /// Styles a run of help text (a command's about or a category description).

@@ -41,12 +41,18 @@ pub(crate) trait HelpTemplates {
 
     /// Check whether `--help` shows more than `-h`, as clap decides it
     /// (`Command::long_help_exists_` in `clap_builder` 4.6.7): otherwise clap shows `-h`'s help
-    /// for both.
+    /// for both. Exact on a command built from [`Self::without_command_hide_possible_values`].
     fn has_long_help(&self) -> bool;
 
     /// Check whether the app set its own help template. clap has no getter for it, so the help
     /// is rendered under clap's default templates and compared.
     fn has_own_template(&self) -> bool;
+
+    /// This command and those below it with no command-level `hide_possible_values`: clap decides
+    /// on long help before it applies a command's to its args (`Command::_build_self` in
+    /// `clap_builder` 4.6.7).
+    #[must_use]
+    fn without_command_hide_possible_values(self) -> Self;
 }
 
 impl HelpBody {
@@ -64,9 +70,11 @@ impl HelpBody {
     }
 
     /// The body for built `cmd`, its subcommands filed by `categories` and wrapped to `width`, its
-    /// headings worded by `messages`.
+    /// headings worded by `messages`; `deciding` is `cmd` built from
+    /// [`HelpTemplates::without_command_hide_possible_values`].
     pub(crate) fn new(
         cmd: &Command,
+        deciding: &Command,
         categories: CommandCategoryMap,
         messages: &Messages,
         width: Option<usize>,
@@ -89,7 +97,7 @@ impl HelpBody {
         let after_help = cmd.get_after_help().map(|text| text.ansi().to_string());
         let after_long_help = cmd.get_after_long_help().map(|text| text.ansi().to_string());
         let short = Self::paragraphs([&menu, &short_args, after_help.as_deref().unwrap_or("")]);
-        let long = cmd.has_long_help().then(|| {
+        let long = deciding.has_long_help().then(|| {
             let after = after_long_help.or(after_help);
             Self::paragraphs([&menu, &long_args, after.as_deref().unwrap_or("")])
         });
@@ -172,5 +180,9 @@ impl HelpTemplates for Command {
         Self::CLAP_DEFAULTS.iter().all(|template| {
             self.clone().help_template(*template).render_help().ansi().to_string() != rendered
         })
+    }
+
+    fn without_command_hide_possible_values(self) -> Self {
+        self.hide_possible_values(false).mut_subcommands(Self::without_command_hide_possible_values)
     }
 }

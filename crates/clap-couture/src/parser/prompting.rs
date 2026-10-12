@@ -1089,15 +1089,14 @@ where
 mod tests {
     use std::{ffi::OsString, io};
 
-    use clap::{Arg, ArgGroup, Command, CommandFactory as _, Parser, error::ErrorKind};
+    use clap::{CommandFactory as _, Parser};
     use rstest::rstest;
     use secrecy::SecretString;
 
-    use super::{blocked, parse};
+    use super::parse;
     use crate::{
         __private::{DashAttr, PromptAttr, PromptPurpose, PromptedArgTree, StdinAttr},
         Couture, Messages,
-        command_shapes::Choices,
         help_tree::DeferredHelp,
         interactive::{
             Backend, ConfirmPrompt, MultiSelectPrompt, PromptError, SecretPrompt, SelectPrompt,
@@ -1105,9 +1104,6 @@ mod tests {
         },
         os::stdin::{ReadWhen, Stdin},
     };
-
-    /// The args of a generated conflict command, each a `--name <VALUE>` option.
-    const IDS: [&str; 5] = ["alpha", "beta", "gamma", "delta", "omega"];
 
     /// `#[couture(prompt(dash), stdin)]` on `--message`.
     static ASKED_OR_READ: PromptedArgTree = PromptedArgTree {
@@ -1204,69 +1200,5 @@ mod tests {
             &DeferredHelp::of::<Draft>(Draft::command),
         );
         assert_eq!(draft.ok().and_then(|draft| draft.message).as_deref(), Some(message));
-    }
-
-    /// A command of options from [`IDS`], related by random conflicts, exclusivity and a group,
-    /// and the same command without the group's own conflict.
-    fn conflict_commands(choices: &mut Choices) -> (Command, Command) {
-        let members: Vec<&str> = IDS.iter().copied().filter(|_| choices.one_in(2)).collect();
-        let mut cmd = Command::new("app");
-        for id in IDS {
-            let mut arg = Arg::new(id).long(id).exclusive(choices.one_in(12));
-            for other in IDS.iter().filter(|other| **other != id) {
-                if choices.one_in(8) {
-                    arg = arg.conflicts_with(*other);
-                }
-            }
-            // A member conflicting with its own group could never be passed.
-            if !members.contains(&id) && choices.one_in(6) {
-                arg = arg.conflicts_with("pair");
-            }
-            cmd = cmd.arg(arg);
-        }
-        let group = ArgGroup::new("pair").args(members.clone()).multiple(choices.one_in(2));
-        let outsider = IDS.iter().find(|id| !members.contains(id)).filter(|_| choices.one_in(4));
-        let without_group_conflict = cmd.clone().group(group.clone());
-        let group = match outsider {
-            Some(outsider) => group.conflicts_with(*outsider),
-            None => group,
-        };
-        (cmd.group(group), without_group_conflict)
-    }
-
-    #[rstest]
-    fn an_arg_couture_asks_for_conflicts_where_clap_says_so() {
-        let (mut checked, mut only_by_group_conflict) = (0usize, 0usize);
-        for seed in 0u64..400u64 {
-            let (cmd, without_group_conflict) = conflict_commands(&mut Choices::new(seed));
-            let mut built = cmd.clone();
-            built.build();
-            for passed in IDS {
-                let passed_flag = format!("--{passed}=1");
-                let Ok(matches) = cmd.clone().try_get_matches_from(["app", &passed_flag]) else {
-                    continue;
-                };
-                for asked in IDS.iter().filter(|asked| **asked != passed) {
-                    let both = ["app", &passed_flag, &format!("--{asked}=2")];
-                    let refuses = |cmd: &Command| {
-                        cmd.clone()
-                            .try_get_matches_from(both)
-                            .is_err_and(|err| err.kind() == ErrorKind::ArgumentConflict)
-                    };
-                    let clap_refuses = refuses(&cmd);
-                    only_by_group_conflict = only_by_group_conflict.saturating_add(usize::from(
-                        refuses(&without_group_conflict) != clap_refuses,
-                    ));
-                    assert_eq!(
-                        blocked(&built, &matches, &[], asked, &[]),
-                        clap_refuses,
-                        "asking --{asked} after --{passed}, for seed {seed}",
-                    );
-                    checked = checked.saturating_add(1);
-                }
-            }
-        }
-        assert!(checked > 5000, "only {checked} pairs were checked");
-        assert!(only_by_group_conflict > 0, "no group conflict was generated");
     }
 }

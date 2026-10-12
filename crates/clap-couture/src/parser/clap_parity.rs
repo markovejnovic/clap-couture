@@ -71,7 +71,7 @@ fn misses_required(cmd: &Command, argv: &[&str]) -> bool {
 }
 
 /// A command of options from [`IDS`], related by random conflicts, exclusivity and a group, and
-/// the same command without the group's own conflict, which clap has no getter for.
+/// the same command without the group's own conflict.
 fn conflict_commands(choices: &mut Choices) -> (Command, Command) {
     let members: Vec<&str> = IDS.iter().copied().filter(|_| choices.one_in(2)).collect();
     let mut cmd = Command::new("app");
@@ -117,9 +117,9 @@ fn an_arg_couture_asks_for_conflicts_where_clap_says_so() {
                         .try_get_matches_from(both)
                         .is_err_and(|err| err.kind() == ErrorKind::ArgumentConflict)
                 };
-                let clap_refuses = refuses(&without_group_conflict);
+                let clap_refuses = refuses(&cmd);
                 only_by_group_conflict = only_by_group_conflict
-                    .saturating_add(usize::from(refuses(&cmd) != clap_refuses));
+                    .saturating_add(usize::from(refuses(&without_group_conflict) != clap_refuses));
                 assert_eq!(
                     blocked(&built, &matches, &[], asked, &[]),
                     clap_refuses,
@@ -130,7 +130,6 @@ fn an_arg_couture_asks_for_conflicts_where_clap_says_so() {
         }
     }
     assert!(checked > 5000, "only {checked} pairs were checked");
-    // A group's own `conflicts_with` has no getter, so couture can't see it; it is still clap's.
     assert!(only_by_group_conflict > 0, "no group conflict was generated");
 }
 

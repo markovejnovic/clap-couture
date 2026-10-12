@@ -4,6 +4,7 @@ mod clap_compat;
 mod couture_impl;
 mod input;
 mod runtime;
+mod suggest;
 mod text;
 
 use darling::FromDeriveInput as _;

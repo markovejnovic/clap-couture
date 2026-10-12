@@ -13,7 +13,7 @@ use syn::{
 };
 
 use super::messages::Messages;
-use crate::text::TextExpr;
+use crate::{suggest::Suggestion, text::TextExpr};
 
 /// One category of `categories = { ... }`, as written.
 pub(crate) struct CategorySpec {
@@ -159,9 +159,6 @@ impl Parse for Entry {
 }
 
 impl Inheritance {
-    /// The Jaro-Winkler similarity above which a known label is suggested, as darling's.
-    const SUGGESTION_SIMILARITY: f64 = 0.8;
-
     /// Check that a subcommand may name `category` without the enum declaring it, suggesting
     /// the closest of `declared_labels` and the inherited labels when it may not.
     pub(crate) fn check(&self, category: &LitStr, declared_labels: &[&str]) -> darling::Result<()> {
@@ -172,14 +169,10 @@ impl Inheritance {
             Self::Only(labels) if labels.contains(&label) => return Ok(()),
             Self::Only(labels) => labels.as_slice(),
         };
-        let suggestion = declared_labels
-            .iter()
-            .copied()
-            .chain(inherited_labels.iter().map(String::as_str))
-            .map(|known| (strsim::jaro_winkler(&label, known), known))
-            .filter(|(similarity, _)| *similarity > Self::SUGGESTION_SIMILARITY)
-            .max_by(|(left, _), (right, _)| left.total_cmp(right))
-            .map(|(_, known)| format!("; did you mean `{known}`?"))
+        let known =
+            declared_labels.iter().copied().chain(inherited_labels.iter().map(String::as_str));
+        let suggestion = Suggestion::closest(&label, known)
+            .map(|suggestion| format!("; {suggestion}"))
             .unwrap_or_default();
         Err(Error::custom(format!(
             "category `{label}` is not declared or inherited in this enum's \

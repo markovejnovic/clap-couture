@@ -57,6 +57,7 @@ impl HelpBody {
             let template = cmd.couture_template(messages);
             cmd.help_template(template)
         };
+        let cmd = cmd.with_rendered_about();
         // An empty after-help would still print its blank line.
         let cmd = if self.short.is_empty() { cmd } else { cmd.after_help(self.short) };
         match self.long {
@@ -82,7 +83,8 @@ impl HelpBody {
             .clone()
             .disable_help_subcommand(true)
             .mut_subcommands(|subcommand| subcommand.hide(true))
-            .help_template("{all-args}");
+            .help_template("{all-args}")
+            .with_rendered_arg_help();
         let headings = Headings { cmd, messages };
         let short_args = headings.reword(&args_only.clone().render_help());
         let long_args = headings.reword(&args_only.render_long_help());

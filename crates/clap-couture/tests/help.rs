@@ -60,6 +60,24 @@ struct Long {
     source: String,
 }
 
+#[derive(Parser, Couture)]
+struct Store {
+    #[command(subcommand)]
+    cmd: StoreCmd,
+}
+
+#[derive(Subcommand, Couture)]
+enum StoreCmd {
+    /// Delete <id> from the store.
+    Delete,
+}
+
+#[rstest]
+fn an_about_keeps_its_placeholders() {
+    let help = Store::couture_command().render_help().to_string();
+    assert!(help.contains("delete  Delete <id> from the store\n"), "{help}");
+}
+
 #[rstest]
 fn positional_arguments_are_listed() {
     let help = Copy::couture_command().render_help().to_string();

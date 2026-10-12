@@ -2,7 +2,7 @@
 
 use clap::{Arg, Command, builder::StyledStr};
 
-use super::CommandRenderExt as _;
+use super::{CommandRenderExt as _, Word};
 use crate::{CommandCategoryMap, Messages};
 
 /// What couture shows below the usage, at `{after-help}`: the categorized subcommands, clap's
@@ -74,17 +74,21 @@ impl HelpBody {
         let mut menu = StyledStr::new();
         // `StyledStr`'s `fmt::Write` is infallible.
         cmd.write_command_sections(&mut menu, categories, width).ok();
-        let menu = menu.ansi().to_string();
+        let menu = Word(&menu.ansi().to_string()).with_wide_lines_unstyled(width);
 
-        let mut args_only = cmd
+        let args_only = cmd
             .clone()
             .disable_help_subcommand(true)
             .mut_subcommands(|subcommand| subcommand.hide(true))
             .help_template(format!("{{all-args}}{}", Headings::ARGS_END))
             .with_rendered_arg_help();
         let headings = Headings { cmd, messages };
-        let short_args = headings.reword(&args_only.clone().render_help());
-        let long_args = headings.reword(&args_only.render_long_help());
+        let fitted =
+            |args: &StyledStr| Word(&headings.reword(args)).with_wide_lines_unstyled(width);
+        let short_args =
+            args_only.render_for_after_help(|mut args_only| fitted(&args_only.render_help()));
+        let long_args =
+            args_only.render_for_after_help(|mut args_only| fitted(&args_only.render_long_help()));
 
         let after_help = cmd.get_after_help().map(|text| text.ansi().to_string());
         let after_long_help = cmd.get_after_long_help().map(|text| text.ansi().to_string());

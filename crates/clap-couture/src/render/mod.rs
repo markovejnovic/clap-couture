@@ -27,17 +27,18 @@ use crate::{Category, CommandCategoryMap};
 
 /// Styles a run of help text (a command's about or a category description).
 pub(crate) trait TextRenderer {
-    fn render_display<W, D>(&self, out: &mut W, text: D) -> fmt::Result
-    where
-        W: fmt::Write,
-        D: Display;
-
     fn render_str<W>(&self, out: &mut W, text: &str) -> fmt::Result
     where
         W: fmt::Write;
 
     /// `text` as this renderer shows it, as text clap writes as is.
     fn restyle(&self, text: &StyledStr) -> StyledStr;
+
+    /// `text` as this renderer shows it in a subcommand listing's row.
+    fn restyle_line(&self, text: &StyledStr) -> StyledStr;
+
+    /// `wrapped`, text clap wrapped and indented, as this renderer shows it.
+    fn restyle_wrapped(&self, wrapped: &str) -> String;
 }
 
 pub(crate) trait CommandRenderExt {
@@ -139,13 +140,18 @@ impl CommandRenderExt for Command {
     }
 }
 
-/// A command's visible subcommands, partitioned by category.
+/// A command's subcommands as clap lists them, partitioned by category.
 struct Menu<'cmd> {
     category_map: CommandCategoryMap,
     parent: &'cmd Command,
+    /// Each listed subcommand's lines, in clap's order.
+    rows: Vec<Row<'cmd>>,
 }
 
 impl<'cmd> Menu<'cmd> {
+    /// Ends the `{subcommands}` template, so clap's trim of the help keeps the last row's padding.
+    const LISTING_END: &'static str = "\u{E000}";
+
     /// The distinct categories with at least one visible member, in first-appearance order.
     fn categories(&self) -> impl Iterator<Item = &'static Category> {
         self.category_map
@@ -157,11 +163,9 @@ impl<'cmd> Menu<'cmd> {
         self.members(None).next().is_some()
     }
 
-    /// The `help` subcommand clap generated for the parent; `None` when it didn't, or when clap
-    /// lists no subcommands, as when every other one is hidden.
-    fn help_subcommand(&self) -> Option<&'cmd Command> {
-        let listed = self.subcommands().any(|cmd| cmd.get_name() != "help");
-        self.subcommands().find(|cmd| listed && self.is_help_subcommand(cmd))
+    /// The row of the `help` subcommand clap generated for the parent; `None` when it didn't.
+    fn help_row(&self) -> Option<&Row<'cmd>> {
+        self.rows.iter().find(|row| self.is_help_subcommand(row.cmd))
     }
 
     /// Check whether `cmd` is the `help` subcommand clap generated for the parent.
@@ -169,26 +173,98 @@ impl<'cmd> Menu<'cmd> {
         !self.parent.is_disable_help_subcommand_set() && cmd.get_name() == "help"
     }
 
-    /// The visible subcommands filed under `category` (`None` for the uncategorized ones), minus
-    /// clap's `help`.
-    fn members(&self, category: Option<&Category>) -> impl Iterator<Item = &'cmd Command> {
+    /// The rows of the subcommands filed under `category` (`None` for the uncategorized ones),
+    /// minus clap's `help`.
+    fn members(&self, category: Option<&Category>) -> impl Iterator<Item = &Row<'cmd>> {
         let label = category.map(|cat| cat.label);
-        self.subcommands().filter(move |cmd| {
-            !self.is_help_subcommand(cmd)
-                && self.category_map.find(cmd.get_name()).map(|cat| cat.label) == label
+        self.rows.iter().filter(move |row| {
+            !self.is_help_subcommand(row.cmd)
+                && self.category_map.find(row.cmd.get_name()).map(|cat| cat.label) == label
         })
     }
 
-    /// The parent's subcommands, minus the hidden ones, in clap's display order.
-    fn subcommands(&self) -> impl Iterator<Item = &'cmd Command> {
-        let mut visible: Vec<_> =
-            self.parent.get_subcommands().filter(|cmd| !cmd.is_hide_set()).collect();
-        // `mut_subcommand` moves the subcommand it edits to the end, as guarding a secret does.
-        visible.sort_by_key(|cmd| cmd.get_display_order());
-        visible.into_iter()
+    /// `parent`'s subcommands as clap lists them under `Commands:`, their abouts rendered by
+    /// `renderer`: none when clap lists none, as when only `help` would show.
+    fn new<R>(parent: &'cmd Command, category_map: CommandCategoryMap, renderer: &R) -> Self
+    where
+        R: TextRenderer,
+    {
+        let lists_subcommands =
+            parent.get_subcommands().any(|sub| sub.get_name() != "help" && !sub.is_hide_set());
+        let rows = if lists_subcommands { Row::all_of(parent, renderer) } else { Vec::new() };
+        Self { category_map, parent, rows }
     }
 }
 
+/// One subcommand's lines in clap's listing: its name and flags, then its about and aliases,
+/// wrapped and aligned as clap does.
+struct Row<'cmd> {
+    cmd: &'cmd Command,
+    lines: String,
+}
+
+impl<'cmd> Row<'cmd> {
+    /// clap's listing of `parent`'s visible subcommands, split into each one's row.
+    fn all_of<R>(parent: &'cmd Command, renderer: &R) -> Vec<Self>
+    where
+        R: TextRenderer,
+    {
+        let listing = parent
+            .clone()
+            .mut_subcommands(|sub| {
+                // clap lists the long about when there is no short one.
+                let about = sub.get_about().or_else(|| sub.get_long_about());
+                let about = about.map(|about| renderer.restyle_line(about));
+                sub.about(Resettable::from(about))
+            })
+            .help_template(format!("{{subcommands}}{}", Menu::LISTING_END))
+            .render_help()
+            .ansi()
+            .to_string();
+        let listing = listing.rsplit_once(Menu::LISTING_END).map_or(&*listing, |(rows, _)| rows);
+        let listing = renderer.restyle_wrapped(listing);
+        let mut rows: Vec<Self> = Vec::new();
+        for line in listing.split('\n') {
+            // A row starts at clap's two-space indent; the lines it wraps onto are indented past.
+            let starts_row = Word(line)
+                .visible()
+                .strip_prefix("  ")
+                .is_some_and(|rest| rest.chars().next().is_some_and(|first| first != ' '));
+            let cmd = starts_row.then(|| Self::subcommand_on(parent, line)).flatten();
+            match (cmd, rows.last_mut()) {
+                (Some(cmd), _) => rows.push(Self { cmd, lines: line.to_owned() }),
+                (None, Some(row)) => {
+                    row.lines.push('\n');
+                    row.lines.push_str(line);
+                }
+                (None, None) => {}
+            }
+        }
+        rows
+    }
+
+    /// The cells clap gives `cmd`'s name and flags.
+    fn name_width(cmd: &Command) -> usize {
+        let short =
+            cmd.get_short_flag().map_or(0, |short| ", -".len().saturating_add(short.len_utf8()));
+        let long = cmd.get_long_flag().map_or(0, |long| ", --".len().saturating_add(long.width()));
+        cmd.get_name().width().saturating_add(short).saturating_add(long)
+    }
+
+    /// The subcommand of `parent` whose row starts with `line`: the longest name it starts with,
+    /// followed by its flags, its about or nothing.
+    fn subcommand_on(parent: &'cmd Command, line: &str) -> Option<&'cmd Command> {
+        let visible = Word(line).visible();
+        let rest = visible.strip_prefix("  ")?;
+        parent
+            .get_subcommands()
+            .filter(|sub| {
+                rest.strip_prefix(sub.get_name())
+                    .is_some_and(|after| after.is_empty() || after.starts_with([',', ' ']))
+            })
+            .max_by_key(|sub| sub.get_name().len())
+    }
+}
 /// A category heading, optionally followed by its description.
 struct HeadingView<'view, R> {
     category: &'static Category,
@@ -220,24 +296,19 @@ where
 struct MenuLayout {
     /// Where a category description starts.
     description_col: usize,
-    /// The widest command name; abouts are aligned two cells past it.
-    name_width: usize,
     /// The width lines wrap to; `None` when they don't.
     width: Option<usize>,
 }
 
 impl MenuLayout {
-    /// Where a command's about starts.
-    const fn about_col(&self) -> usize {
-        self.name_width.saturating_add(4)
-    }
-
-    fn measure<'name>(
-        names: impl Iterator<Item = &'name str>,
+    /// The layout for rows with names and flags `name_widths` cells wide, under `headings`.
+    fn measure(
+        name_widths: impl Iterator<Item = usize>,
         headings: impl Iterator<Item = Cow<'static, str>>,
         width: Option<usize>,
     ) -> Self {
-        let name_width = names.map(UnicodeWidthStr::width).max().unwrap_or(0);
+        // clap aligns abouts two cells past the widest name, and never narrower than `-x`.
+        let name_width = name_widths.max().unwrap_or(0).max(2);
         let heading_width = headings.map(|h| h.width()).max().unwrap_or(0);
 
         // A description at or next to the about column reads as another row, so push it two
@@ -250,7 +321,7 @@ impl MenuLayout {
             description_col
         };
 
-        Self { description_col, name_width, width }
+        Self { description_col, width }
     }
 }
 
@@ -275,16 +346,19 @@ struct MenuView<'cmd, R> {
     styles: &'cmd Styles,
 }
 
-impl<'cmd, R> MenuView<'cmd, R> {
+impl<'cmd, R> MenuView<'cmd, R>
+where
+    R: TextRenderer,
+{
     fn new(
         parent: &'cmd Command,
         categories: CommandCategoryMap,
         renderer: R,
         width: Option<usize>,
     ) -> Self {
-        let menu = Menu { category_map: categories, parent };
+        let menu = Menu::new(parent, categories, &renderer);
         let layout = MenuLayout::measure(
-            menu.subcommands().map(Command::get_name),
+            menu.rows.iter().map(|row| Row::name_width(row.cmd)),
             menu.categories().map(Category::heading),
             width,
         );
@@ -305,39 +379,14 @@ where
             .map(|category| SectionView { category: Some(category), view: self });
         let has_categories = self.menu.categories().next().is_some();
         write_joined(f, uncategorized.into_iter().chain(categorized), "\n\n")?;
-        self.menu.help_subcommand().map_or(Ok(()), |cmd| {
+        self.menu.help_row().map_or(Ok(()), |row| {
             // clap's `help` ends the uncategorized rows, or follows the categories a section apart.
             let sep = match (has_categories, self.menu.has_uncategorized()) {
                 (true, _) => "\n\n",
                 (false, true) => "\n",
                 (false, false) => "",
             };
-            write!(f, "{sep}{}", RowView { cmd, view: self })
-        })
-    }
-}
-
-/// One subcommand, with its about aligned past the widest name in the menu.
-struct RowView<'view, R> {
-    cmd: &'view Command,
-    view: &'view MenuView<'view, R>,
-}
-
-impl<R> Display for RowView<'_, R>
-where
-    R: TextRenderer,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let literal = self.view.styles.get_literal();
-        let name = self.cmd.get_name();
-        let pad = self.view.layout.name_width.saturating_sub(name.width());
-        write!(f, "  {literal}{name}{literal:#}{:pad$}", "")?;
-        self.cmd.get_about().map_or(Ok(()), |about| {
-            f.write_str("  ")?;
-            let mut rendered = String::new();
-            self.view.renderer.render_display(&mut rendered, about)?;
-            let (col, width) = (self.view.layout.about_col(), self.view.layout.width);
-            write!(f, "{}", ColumnText { col, text: &rendered, width })
+            write!(f, "{sep}{}", row.lines)
         })
     }
 }
@@ -402,12 +451,52 @@ impl<'text> Word<'text> {
         })
     }
 
+    /// The pieces of this text shown on screen, between its escapes.
+    fn shown(&self) -> impl Iterator<Item = &'text str> {
+        self.0.split('\u{1b}').enumerate().map(|(index, piece)| {
+            if index == 0 { piece } else { piece.split_once('m').map_or("", |(_, text)| text) }
+        })
+    }
+
+    /// This text without its escapes.
+    fn visible(&self) -> String {
+        self.shown().collect()
+    }
+
     /// The cells this word takes on screen.
     fn width(&self) -> usize {
-        let visible = |(index, piece): (usize, &'text str)| {
-            if index == 0 { piece } else { piece.split_once('m').map_or("", |(_, text)| text) }
-        };
-        self.0.split('\u{1b}').enumerate().map(visible).map(UnicodeWidthStr::width).sum()
+        self.shown().map(UnicodeWidthStr::width).sum()
+    }
+
+    /// Lines clap wrapped, each style still open at a line's end closed there and opened again
+    /// past the next line's indent, so the indent is never styled.
+    #[cfg(feature = "markdown")]
+    fn with_styles_reopened(&self) -> String {
+        let mut reopened = String::with_capacity(self.0.len());
+        // The escapes in effect at the end of the line so far.
+        let mut open = String::new();
+        for (index, line) in self.0.split('\n').enumerate() {
+            if index > 0 {
+                if !open.is_empty() {
+                    reopened.push_str(Self::RESET);
+                }
+                reopened.push('\n');
+                let text = line.trim_start_matches(' ');
+                reopened.push_str(line.get(..line.len().saturating_sub(text.len())).unwrap_or(""));
+                reopened.push_str(&open);
+                reopened.push_str(text);
+            } else {
+                reopened.push_str(line);
+            }
+            for escape in Word(line).escapes() {
+                if escape == Self::RESET {
+                    open.clear();
+                } else {
+                    open.push_str(escape);
+                }
+            }
+        }
+        reopened
     }
 }
 
@@ -426,8 +515,7 @@ where
             let heading = HeadingView { category, view: self.view };
             writeln!(f, "{heading}")
         })?;
-        let rows =
-            self.view.menu.members(self.category).map(|cmd| RowView { cmd, view: self.view });
+        let rows = self.view.menu.members(self.category).map(|row| &row.lines);
         write_joined(f, rows, "\n")
     }
 }

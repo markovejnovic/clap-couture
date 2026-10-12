@@ -104,7 +104,7 @@ impl HelpTree {
                 .unwrap_or((&Self::EMPTY, *messages));
             tree.install(subcommand, built_subcommand, tree.categories, &messages, width)
         });
-        HelpBody::new(built, categories, messages, width).install(cmd, messages)
+        HelpBody::new(built, categories, messages, width).install(cmd)
     }
 
     /// The tree of the subcommand `name`, and the messages it inherits from `inherited` down
@@ -212,7 +212,7 @@ impl DeferredHelp {
                     subcommand
                 }
             });
-            body.install(printed, &messages)
+            body.install(printed)
         });
         Err(cmd.try_get_matches_from_mut(argv).err().unwrap_or(err))
     }

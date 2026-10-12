@@ -15,6 +15,8 @@ pub(crate) struct HelpBody {
     /// For `--help`, when clap shows more for it than for `-h`.
     long: Option<String>,
     short: String,
+    /// couture's template, styled as clap styles the built command.
+    template: String,
 }
 
 /// Rewords clap's English `Arguments:` and `Options:` headings with a command's [`Messages`].
@@ -50,13 +52,8 @@ pub(crate) trait HelpTemplates {
 impl HelpBody {
     /// `cmd` showing this body at `{after-help}`, under couture's template unless the app set its
     /// own.
-    pub(crate) fn install(self, cmd: Command, messages: &Messages) -> Command {
-        let cmd = if cmd.has_own_template() {
-            cmd
-        } else {
-            let template = cmd.couture_template(messages);
-            cmd.help_template(template)
-        };
+    pub(crate) fn install(self, cmd: Command) -> Command {
+        let cmd = if cmd.has_own_template() { cmd } else { cmd.help_template(self.template) };
         let cmd = cmd.with_rendered_about();
         // An empty after-help would still print its blank line.
         let cmd = if self.short.is_empty() { cmd } else { cmd.after_help(self.short) };
@@ -66,7 +63,7 @@ impl HelpBody {
         }
     }
 
-    /// The body for `cmd`, its subcommands filed by `categories` and wrapped to `width`, its
+    /// The body for built `cmd`, its subcommands filed by `categories` and wrapped to `width`, its
     /// headings worded by `messages`.
     pub(crate) fn new(
         cmd: &Command,
@@ -96,7 +93,7 @@ impl HelpBody {
             let after = after_long_help.or(after_help);
             Self::paragraphs([&menu, &long_args, after.as_deref().unwrap_or("")])
         });
-        Self { long, short }
+        Self { long, short, template: cmd.couture_template(messages) }
     }
 
     /// `parts` that aren't empty, a blank line apart.

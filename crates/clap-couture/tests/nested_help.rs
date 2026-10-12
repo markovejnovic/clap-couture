@@ -102,6 +102,14 @@ enum BranchCmd {
     List,
 }
 
+/// Styles set on the root, which clap hands down to every subcommand.
+#[derive(Parser, Couture)]
+#[command(name = "plain", styles = clap::builder::Styles::plain())]
+struct Plain {
+    #[command(subcommand)]
+    cmd: BranchCmd,
+}
+
 /// Run `git` with `args` and `--help`, and return the help it prints.
 struct HelpOf(&'static [&'static str]);
 
@@ -234,4 +242,16 @@ fn a_subcommand_enum_messages_word_its_variants(
 ) {
     let help = HelpOf(args).text();
     assert!(help.lines().any(|line| line == options_heading), "no `{options_heading}` in:\n{help}");
+}
+
+#[rstest]
+fn a_nested_usage_heading_takes_the_styles_clap_hands_down() {
+    let styled_usage = |cmd: Command| {
+        let err = cmd.try_get_matches_from(["plain", "list", "--help"]).err();
+        let help = err.map(|err| err.render().ansi().to_string()).unwrap_or_default();
+        help.lines().find(|line| line.contains("Usage:")).map(str::to_owned)
+    };
+    let clap = styled_usage(Plain::command());
+    assert_eq!(clap.as_deref(), Some("Usage: plain list"));
+    assert_eq!(styled_usage(Plain::couture_command()), clap);
 }

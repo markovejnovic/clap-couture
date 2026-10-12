@@ -1,0 +1,326 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Ask on the terminal for prompted args the user left out."><title>clap_couture::interactive - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-203241e4.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="clap_couture" data-themes="" data-resource-suffix="" data-rustdoc-version="1.101.0-nightly (080cc2714 2026-10-11)" data-channel="nightly" data-search-js="search-b167f383.js" data-stringdex-js="stringdex-b5109af9.js" data-settings-js="settings-170eb4bf.js" ><script src="../../static.files/storage-41dd4d93.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../static.files/main-1814ead3.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-9f56287d.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/markovejnovic/clap-couture/b94b962d169885382a5683af494a2f01539b2528/assets/favicon.svg"><!-- Passed to rustdoc with `--html-in-header`; see `[package.metadata.docs.rs]` in Cargo.toml. -->
+<style>
+  /* The logo is near-black, so invert it on rustdoc's dark and ayu themes. */
+  :root:not([data-theme="light"]) .logo-container img { filter: invert(1); }
+</style>
+
+</head><body class="rustdoc mod"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Module interactive</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><a class="logo-container" href="../../clap_couture/index.html"><img src="https://raw.githubusercontent.com/markovejnovic/clap-couture/b94b962d169885382a5683af494a2f01539b2528/assets/logo.svg" alt="logo"></a><h2><a href="../../clap_couture/index.html">clap_<wbr>couture</a><span class="version">0.1.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module interactive</a></h2><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#answering-in-the-editor" title="Answering in the editor">Answering in the editor</a></li><li><a href="#secrets" title="Secrets">Secrets</a></li><li><a href="#reading-stdin" title="Reading stdin">Reading stdin</a></li><li><a href="#dash-as-a-value" title="Dash as a value">Dash as a value</a></li></ul><h3><a href="#reexports">Module Items</a></h3><ul class="block"><li><a href="#reexports" title="Re-exports">Re-exports</a></li><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#enums" title="Enums">Enums</a></li><li><a href="#traits" title="Traits">Traits</a></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="../index.html">In crate clap_<wbr>couture</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../index.html">clap_couture</a></div><h1>Module <span>interactive</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../src/clap_couture/interactive/mod.rs.html#1-555">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Ask on the terminal for prompted args the user left out.</p>
+<p>Mark a field with <code>#[couture(prompt)]</code> to ask its help text, or <code>#[couture(prompt = "...")]</code>
+to ask something else; with <code>markdown</code>, either is rendered as help text is. When the user leaves
+the arg out and stdin and stderr are terminals, <a href="../trait.CoutureParser.html" title="trait clap_couture::CoutureParser"><code>CoutureParser</code></a>’s entry
+points ask for it, then parse the answer as if it had been typed. Without a terminal, parsing
+behaves exactly like clap.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>clap::Parser;
+<span class="kw">use </span>clap_couture::{Couture, CoutureParser};
+
+<span class="attr">#[derive(Parser, Couture)]
+</span><span class="kw">struct </span>Cli {
+    <span class="doccomment">/// Region to deploy to
+    </span><span class="attr">#[arg(long)]
+    #[couture(prompt)]
+    </span>region: String,
+}
+
+<span class="kw">let </span>cli = Cli::couture_parse_from([<span class="string">"deploy"</span>, <span class="string">"--region"</span>, <span class="string">"eu"</span>]);
+<span class="macro">assert_eq!</span>(cli.region, <span class="string">"eu"</span>);</code></pre></div>
+<p>A prompted arg that has a default is asked with the default pre-filled. An optional arg answered
+with nothing stays unset. An arg that takes many values, like a <code>Vec&lt;T&gt;</code>, is asked as a
+multi-select when it has possible values, and otherwise one value at a time until an empty
+answer, or until its <code>num_args</code> is reached; fewer than <code>num_args</code> asks for more.
+An arg passed on the command line or through its env var is never
+asked, and neither is one that conflicts with a passed arg or an earlier answer. An arg
+required through <code>required_unless_present</code> or a required <code>ArgGroup</code> is asked as required, and
+an empty answer is refused; in a group of prompted args, only the last one asked is. clap can’t
+lift <code>required_unless_present_all</code> or <code>required_if_eq</code> from an arg, so when one of those
+fires, parsing fails with clap’s error before anything is asked. Answers are not re-checked
+against <code>requires</code> and similar rules between args.</p>
+<p><code>#[couture(confirm)]</code> on a <code>bool</code> flag the user left out asks whether to go ahead, after every
+other prompt, with each <code>{id}</code> in the question replaced by arg <code>id</code>’s value. A yes sets the
+flag; a no fails the parse. Without a terminal, the flag must be passed, as if it were required.</p>
+<p>A yes sets the flag to <code>true</code>, so a flag clap sets to <code>false</code> can’t be confirmed:</p>
+
+<div class="example-wrap compile_fail"><a href="#" class="tooltip" title="This example deliberately fails to compile">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">use </span>clap::{ArgAction, Parser};
+<span class="kw">use </span>clap_couture::Couture;
+
+<span class="attr">#[derive(Parser, Couture)]
+</span><span class="kw">struct </span>Cli {
+    <span class="attr">#[arg(long = <span class="string">"no-verify"</span>, action = ArgAction::SetFalse)]
+    #[couture(confirm)]
+    </span>verify: bool,
+}</code></pre></div><h2 id="answering-in-the-editor"><a class="doc-anchor" href="#answering-in-the-editor">§</a>Answering in the editor</h2>
+<p>With the <code>interactive-editor</code> feature, <code>#[couture(prompt, editor)]</code> asks in the user’s editor
+instead, for text a single line can’t hold. <code>editor(extension = "md")</code> names the temp file’s
+extension, <code>txt</code> by default, so the editor highlights it. <code>editor(initial = "...")</code> is the text
+the file starts with; an expression other than a string literal is evaluated each time.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>clap::Parser;
+<span class="kw">use </span>clap_couture::{Couture, CoutureParser};
+
+<span class="attr">#[derive(Parser, Couture)]
+</span><span class="kw">struct </span>Cli {
+    <span class="doccomment">/// Release notes
+    </span><span class="attr">#[arg(long)]
+    #[couture(prompt, editor(extension = <span class="string">"md"</span>, initial = <span class="string">"## Changes\n\n## Breaking"</span>))]
+    </span>notes: String,
+}
+
+<span class="kw">let </span>cli = Cli::couture_parse();</code></pre></div>
+<p>The editor is found as git finds its own: <code>$VISUAL</code> (unless <code>TERM</code> says the terminal is
+dumb), then <code>$EDITOR</code>, then <code>vi</code>, and <code>:</code> takes the file as written. Its string is split into
+words like a shell would, so <code>EDITOR="code --wait"</code> works, but <code>~</code> and variables in it are not
+expanded. A known editor that returns at once, like <code>code</code>, gets the flag that makes it wait;
+any other that returns right away without touching the file is asked about before its answer
+is taken.</p>
+<p>The file opens with the answer clap just turned down, else the arg’s default, else the
+<code>initial</code> text, above a header asking the question. The header’s lines start with <code>#|</code>, so it
+comes back out while the user’s own <code>#</code> lines, like markdown headings, stay. An empty file leaves an optional arg unset
+and aborts for a required one, like an empty commit message. It aborts for an arg with a
+default too, rather than quietly bringing the default back. The file is read in the encoding
+its byte order mark names, or as UTF-8, or else in the system’s legacy encoding: the ANSI code
+page on Windows, the locale’s elsewhere. A file in none of them reopens with an error.</p>
+<p><code>editor</code> needs <code>prompt</code> beside it:</p>
+
+<div class="example-wrap compile_fail"><a href="#" class="tooltip" title="This example deliberately fails to compile">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">use </span>clap::Parser;
+<span class="kw">use </span>clap_couture::Couture;
+
+<span class="attr">#[derive(Parser, Couture)]
+</span><span class="kw">struct </span>Cli {
+    <span class="attr">#[arg(long)]
+    #[couture(editor)]
+    </span>notes: String,
+}</code></pre></div>
+<p>and an arg that takes a value; a flag has nothing to edit:</p>
+
+<div class="example-wrap compile_fail"><a href="#" class="tooltip" title="This example deliberately fails to compile">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">use </span>clap::Parser;
+<span class="kw">use </span>clap_couture::Couture;
+
+<span class="attr">#[derive(Parser, Couture)]
+</span><span class="kw">struct </span>Cli {
+    <span class="attr">#[arg(long)]
+    #[couture(prompt, editor)]
+    </span>follow: bool,
+}</code></pre></div>
+<p>nor does a flag clap counts:</p>
+
+<div class="example-wrap compile_fail"><a href="#" class="tooltip" title="This example deliberately fails to compile">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">use </span>clap::{ArgAction, Parser};
+<span class="kw">use </span>clap_couture::Couture;
+
+<span class="attr">#[derive(Parser, Couture)]
+</span><span class="kw">struct </span>Cli {
+    <span class="attr">#[arg(short, action = ArgAction::Count)]
+    #[couture(prompt, editor)]
+    </span>verbose: u8,
+}</code></pre></div><h2 id="secrets"><a class="doc-anchor" href="#secrets">§</a>Secrets</h2>
+<p>Add <code>secret</code> to ask for a [<code>secrecy::SecretString</code>] without echoing it. A prompted answer
+never reaches clap as plaintext; a value from the env var or an allowed command line is held
+by clap like any arg’s. The arg refuses a value from the command line, where <code>ps</code> and shell
+history would see it; <code>secret(allow_argv)</code> allows it. A value from its env var is used without
+asking, and <code>--help</code> names the variable but hides its value. An <code>Option&lt;SecretString&gt;</code> field
+makes the secret optional: left empty, it stays <code>None</code>.</p>
+<p>Only <a href="../trait.CoutureParser.html" title="trait clap_couture::CoutureParser"><code>CoutureParser</code></a>’s entry points and
+<a href="../trait.CoutureParser.html#method.couture_command" title="associated function clap_couture::CoutureParser::couture_command"><code>couture_command</code></a> guard secret args; plain
+<code>Cli::parse()</code> or <code>Cli::command()</code> takes <code>--token</code> from the command line and shows its env
+value in <code>--help</code>.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>clap::Parser;
+<span class="kw">use </span>clap_couture::{Couture, interactive::secrecy::SecretString};
+
+<span class="attr">#[derive(Parser, Couture)]
+</span><span class="kw">struct </span>Cli {
+    <span class="doccomment">/// API token
+    </span><span class="attr">#[arg(long, env = <span class="string">"API_TOKEN"</span>)]
+    #[couture(prompt, secret)]
+    </span>token: SecretString,
+}</code></pre></div>
+<p><code>secret</code> modifies a prompt, so it needs one:</p>
+
+<div class="example-wrap compile_fail"><a href="#" class="tooltip" title="This example deliberately fails to compile">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">use </span>clap::Parser;
+<span class="kw">use </span>clap_couture::{Couture, interactive::secrecy::SecretString};
+
+<span class="attr">#[derive(Parser, Couture)]
+</span><span class="kw">struct </span>Cli {
+    <span class="attr">#[arg(long)]
+    #[couture(secret)]
+    </span>token: SecretString,
+}</code></pre></div>
+<p>A secret takes no default, which would be baked into the binary:</p>
+
+<div class="example-wrap compile_fail"><a href="#" class="tooltip" title="This example deliberately fails to compile">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">use </span>clap::Parser;
+<span class="kw">use </span>clap_couture::{Couture, interactive::secrecy::SecretString};
+
+<span class="attr">#[derive(Parser, Couture)]
+</span><span class="kw">struct </span>Cli {
+    <span class="attr">#[arg(long, default_value = <span class="string">"hunter2"</span>)]
+    #[couture(prompt, secret)]
+    </span>token: SecretString,
+}</code></pre></div>
+<p>and its field must be a <code>SecretString</code>:</p>
+
+<div class="example-wrap compile_fail"><a href="#" class="tooltip" title="This example deliberately fails to compile">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">use </span>clap::Parser;
+<span class="kw">use </span>clap_couture::Couture;
+
+<span class="attr">#[derive(Parser, Couture)]
+</span><span class="kw">struct </span>Cli {
+    <span class="attr">#[arg(long)]
+    #[couture(prompt, secret)]
+    </span>token: String,
+}</code></pre></div>
+<p>A confirmation’s question can’t name a secret, which would show its value; a computed question
+that does shows <code>********</code> in its place:</p>
+
+<div class="example-wrap compile_fail"><a href="#" class="tooltip" title="This example deliberately fails to compile">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">use </span>clap::Parser;
+<span class="kw">use </span>clap_couture::{Couture, interactive::secrecy::SecretString};
+
+<span class="attr">#[derive(Parser, Couture)]
+</span><span class="kw">struct </span>Cli {
+    <span class="attr">#[arg(long)]
+    #[couture(prompt, secret)]
+    </span>token: SecretString,
+    <span class="attr">#[arg(long)]
+    #[couture(confirm = <span class="string">"Use token {token}?"</span>)]
+    </span>yes: bool,
+}</code></pre></div>
+<p>A required secret left out with no terminal to ask on fails the parse naming its env var, not
+the flag the command line can’t pass it with; usage leaves that flag out too.</p>
+<h2 id="reading-stdin"><a class="doc-anchor" href="#reading-stdin">§</a>Reading stdin</h2>
+<p><code>#[couture(stdin)]</code> reads all of stdin into an arg passed <code>-</code>, as in <code>kubectl apply -f -</code>;
+see <a href="#dash-as-a-value">Dash as a value</a>. One trailing line ending is dropped, so <code>echo eu |</code>
+reads as <code>eu</code>. What is read must be UTF-8, and at most 16 MiB: more fails the parse rather
+than exhausting memory.</p>
+<p><code>#[couture(stdin(piped))]</code> also takes stdin when the arg is left out and stdin is a pipe (or a
+socket, as some runtimes pipe through one), so <code>echo hi | post</code> works like <code>post --message hi</code>. A terminal, a file or the null device is never read. Nothing piped, or an arg passed on
+the command line or through its env var, leaves stdin unread, and so does a passed arg it
+conflicts with. Stdin is read only once the rest of the command line parses, so <code>--help</code> never
+waits on it.</p>
+<div class="warning">
+<p>A pipe on stdin is no sign that anything was piped for the CLI, and <code>stdin(piped)</code> reads it to
+its end. Run as <code>ssh host cli</code> without <code>-t</code>, from Node’s <code>spawn</code> with its default piped stdin,
+or under mintty on Windows, which shows a terminal as a pipe, the parse hangs until the user
+closes stdin. Inside <code>while read line; do cli; done &lt; file</code>, it eats the rest of the loop’s
+input. Prefer <code>stdin</code>, where the user asks for stdin with <code>-</code>.</p>
+</div>
+<p>A piped value is never asked for, so beside <code>prompt</code> the arg is asked only when nothing is
+piped. Beside <code>secret</code>, the piped value is held like a prompted answer, never as plain text in
+clap.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>clap::Parser;
+<span class="kw">use </span>clap_couture::{Couture, interactive::secrecy::SecretString};
+
+<span class="attr">#[derive(Parser, Couture)]
+</span><span class="kw">struct </span>Cli {
+    <span class="doccomment">/// Password
+    </span><span class="attr">#[arg(long)]
+    #[couture(prompt, secret, stdin(piped))]
+    </span>password: SecretString,
+}</code></pre></div>
+<p>Stdin can only be read once, so at most one arg on any command path takes it. Each subcommand
+may have one of its own, but not alongside one on a command above it:</p>
+
+<div class="example-wrap compile_fail"><a href="#" class="tooltip" title="This example deliberately fails to compile">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">use </span>clap::{Parser, Subcommand};
+<span class="kw">use </span>clap_couture::{Couture, CoutureParser <span class="kw">as _</span>};
+
+<span class="attr">#[derive(Parser, Couture)]
+</span><span class="kw">struct </span>Cli {
+    <span class="attr">#[arg(long)]
+    #[couture(stdin(piped))]
+    </span>subject: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    <span class="attr">#[command(subcommand)]
+    </span>cmd: Cmd,
+}
+
+<span class="attr">#[derive(Subcommand, Couture)]
+</span><span class="kw">enum </span>Cmd {
+    Send {
+        <span class="attr">#[arg(long)]
+        #[couture(stdin(piped))]
+        </span>body: String,
+    },
+}
+
+<span class="kw">let </span>cli = Cli::couture_parse();</code></pre></div>
+<p>An arg taking stdin takes exactly one value, so a flag or a <code>Vec</code> can’t:</p>
+
+<div class="example-wrap compile_fail"><a href="#" class="tooltip" title="This example deliberately fails to compile">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">use </span>clap::Parser;
+<span class="kw">use </span>clap_couture::Couture;
+
+<span class="attr">#[derive(Parser, Couture)]
+</span><span class="kw">struct </span>Cli {
+    <span class="attr">#[arg(long)]
+    #[couture(stdin(piped))]
+    </span>tags: Vec&lt;String&gt;,
+}</code></pre></div>
+<p>That holds for a flag given its action too:</p>
+
+<div class="example-wrap compile_fail"><a href="#" class="tooltip" title="This example deliberately fails to compile">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">use </span>clap::{ArgAction, Parser};
+<span class="kw">use </span>clap_couture::Couture;
+
+<span class="attr">#[derive(Parser, Couture)]
+</span><span class="kw">struct </span>Cli {
+    <span class="attr">#[arg(long, action = ArgAction::SetTrue)]
+    #[couture(stdin(piped))]
+    </span>force: bool,
+}</code></pre></div><h2 id="dash-as-a-value"><a class="doc-anchor" href="#dash-as-a-value">§</a>Dash as a value</h2>
+<p><code>dash</code> makes <code>-</code> as an arg’s value stand for something, as in <code>git commit -F -</code>.
+<code>#[couture(prompt(dash))]</code> asks for the arg when its value is <code>-</code>, and only then: left out, it
+stays unset. <code>#[couture(stdin)]</code> reads all of stdin into the arg when its value is <code>-</code>,
+whatever stdin is, a pipe, a file or a terminal (read until end of input), and leaves stdin
+alone otherwise. Either works for a flag’s value (<code>--message -</code>, <code>--message=-</code>, <code>-m-</code>,
+<code>-vm -</code>) or a positional, beside <code>secret</code> too: the <code>-</code> is no secret on the command line.
+<code>prompt(dash, question = "...")</code> asks its own question.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>clap::Parser;
+<span class="kw">use </span>clap_couture::{Couture, CoutureParser <span class="kw">as _</span>, interactive::secrecy::SecretString};
+
+<span class="attr">#[derive(Parser, Couture)]
+</span><span class="kw">struct </span>Cli {
+    <span class="doccomment">/// Commit message; `-` asks for it.
+    </span><span class="attr">#[arg(short, long)]
+    #[couture(prompt(dash), editor)]
+    </span>message: <span class="prelude-ty">Option</span>&lt;String&gt;,
+
+    <span class="doccomment">/// Password; `-` reads it from stdin.
+    </span><span class="attr">#[arg(long)]
+    #[couture(prompt, secret, stdin)]
+    </span>password: <span class="prelude-ty">Option</span>&lt;SecretString&gt;,
+}
+
+<span class="kw">let </span>cli = Cli::couture_parse_from([<span class="string">"commit"</span>, <span class="string">"-m"</span>, <span class="string">"Fix login"</span>]);</code></pre></div>
+<p>With no terminal to ask on, a <code>-</code> that asks fails the parse.</p>
+<p>With both, <code>-</code> asks at a terminal and reads stdin otherwise, so <code>--password -</code> asks masked when
+typed, and takes the password when it is piped in. A terminal there is no asking on, as with
+<a href="struct.NonInteractive.html" title="struct clap_couture::interactive::NonInteractive"><code>NonInteractive</code></a>, is read until end of input.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>clap::Parser;
+<span class="kw">use </span>clap_couture::{Couture, interactive::secrecy::SecretString};
+
+<span class="attr">#[derive(Parser, Couture)]
+</span><span class="kw">struct </span>Cli {
+    <span class="doccomment">/// Password; `-` asks for it, or reads it from a pipe.
+    </span><span class="attr">#[arg(long)]
+    #[couture(prompt(dash), secret, stdin)]
+    </span>password: <span class="prelude-ty">Option</span>&lt;SecretString&gt;,
+}</code></pre></div>
+<p><code>-</code> stands for the arg’s one value, so a flag or a <code>Vec</code> can’t take it:</p>
+
+<div class="example-wrap compile_fail"><a href="#" class="tooltip" title="This example deliberately fails to compile">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">use </span>clap::Parser;
+<span class="kw">use </span>clap_couture::Couture;
+
+<span class="attr">#[derive(Parser, Couture)]
+</span><span class="kw">struct </span>Cli {
+    <span class="attr">#[arg(long)]
+    #[couture(prompt(dash))]
+    </span>tags: Vec&lt;String&gt;,
+}</code></pre></div>
+<p>and neither can a flag clap counts or sets, whatever its type:</p>
+
+<div class="example-wrap compile_fail"><a href="#" class="tooltip" title="This example deliberately fails to compile">ⓘ</a><pre class="rust rust-example-rendered"><code><span class="kw">use </span>clap::{ArgAction, Parser};
+<span class="kw">use </span>clap_couture::Couture;
+
+<span class="attr">#[derive(Parser, Couture)]
+</span><span class="kw">struct </span>Cli {
+    <span class="attr">#[arg(short, action = ArgAction::Count)]
+    #[couture(prompt(dash))]
+    </span>verbose: u8,
+}</code></pre></div></div></details><h2 id="reexports" class="section-header">Re-exports<a href="#reexports" class="anchor">§</a></h2><dl class="item-table reexports"><dt id="reexport.secrecy"><code>pub use secrecy;</code></dt></dl><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.Cliclack.html" title="struct clap_couture::interactive::Cliclack">Cliclack</a></dt><dd>Prompts drawn by cliclack, in its clack style.</dd><dt><a class="struct" href="struct.CommandStyles.html" title="struct clap_couture::interactive::CommandStyles">Command<wbr>Styles</a></dt><dd>A command’s clap styles, for a backend to build its theme from.</dd><dt><a class="struct" href="struct.ConfirmPrompt.html" title="struct clap_couture::interactive::ConfirmPrompt">Confirm<wbr>Prompt</a></dt><dd>A yes/no question.</dd><dt><a class="struct" href="struct.DefaultBackend.html" title="struct clap_couture::interactive::DefaultBackend">Default<wbr>Backend</a></dt><dd>Asks through the first enabled of cliclack, dialoguer and inquire, and never asks when none
+is, as <a href="struct.NonInteractive.html" title="struct clap_couture::interactive::NonInteractive"><code>NonInteractive</code></a> does.</dd><dt><a class="struct" href="struct.Dialoguer.html" title="struct clap_couture::interactive::Dialoguer">Dialoguer</a></dt><dd>Prompts drawn by dialoguer’s colorful theme.</dd><dt><a class="struct" href="struct.EditorInteraction.html" title="struct clap_couture::interactive::EditorInteraction">Editor<wbr>Interaction</a></dt><dt><a class="struct" href="struct.EditorPrompt.html" title="struct clap_couture::interactive::EditorPrompt">Editor<wbr>Prompt</a></dt><dd>A question answered in the user’s editor, for <code>#[couture(prompt, editor)]</code>.</dd><dt><a class="struct" href="struct.Inquire.html" title="struct clap_couture::interactive::Inquire">Inquire</a></dt><dd>Prompts drawn by inquire.</dd><dt><a class="struct" href="struct.MultiSelectPrompt.html" title="struct clap_couture::interactive::MultiSelectPrompt">Multi<wbr>Select<wbr>Prompt</a></dt><dd>A pick of any number of an arg’s possible values.</dd><dt><a class="struct" href="struct.NonInteractive.html" title="struct clap_couture::interactive::NonInteractive">NonInteractive</a></dt><dd>Never asks, as if there were no terminal: every arg is left to clap.</dd><dt><a class="struct" href="struct.Prompter.html" title="struct clap_couture::interactive::Prompter">Prompter</a></dt><dd>Asks through a <a href="trait.Backend.html" title="trait clap_couture::interactive::Backend"><code>Backend</code></a>, themed with a command’s styles and worded with its <a href="../struct.Messages.html" title="struct clap_couture::Messages"><code>Messages</code></a>.</dd><dt><a class="struct" href="struct.SecretPrompt.html" title="struct clap_couture::interactive::SecretPrompt">Secret<wbr>Prompt</a></dt><dd>A question whose answer is typed masked and never echoed.</dd><dt><a class="struct" href="struct.SelectPrompt.html" title="struct clap_couture::interactive::SelectPrompt">Select<wbr>Prompt</a></dt><dd>A pick among an arg’s possible values.</dd><dt><a class="struct" href="struct.TextPrompt.html" title="struct clap_couture::interactive::TextPrompt">Text<wbr>Prompt</a></dt><dd>A free-text question.</dd></dl><h2 id="enums" class="section-header">Enums<a href="#enums" class="anchor">§</a></h2><dl class="item-table"><dt><a class="enum" href="enum.PromptError.html" title="enum clap_couture::interactive::PromptError">Prompt<wbr>Error</a></dt><dd>Why a prompt produced no answer.</dd><dt><a class="enum" href="enum.Signal.html" title="enum clap_couture::interactive::Signal">Signal</a></dt><dd>A known signal.</dd></dl><h2 id="traits" class="section-header">Traits<a href="#traits" class="anchor">§</a></h2><dl class="item-table"><dt><a class="trait" href="trait.Backend.html" title="trait clap_couture::interactive::Backend">Backend</a></dt><dd>A terminal UI that can ask for one arg’s value.</dd></dl></section></div></main></body></html>

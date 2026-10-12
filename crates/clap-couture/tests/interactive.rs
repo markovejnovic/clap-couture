@@ -161,6 +161,17 @@ struct Connect {
     zone: Option<String>,
 }
 
+#[derive(Parser, Couture, Debug)]
+struct Export {
+    /// Only on its own, as clap allows an exclusive arg.
+    #[arg(long, exclusive = true)]
+    #[couture(prompt = "Which config?")]
+    config: Option<String>,
+
+    #[arg(long)]
+    out: Option<String>,
+}
+
 /// Stands in for an `Args` type from another crate, which cannot implement `Couture`.
 #[derive(Args, Debug)]
 struct Verbosity {
@@ -652,6 +663,14 @@ fn never_asks_for_a_prompted_arg_that_conflicts_with_a_passed_arg(#[case] argv: 
     let backend = ScriptedBackend::new([]);
     let connect = Connect::couture_try_parse_from_with(&backend, argv);
     assert!(connect.is_ok(), "{connect:?}");
+    assert_eq!(backend.asked(), []);
+}
+
+#[rstest]
+fn never_asks_for_an_exclusive_prompted_arg_beside_a_passed_arg() {
+    let backend = ScriptedBackend::new([]);
+    let export = Export::couture_try_parse_from_with(&backend, ["export", "--out", "o"]);
+    assert_eq!(export.map(|export| export.config).ok(), Some(None));
     assert_eq!(backend.asked(), []);
 }
 

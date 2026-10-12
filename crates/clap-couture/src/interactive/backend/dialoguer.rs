@@ -20,7 +20,7 @@ struct DialoguerError(dialoguer::Error);
 ///
 /// At a secret prompt, Ctrl-C interrupts the process rather than returning
 /// [`PromptError::Cancelled`]: dialoguer reads the secret as a plain line, with only echo off. Esc
-/// is taken as part of the answer, and the interrupted process may leave the terminal's echo off.
+/// is taken as part of the answer.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Dialoguer;
 
@@ -92,6 +92,10 @@ impl Backend for Dialoguer {
 
     fn secret(&self, prompt: &SecretPrompt<'_>) -> Result<Option<SecretString>, PromptError> {
         let theme = ColorfulTheme::from(prompt.styles);
+        // Ctrl-C ends the process while echo is off, so echo is put back first. Windows needs
+        // nothing: dialoguer reads the secret key by key, leaving the console's modes alone.
+        #[cfg(unix)]
+        let _modes = crate::os::tty::TerminalModes::of_stdin();
         let answer = Password::with_theme(&theme)
             .with_prompt(prompt.question)
             .allow_empty_password(prompt.optional)

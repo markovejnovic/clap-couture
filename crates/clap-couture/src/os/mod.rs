@@ -11,6 +11,8 @@ pub(crate) mod signal;
 pub(crate) mod stdin;
 #[cfg(feature = "interactive-editor")]
 pub(crate) mod term;
+#[cfg(all(unix, feature = "interactive-dialoguer"))]
+pub(crate) mod tty;
 
 #[cfg(feature = "interactive-editor")]
 use std::ffi::OsString;

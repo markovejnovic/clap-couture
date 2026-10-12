@@ -1,7 +1,7 @@
 //! A nested subcommand's `--help` is couture's too: its categories, messages and markdown come
 //! from the type that defines it, as the root's do.
 
-use clap::{Args, Parser, Subcommand};
+use clap::{Args, Command, CommandFactory as _, Parser, Subcommand};
 use clap_couture::{Couture, CoutureParser as _};
 use rstest::rstest;
 
@@ -35,6 +35,18 @@ enum GitCmd {
     },
     /// Show the working tree status.
     Status,
+    /// Manage tags.
+    #[command(disable_help_subcommand = true)]
+    Tag {
+        #[command(subcommand)]
+        cmd: TagCmd,
+    },
+}
+
+#[derive(Subcommand, Couture)]
+enum TagCmd {
+    /// List the tags.
+    List,
 }
 
 #[derive(Subcommand, Couture)]
@@ -94,20 +106,31 @@ enum BranchCmd {
 struct HelpOf(&'static [&'static str]);
 
 impl HelpOf {
-    fn text(&self) -> String {
+    /// The help plain clap prints.
+    fn clap_text(&self) -> String {
+        self.printed_by(Git::command())
+    }
+
+    /// The help `cmd` prints for these args.
+    fn printed_by(&self, cmd: Command) -> String {
         let argv = core::iter::once(&"git").chain(self.0).chain(&["--help"]);
-        Git::couture_command()
-            .try_get_matches_from(argv)
-            .err()
-            .map(|err| err.to_string())
-            .unwrap_or_default()
+        cmd.try_get_matches_from(argv).err().map(|err| err.to_string()).unwrap_or_default()
+    }
+
+    fn text(&self) -> String {
+        self.printed_by(Git::couture_command())
+    }
+
+    /// The `Usage:` line of `help`.
+    fn usage_line(help: &str) -> Option<&str> {
+        help.lines().find(|line| line.starts_with("Usage:"))
     }
 }
 
 #[rstest]
 #[case::args_type(&["remote"], "Sync:\n  fetch  Fetch from a remote")]
 #[case::inline_variant(&["branch"], "Local:\n  list  List the branches")]
-#[case::two_levels_down(&["remote", "fetch"], "Everything:\n  all  Fetch every remote")]
+#[case::two_levels_down(&["remote", "fetch"], "Everything:\n  all   Fetch every remote")]
 #[case::without_couture(&["stash"], "\n  push  Stash the changes\n")]
 fn a_nested_menu_is_categorized(#[case] args: &'static [&'static str], #[case] section: &str) {
     let help = HelpOf(args).text();
@@ -145,9 +168,37 @@ fn a_nested_arg_help_renders_markdown() {
 }
 
 #[rstest]
-fn a_nested_menu_leaves_out_clap_help_subcommand() {
-    let help = HelpOf(&["remote"]).text();
-    assert!(!help.lines().any(|line| line.trim_start().starts_with("help")), "{help}");
+#[case::categorized(&["remote"], "Sync:\n  fetch  Fetch from a remote\n\n  help   Print this")]
+#[case::uncategorized(&["stash"], "  push  Stash the changes\n  help  Print this")]
+fn a_nested_menu_lists_clap_help_subcommand_last(
+    #[case] args: &'static [&'static str],
+    #[case] ending: &str,
+) {
+    let help = HelpOf(args).text();
+    let ending = format!("{ending} message or the help of the given subcommand(s)\n\n");
+    assert!(help.contains(&ending), "{help}");
+}
+
+#[rstest]
+#[case::disabled(&["tag"])]
+#[case::without_subcommands(&["status"])]
+fn a_nested_menu_lists_clap_help_subcommand_only_when_clap_adds_it(
+    #[case] args: &'static [&'static str],
+) {
+    let help = HelpOf(args).text();
+    assert!(!help.contains("Print this message"), "{help}");
+}
+
+#[rstest]
+#[case::root(&[])]
+#[case::nested(&["branch"])]
+#[case::two_levels_down(&["branch", "list"])]
+#[case::leaf(&["status"])]
+fn a_nested_usage_is_clap_s(#[case] args: &'static [&'static str]) {
+    let of = HelpOf(args);
+    let (help, clap) = (of.text(), of.clap_text());
+    assert!(HelpOf::usage_line(&clap).is_some(), "{clap}");
+    assert_eq!(HelpOf::usage_line(&help), HelpOf::usage_line(&clap), "{help}");
 }
 
 #[rstest]
@@ -167,7 +218,11 @@ fn a_nested_help_takes_its_type_messages(
     #[case] usage_heading: &str,
 ) {
     let help = HelpOf(args).text();
-    assert!(help.lines().any(|line| line == usage_heading), "no `{usage_heading}` in:\n{help}");
+    let usage_line = format!("{usage_heading} git");
+    assert!(
+        help.lines().any(|line| line.starts_with(&usage_line)),
+        "no `{usage_line}` in:\n{help}"
+    );
 }
 
 #[rstest]

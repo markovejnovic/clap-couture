@@ -9,8 +9,7 @@
 //! ```terminal
 //! Deploy and manage your apps from the terminal
 //!
-//! Usage:
-//!   01-orbit-organized <COMMAND>
+//! Usage: 01-orbit-organized <COMMAND>
 //!
 //!   logs      Tail live logs
 //!   search    Search your deployment history
@@ -24,6 +23,8 @@
 //! Account & sync:  Who you are, on every machine
 //!   login     Sign in to your account
 //!   sync      Sync settings across machines
+//!
+//!   help      Print this message or the help of the given subcommand(s)
 //!
 //! Options:
 //!   -h, --help  Print help

@@ -135,11 +135,24 @@ impl<'cmd> Menu<'cmd> {
         self.members(None).next().is_some()
     }
 
-    /// The visible subcommands filed under `category` (`None` for the uncategorized ones).
+    /// The `help` subcommand clap generated for the parent; `None` when it didn't.
+    fn help_subcommand(&self) -> Option<&'cmd Command> {
+        self.subcommands().find(|cmd| self.is_help_subcommand(cmd))
+    }
+
+    /// Check whether `cmd` is the `help` subcommand clap generated for the parent.
+    fn is_help_subcommand(&self, cmd: &Command) -> bool {
+        !self.parent.is_disable_help_subcommand_set() && cmd.get_name() == "help"
+    }
+
+    /// The visible subcommands filed under `category` (`None` for the uncategorized ones), minus
+    /// clap's `help`.
     fn members(&self, category: Option<&Category>) -> impl Iterator<Item = &'cmd Command> {
         let label = category.map(|cat| cat.label);
-        self.subcommands()
-            .filter(move |cmd| self.category_map.find(cmd.get_name()).map(|cat| cat.label) == label)
+        self.subcommands().filter(move |cmd| {
+            !self.is_help_subcommand(cmd)
+                && self.category_map.find(cmd.get_name()).map(|cat| cat.label) == label
+        })
     }
 
     /// The parent's subcommands, minus the hidden ones.
@@ -224,6 +237,8 @@ impl MenuLayout {
 ///
 /// Account:
 ///   login   Sign in to your account
+///
+///   help    Print this message or the help of the given subcommand(s)
 /// ```
 struct MenuView<'cmd, R> {
     layout: MenuLayout,
@@ -260,7 +275,17 @@ where
             .menu
             .categories()
             .map(|category| SectionView { category: Some(category), view: self });
-        write_joined(f, uncategorized.into_iter().chain(categorized), "\n\n")
+        let has_categories = self.menu.categories().next().is_some();
+        write_joined(f, uncategorized.into_iter().chain(categorized), "\n\n")?;
+        self.menu.help_subcommand().map_or(Ok(()), |cmd| {
+            // clap's `help` ends the uncategorized rows, or follows the categories a section apart.
+            let sep = match (has_categories, self.menu.has_uncategorized()) {
+                (true, _) => "\n\n",
+                (false, true) => "\n",
+                (false, false) => "",
+            };
+            write!(f, "{sep}{}", RowView { cmd, view: self })
+        })
     }
 }
 

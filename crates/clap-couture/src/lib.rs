@@ -965,7 +965,7 @@ impl CommandExt for Command {
         T: Couture,
     {
         // Built as clap builds it to parse, so each help lists what clap propagates down.
-        let mut built = self.clone().disable_help_subcommand(true);
+        let mut built = self.clone();
         built.build();
         // Probed once: every built command wraps to the root's width.
         let width = built.help_width();

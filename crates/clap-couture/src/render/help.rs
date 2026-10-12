@@ -33,8 +33,8 @@ pub(crate) trait HelpTemplates {
         "{before-help}{about-with-newline}\n{usage-heading} {usage}{after-help}",
     ];
 
-    /// couture's template: clap's, with the usage under a heading of its own, and everything
-    /// below it at `{after-help}`.
+    /// couture's template: clap's, with the usage heading from `messages`, and everything below
+    /// the usage at `{after-help}`.
     fn couture_template(&self, messages: &Messages) -> String;
 
     /// Check whether `--help` shows more than `-h`, as clap decides it
@@ -141,7 +141,7 @@ impl HelpTemplates for Command {
         let usage_heading = messages.usage.get();
         // clap's `{usage-heading}` is always English, so the heading is written out.
         format!(
-            "{{before-help}}{{about-with-newline}}\n{usage}{usage_heading}{usage:#}\n  \
+            "{{before-help}}{{about-with-newline}}\n{usage}{usage_heading}{usage:#} \
              {{usage}}{{after-help}}"
         )
     }

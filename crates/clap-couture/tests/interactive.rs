@@ -619,7 +619,7 @@ fn help_shows_the_prompted_args_in_usage() {
         .map(drop)
         .map_err(|err| err.to_string());
     let help = help.err().unwrap_or_default();
-    let usage = help.lines().skip_while(|line| !line.starts_with("Usage:")).nth(1);
+    let usage = help.lines().find(|line| line.starts_with("Usage:"));
     assert!(
         usage.is_some_and(|usage| usage.contains("--region <REGION>")),
         "usage lost the required prompted arg:\n{help}"
@@ -1017,7 +1017,7 @@ fn without_a_terminal_help_leaves_the_confirmed_flag_optional() {
         .map(drop)
         .map_err(|err| err.to_string());
     let help = help.err().unwrap_or_default();
-    let usage = help.lines().skip_while(|line| !line.starts_with("Usage:")).nth(1);
+    let usage = help.lines().find(|line| line.starts_with("Usage:"));
     assert!(usage.is_some_and(|usage| !usage.contains("--force")), "{help}");
 }
 

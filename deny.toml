@@ -21,6 +21,9 @@ confidence-threshold = 0.8
 # Transitive duplicates are rarely actionable.
 multiple-versions = "warn"
 wildcards = "deny"
+# The derive tests dev-depend on clap-couture by path alone: a version would make the
+# two crates need each other on crates.io to publish.
+allow-wildcard-paths = true
 
 [sources]
 unknown-registry = "deny"

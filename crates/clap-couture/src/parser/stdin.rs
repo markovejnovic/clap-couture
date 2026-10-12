@@ -8,7 +8,8 @@ use clap::{Command, error::ErrorKind};
 use super::{
     ParseError,
     dash::Dashed,
-    prompting::{arg_at, blocked, relax, unfilled, unrequire},
+    prompting::{arg_at, blocked, inject_at, relax, unfilled, unrequire},
+    secrets::Vault,
 };
 use crate::{
     interactive::{PromptedArg, PromptedArgTree, StdinArg},
@@ -148,5 +149,30 @@ impl<'stdin_arg> StdinValue<'stdin_arg> {
             }
         }
         Ok(Self { stdin_arg, text })
+    }
+
+    /// `cmd` with this text as the stdin arg's value, or `dashed`'s `-` filled with it, and the
+    /// arg dropped from `prompted_args`. A secret arg gets a `vault` placeholder instead.
+    pub(super) fn fill(
+        self,
+        cmd: Command,
+        prompted_args: &mut Vec<PromptedArg>,
+        dashed: &Dashed<'_>,
+        vault: &Vault,
+    ) -> Command {
+        let (path, id) = (self.stdin_arg.subcommand_path.as_slice(), self.stdin_arg.attr.arg_id);
+        let is_stdin_arg = |prompted_arg: &PromptedArg| {
+            prompted_arg.subcommand_path == path && prompted_arg.attr.arg_id == id
+        };
+        let secret = prompted_args
+            .iter()
+            .any(|prompted| is_stdin_arg(prompted) && prompted.attr.secret.is_some());
+        let text = if secret { vault.store(self.text.into()) } else { self.text };
+        prompted_args.retain(|prompted_arg| !is_stdin_arg(prompted_arg));
+        if dashed.fill_read(path, id, text.clone()) {
+            cmd
+        } else {
+            inject_at(cmd, path, id, &[text])
+        }
     }
 }

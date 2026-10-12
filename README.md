@@ -19,7 +19,7 @@
   <a href="https://docs.rs/clap-couture"><img alt="docs.rs" src="https://img.shields.io/docsrs/clap-couture?style=flat-square&color=DB2777"></a>
   <a href="https://github.com/markovejnovic/clap-couture/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/markovejnovic/clap-couture/ci.yml?branch=main&style=flat-square&label=CI"></a>
   <a href="#getting-started"><img alt="MSRV 1.88" src="https://img.shields.io/badge/MSRV-1.88-DB2777?style=flat-square"></a>
-  <a href="https://crates.io/crates/clap"><img alt="clap 4.6+" src="https://img.shields.io/badge/clap-4.6%2B-DB2777?style=flat-square"></a>
+  <a href="https://crates.io/crates/clap"><img alt="clap 4.5.44 to 4.6" src="https://img.shields.io/badge/clap-4.5.44%E2%80%934.6-DB2777?style=flat-square"></a>
   <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-DB2777?style=flat-square"></a>
 </p>
 

@@ -117,65 +117,110 @@
 <a href=#111 id=111 data-nosnippet>111</a>        })
 <a href=#112 id=112 data-nosnippet>112</a>    }
 <a href=#113 id=113 data-nosnippet>113</a>
-<a href=#114 id=114 data-nosnippet>114</a>    <span class="kw">fn </span>text(<span class="kw-2">&amp;</span><span class="self">self</span>, prompt: <span class="kw-2">&amp;</span>TextPrompt&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;String&gt;, PromptError&gt; {
-<a href=#115 id=115 data-nosnippet>115</a>        <span class="kw">let </span>answer: String = Theme::from(prompt.styles).scoped(|| {
-<a href=#116 id=116 data-nosnippet>116</a>            <span class="kw">let </span>input = ::cliclack::input(prompt.question).required(!prompt.optional);
-<a href=#117 id=117 data-nosnippet>117</a>            <span class="comment">// TODO(markovejnovic): cliclack's `Input` can't start out holding editable text (no
-<a href=#118 id=118 data-nosnippet>118</a>            // equivalent of inquire's `with_initial_value`), so `initial` is passed as a default
-<a href=#119 id=119 data-nosnippet>119</a>            // instead. The cost: a list prompt pre-filled from the arg's defaults can't be
-<a href=#120 id=120 data-nosnippet>120</a>            // finished early, as Enter on it keeps the default instead of ending the list. Once
-<a href=#121 id=121 data-nosnippet>121</a>            // cliclack supports starting text, pass `initial` that way and show the hint even
-<a href=#122 id=122 data-nosnippet>122</a>            // when there's a default.
-<a href=#123 id=123 data-nosnippet>123</a>            //
-<a href=#124 id=124 data-nosnippet>124</a>            // When there is a default, the hint is left off: cliclack shows the hint where it
-<a href=#125 id=125 data-nosnippet>125</a>            // would show "(default)", hiding it, and Enter wouldn't finish the list anyway.
-<a href=#126 id=126 data-nosnippet>126</a>            </span><span class="kw">let </span><span class="kw-2">mut </span>input = <span class="kw">match </span>(prompt.default.or(prompt.initial), prompt.hint) {
-<a href=#127 id=127 data-nosnippet>127</a>                (<span class="prelude-val">Some</span>(default), <span class="kw">_</span>) =&gt; input.default_input(default),
-<a href=#128 id=128 data-nosnippet>128</a>                (<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(hint)) =&gt; input.placeholder(hint),
-<a href=#129 id=129 data-nosnippet>129</a>                (<span class="prelude-val">None</span>, <span class="prelude-val">None</span>) =&gt; input,
-<a href=#130 id=130 data-nosnippet>130</a>            };
-<a href=#131 id=131 data-nosnippet>131</a>            input.interact()
-<a href=#132 id=132 data-nosnippet>132</a>        })<span class="question-mark">?</span>;
-<a href=#133 id=133 data-nosnippet>133</a>        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(answer).filter(|answer| !answer.is_empty()))
-<a href=#134 id=134 data-nosnippet>134</a>    }
-<a href=#135 id=135 data-nosnippet>135</a>}
-<a href=#136 id=136 data-nosnippet>136</a>
-<a href=#137 id=137 data-nosnippet>137</a><span class="doccomment">/// The command's styles on cliclack's input line.
-<a href=#138 id=138 data-nosnippet>138</a>///
-<a href=#139 id=139 data-nosnippet>139</a>/// By default, [`::cliclack`] uses global theming, which is somewhat inconvenient for the use-case
-<a href=#140 id=140 data-nosnippet>140</a>/// of following clap's theme. The [`Theme::scoped`] function allows you to run a function with a
-<a href=#141 id=141 data-nosnippet>141</a>/// temporarily globally set theme.
-<a href=#142 id=142 data-nosnippet>142</a></span><span class="kw">struct </span>Theme {
-<a href=#143 id=143 data-nosnippet>143</a>    input: console::Style,
-<a href=#144 id=144 data-nosnippet>144</a>    placeholder: console::Style,
-<a href=#145 id=145 data-nosnippet>145</a>}
-<a href=#146 id=146 data-nosnippet>146</a>
-<a href=#147 id=147 data-nosnippet>147</a><span class="kw">impl </span>Theme {
-<a href=#148 id=148 data-nosnippet>148</a>    <span class="doccomment">/// Run `interact` with this as cliclack's theme.
-<a href=#149 id=149 data-nosnippet>149</a>    </span><span class="kw">fn </span>scoped&lt;T&gt;(<span class="self">self</span>, interact: <span class="kw">impl </span>FnOnce() -&gt; io::Result&lt;T&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;T, PromptError&gt; {
-<a href=#150 id=150 data-nosnippet>150</a>        ::cliclack::set_theme(<span class="self">self</span>);
-<a href=#151 id=151 data-nosnippet>151</a>        <span class="kw">let </span>answer = interact();
-<a href=#152 id=152 data-nosnippet>152</a>        ::cliclack::reset_theme();
-<a href=#153 id=153 data-nosnippet>153</a>        answer.map_err(PromptError::from)
-<a href=#154 id=154 data-nosnippet>154</a>    }
-<a href=#155 id=155 data-nosnippet>155</a>}
-<a href=#156 id=156 data-nosnippet>156</a>
-<a href=#157 id=157 data-nosnippet>157</a><span class="kw">impl </span>From&lt;CommandStyles&lt;<span class="lifetime">'_</span>&gt;&gt; <span class="kw">for </span>Theme {
-<a href=#158 id=158 data-nosnippet>158</a>    <span class="kw">fn </span>from(CommandStyles(styles): CommandStyles&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="self">Self </span>{
-<a href=#159 id=159 data-nosnippet>159</a>        <span class="self">Self </span>{
-<a href=#160 id=160 data-nosnippet>160</a>            input: console::Style::from(ClapStyle(styles.get_literal())),
-<a href=#161 id=161 data-nosnippet>161</a>            placeholder: console::Style::from(ClapStyle(styles.get_placeholder())),
-<a href=#162 id=162 data-nosnippet>162</a>        }
-<a href=#163 id=163 data-nosnippet>163</a>    }
-<a href=#164 id=164 data-nosnippet>164</a>}
-<a href=#165 id=165 data-nosnippet>165</a>
-<a href=#166 id=166 data-nosnippet>166</a><span class="kw">impl </span>::cliclack::Theme <span class="kw">for </span>Theme {
-<a href=#167 id=167 data-nosnippet>167</a>    <span class="kw">fn </span>input_style(<span class="kw-2">&amp;</span><span class="self">self</span>, _state: <span class="kw-2">&amp;</span>::cliclack::ThemeState) -&gt; console::Style {
-<a href=#168 id=168 data-nosnippet>168</a>        <span class="self">self</span>.input.clone()
-<a href=#169 id=169 data-nosnippet>169</a>    }
-<a href=#170 id=170 data-nosnippet>170</a>
-<a href=#171 id=171 data-nosnippet>171</a>    <span class="kw">fn </span>placeholder_style(<span class="kw-2">&amp;</span><span class="self">self</span>, _state: <span class="kw-2">&amp;</span>::cliclack::ThemeState) -&gt; console::Style {
-<a href=#172 id=172 data-nosnippet>172</a>        <span class="self">self</span>.placeholder.clone()
-<a href=#173 id=173 data-nosnippet>173</a>    }
-<a href=#174 id=174 data-nosnippet>174</a>}
+<a href=#114 id=114 data-nosnippet>114</a>    <span class="doccomment">/// cliclack can't pre-fill its input, so `initial` shows as the placeholder instead: typing
+<a href=#115 id=115 data-nosnippet>115</a>    /// it keeps it, and an empty answer stays empty.
+<a href=#116 id=116 data-nosnippet>116</a>    </span><span class="kw">fn </span>text(<span class="kw-2">&amp;</span><span class="self">self</span>, prompt: <span class="kw-2">&amp;</span>TextPrompt&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;String&gt;, PromptError&gt; {
+<a href=#117 id=117 data-nosnippet>117</a>        <span class="kw">let </span>theme = Theme::from(prompt.styles);
+<a href=#118 id=118 data-nosnippet>118</a>        <span class="kw">let </span>theme = <span class="kw">match </span>prompt.initial {
+<a href=#119 id=119 data-nosnippet>119</a>            <span class="prelude-val">Some</span>(<span class="kw">_</span>) =&gt; theme.with_blank_answer(prompt.hint.unwrap_or_default()),
+<a href=#120 id=120 data-nosnippet>120</a>            <span class="prelude-val">None </span>=&gt; theme,
+<a href=#121 id=121 data-nosnippet>121</a>        };
+<a href=#122 id=122 data-nosnippet>122</a>        <span class="kw">let </span>answer: String = theme.scoped(|| {
+<a href=#123 id=123 data-nosnippet>123</a>            <span class="kw">let </span>input = ::cliclack::input(prompt.question).required(!prompt.optional);
+<a href=#124 id=124 data-nosnippet>124</a>            <span class="comment">// When there is a default, the hint is left off: cliclack shows the hint where it
+<a href=#125 id=125 data-nosnippet>125</a>            // would show "(default)", hiding it.
+<a href=#126 id=126 data-nosnippet>126</a>            </span><span class="kw">let </span><span class="kw-2">mut </span>input = <span class="kw">match </span>(prompt.default, prompt.initial, prompt.hint) {
+<a href=#127 id=127 data-nosnippet>127</a>                (<span class="prelude-val">Some</span>(default), ..) =&gt; input.default_input(default),
+<a href=#128 id=128 data-nosnippet>128</a>                (<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(initial), <span class="prelude-val">Some</span>(hint)) =&gt; {
+<a href=#129 id=129 data-nosnippet>129</a>                    input.placeholder(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"{initial} {hint}"</span>))
+<a href=#130 id=130 data-nosnippet>130</a>                }
+<a href=#131 id=131 data-nosnippet>131</a>                (<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(placeholder), <span class="prelude-val">None</span>) | (<span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(placeholder)) =&gt; {
+<a href=#132 id=132 data-nosnippet>132</a>                    input.placeholder(placeholder)
+<a href=#133 id=133 data-nosnippet>133</a>                }
+<a href=#134 id=134 data-nosnippet>134</a>                (<span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>) =&gt; input,
+<a href=#135 id=135 data-nosnippet>135</a>            };
+<a href=#136 id=136 data-nosnippet>136</a>            input.interact()
+<a href=#137 id=137 data-nosnippet>137</a>        })<span class="question-mark">?</span>;
+<a href=#138 id=138 data-nosnippet>138</a>        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(answer).filter(|answer| !answer.is_empty()))
+<a href=#139 id=139 data-nosnippet>139</a>    }
+<a href=#140 id=140 data-nosnippet>140</a>}
+<a href=#141 id=141 data-nosnippet>141</a>
+<a href=#142 id=142 data-nosnippet>142</a><span class="doccomment">/// The command's styles on cliclack's input line.
+<a href=#143 id=143 data-nosnippet>143</a>///
+<a href=#144 id=144 data-nosnippet>144</a>/// By default, [`::cliclack`] uses global theming, which is somewhat inconvenient for the use-case
+<a href=#145 id=145 data-nosnippet>145</a>/// of following clap's theme. The [`Theme::scoped`] function allows you to run a function with a
+<a href=#146 id=146 data-nosnippet>146</a>/// temporarily globally set theme.
+<a href=#147 id=147 data-nosnippet>147</a></span><span class="kw">struct </span>Theme {
+<a href=#148 id=148 data-nosnippet>148</a>    <span class="doccomment">/// What an empty answer leaves in the transcript, if not the placeholder.
+<a href=#149 id=149 data-nosnippet>149</a>    </span>blank_answer: <span class="prelude-ty">Option</span>&lt;String&gt;,
+<a href=#150 id=150 data-nosnippet>150</a>    styles: Styles,
+<a href=#151 id=151 data-nosnippet>151</a>}
+<a href=#152 id=152 data-nosnippet>152</a>
+<a href=#153 id=153 data-nosnippet>153</a><span class="kw">impl </span>Theme {
+<a href=#154 id=154 data-nosnippet>154</a>    <span class="doccomment">/// Run `interact` with this as cliclack's theme.
+<a href=#155 id=155 data-nosnippet>155</a>    </span><span class="kw">fn </span>scoped&lt;T&gt;(<span class="self">self</span>, interact: <span class="kw">impl </span>FnOnce() -&gt; io::Result&lt;T&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;T, PromptError&gt; {
+<a href=#156 id=156 data-nosnippet>156</a>        ::cliclack::set_theme(<span class="self">self</span>);
+<a href=#157 id=157 data-nosnippet>157</a>        <span class="kw">let </span>answer = interact();
+<a href=#158 id=158 data-nosnippet>158</a>        ::cliclack::reset_theme();
+<a href=#159 id=159 data-nosnippet>159</a>        answer.map_err(PromptError::from)
+<a href=#160 id=160 data-nosnippet>160</a>    }
+<a href=#161 id=161 data-nosnippet>161</a>
+<a href=#162 id=162 data-nosnippet>162</a>    <span class="doccomment">/// This theme, leaving `blank_answer` in the transcript for an empty answer.
+<a href=#163 id=163 data-nosnippet>163</a>    </span><span class="kw">fn </span>with_blank_answer(<span class="self">self</span>, blank_answer: <span class="kw-2">&amp;</span>str) -&gt; <span class="self">Self </span>{
+<a href=#164 id=164 data-nosnippet>164</a>        <span class="self">Self </span>{ blank_answer: <span class="prelude-val">Some</span>(blank_answer.to_owned()), ..<span class="self">self </span>}
+<a href=#165 id=165 data-nosnippet>165</a>    }
+<a href=#166 id=166 data-nosnippet>166</a>}
+<a href=#167 id=167 data-nosnippet>167</a>
+<a href=#168 id=168 data-nosnippet>168</a><span class="kw">impl </span>From&lt;CommandStyles&lt;<span class="lifetime">'_</span>&gt;&gt; <span class="kw">for </span>Theme {
+<a href=#169 id=169 data-nosnippet>169</a>    <span class="kw">fn </span>from(CommandStyles(styles): CommandStyles&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="self">Self </span>{
+<a href=#170 id=170 data-nosnippet>170</a>        <span class="self">Self </span>{
+<a href=#171 id=171 data-nosnippet>171</a>            blank_answer: <span class="prelude-val">None</span>,
+<a href=#172 id=172 data-nosnippet>172</a>            styles: Styles {
+<a href=#173 id=173 data-nosnippet>173</a>                input: console::Style::from(ClapStyle(styles.get_literal())),
+<a href=#174 id=174 data-nosnippet>174</a>                placeholder: console::Style::from(ClapStyle(styles.get_placeholder())),
+<a href=#175 id=175 data-nosnippet>175</a>            },
+<a href=#176 id=176 data-nosnippet>176</a>        }
+<a href=#177 id=177 data-nosnippet>177</a>    }
+<a href=#178 id=178 data-nosnippet>178</a>}
+<a href=#179 id=179 data-nosnippet>179</a>
+<a href=#180 id=180 data-nosnippet>180</a><span class="kw">impl </span>::cliclack::Theme <span class="kw">for </span>Theme {
+<a href=#181 id=181 data-nosnippet>181</a>    <span class="kw">fn </span>format_placeholder(
+<a href=#182 id=182 data-nosnippet>182</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#183 id=183 data-nosnippet>183</a>        state: <span class="kw-2">&amp;</span>::cliclack::ThemeState,
+<a href=#184 id=184 data-nosnippet>184</a>        cursor: <span class="kw-2">&amp;</span>::cliclack::StringCursor,
+<a href=#185 id=185 data-nosnippet>185</a>    ) -&gt; String {
+<a href=#186 id=186 data-nosnippet>186</a>        <span class="kw">match </span>(state, <span class="kw-2">&amp;</span><span class="self">self</span>.blank_answer) {
+<a href=#187 id=187 data-nosnippet>187</a>            (::cliclack::ThemeState::Submit, <span class="prelude-val">Some</span>(blank_answer)) =&gt; {
+<a href=#188 id=188 data-nosnippet>188</a>                <span class="kw">let </span><span class="kw-2">mut </span>blank_cursor = ::cliclack::StringCursor::default();
+<a href=#189 id=189 data-nosnippet>189</a>                blank_cursor.extend(blank_answer);
+<a href=#190 id=190 data-nosnippet>190</a>                <span class="self">self</span>.styles.format_placeholder(state, <span class="kw-2">&amp;</span>blank_cursor)
+<a href=#191 id=191 data-nosnippet>191</a>            }
+<a href=#192 id=192 data-nosnippet>192</a>            <span class="kw">_ </span>=&gt; <span class="self">self</span>.styles.format_placeholder(state, cursor),
+<a href=#193 id=193 data-nosnippet>193</a>        }
+<a href=#194 id=194 data-nosnippet>194</a>    }
+<a href=#195 id=195 data-nosnippet>195</a>
+<a href=#196 id=196 data-nosnippet>196</a>    <span class="kw">fn </span>input_style(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;</span>::cliclack::ThemeState) -&gt; console::Style {
+<a href=#197 id=197 data-nosnippet>197</a>        <span class="self">self</span>.styles.input_style(state)
+<a href=#198 id=198 data-nosnippet>198</a>    }
+<a href=#199 id=199 data-nosnippet>199</a>
+<a href=#200 id=200 data-nosnippet>200</a>    <span class="kw">fn </span>placeholder_style(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;</span>::cliclack::ThemeState) -&gt; console::Style {
+<a href=#201 id=201 data-nosnippet>201</a>        <span class="self">self</span>.styles.placeholder_style(state)
+<a href=#202 id=202 data-nosnippet>202</a>    }
+<a href=#203 id=203 data-nosnippet>203</a>}
+<a href=#204 id=204 data-nosnippet>204</a>
+<a href=#205 id=205 data-nosnippet>205</a><span class="doccomment">/// The command's styles for cliclack's input and placeholder text.
+<a href=#206 id=206 data-nosnippet>206</a></span><span class="kw">struct </span>Styles {
+<a href=#207 id=207 data-nosnippet>207</a>    input: console::Style,
+<a href=#208 id=208 data-nosnippet>208</a>    placeholder: console::Style,
+<a href=#209 id=209 data-nosnippet>209</a>}
+<a href=#210 id=210 data-nosnippet>210</a>
+<a href=#211 id=211 data-nosnippet>211</a><span class="kw">impl </span>::cliclack::Theme <span class="kw">for </span>Styles {
+<a href=#212 id=212 data-nosnippet>212</a>    <span class="kw">fn </span>input_style(<span class="kw-2">&amp;</span><span class="self">self</span>, _state: <span class="kw-2">&amp;</span>::cliclack::ThemeState) -&gt; console::Style {
+<a href=#213 id=213 data-nosnippet>213</a>        <span class="self">self</span>.input.clone()
+<a href=#214 id=214 data-nosnippet>214</a>    }
+<a href=#215 id=215 data-nosnippet>215</a>
+<a href=#216 id=216 data-nosnippet>216</a>    <span class="kw">fn </span>placeholder_style(<span class="kw-2">&amp;</span><span class="self">self</span>, _state: <span class="kw-2">&amp;</span>::cliclack::ThemeState) -&gt; console::Style {
+<a href=#217 id=217 data-nosnippet>217</a>        <span class="self">self</span>.placeholder.clone()
+<a href=#218 id=218 data-nosnippet>218</a>    }
+<a href=#219 id=219 data-nosnippet>219</a>}
 </code></pre></div></section></main></body></html>

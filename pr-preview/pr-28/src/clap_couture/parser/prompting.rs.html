@@ -883,83 +883,87 @@
 <a href=#877 id=877 data-nosnippet>877</a>            question: <span class="prelude-val">None</span>,
 <a href=#878 id=878 data-nosnippet>878</a>            secret: <span class="prelude-val">None</span>,
 <a href=#879 id=879 data-nosnippet>879</a>        }],
-<a href=#880 id=880 data-nosnippet>880</a>        stdin_arg: <span class="prelude-val">Some</span>(StdinAttr { arg_id: <span class="string">"message"</span>, dash: <span class="prelude-val">Some</span>(DashAttr::new::&lt;String&gt;()) }),
-<a href=#881 id=881 data-nosnippet>881</a>    };
-<a href=#882 id=882 data-nosnippet>882</a>
-<a href=#883 id=883 data-nosnippet>883</a>    <span class="doccomment">/// Answers every text prompt with `"asked"`, when available.
-<a href=#884 id=884 data-nosnippet>884</a>    </span><span class="kw">struct </span>Answering {
-<a href=#885 id=885 data-nosnippet>885</a>        available: bool,
-<a href=#886 id=886 data-nosnippet>886</a>    }
-<a href=#887 id=887 data-nosnippet>887</a>
-<a href=#888 id=888 data-nosnippet>888</a>    <span class="attr">#[derive(Parser)]
-<a href=#889 id=889 data-nosnippet>889</a>    </span><span class="kw">struct </span>Draft {
-<a href=#890 id=890 data-nosnippet>890</a>        <span class="attr">#[arg(long)]
-<a href=#891 id=891 data-nosnippet>891</a>        </span>message: <span class="prelude-ty">Option</span>&lt;String&gt;,
-<a href=#892 id=892 data-nosnippet>892</a>    }
-<a href=#893 id=893 data-nosnippet>893</a>
-<a href=#894 id=894 data-nosnippet>894</a>    <span class="doccomment">/// Stdin holding `"read"`, a terminal or not.
-<a href=#895 id=895 data-nosnippet>895</a>    </span><span class="kw">struct </span>FakeStdin {
-<a href=#896 id=896 data-nosnippet>896</a>        terminal: bool,
-<a href=#897 id=897 data-nosnippet>897</a>    }
-<a href=#898 id=898 data-nosnippet>898</a>
-<a href=#899 id=899 data-nosnippet>899</a>    <span class="kw">impl </span>Backend <span class="kw">for </span>Answering {
-<a href=#900 id=900 data-nosnippet>900</a>        <span class="kw">fn </span>confirm(<span class="kw-2">&amp;</span><span class="self">self</span>, _prompt: <span class="kw-2">&amp;</span>ConfirmPrompt&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;bool, PromptError&gt; {
-<a href=#901 id=901 data-nosnippet>901</a>            <span class="prelude-val">Err</span>(PromptError::NotATerminal)
-<a href=#902 id=902 data-nosnippet>902</a>        }
-<a href=#903 id=903 data-nosnippet>903</a>
-<a href=#904 id=904 data-nosnippet>904</a>        <span class="kw">fn </span>is_available(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-<a href=#905 id=905 data-nosnippet>905</a>            <span class="self">self</span>.available
+<a href=#880 id=880 data-nosnippet>880</a>        stdin_arg: <span class="prelude-val">Some</span>(StdinAttr {
+<a href=#881 id=881 data-nosnippet>881</a>            arg_id: <span class="string">"message"</span>,
+<a href=#882 id=882 data-nosnippet>882</a>            dash: DashAttr::new::&lt;String&gt;(),
+<a href=#883 id=883 data-nosnippet>883</a>            piped: <span class="bool-val">false</span>,
+<a href=#884 id=884 data-nosnippet>884</a>        }),
+<a href=#885 id=885 data-nosnippet>885</a>    };
+<a href=#886 id=886 data-nosnippet>886</a>
+<a href=#887 id=887 data-nosnippet>887</a>    <span class="doccomment">/// Answers every text prompt with `"asked"`, when available.
+<a href=#888 id=888 data-nosnippet>888</a>    </span><span class="kw">struct </span>Answering {
+<a href=#889 id=889 data-nosnippet>889</a>        available: bool,
+<a href=#890 id=890 data-nosnippet>890</a>    }
+<a href=#891 id=891 data-nosnippet>891</a>
+<a href=#892 id=892 data-nosnippet>892</a>    <span class="attr">#[derive(Parser)]
+<a href=#893 id=893 data-nosnippet>893</a>    </span><span class="kw">struct </span>Draft {
+<a href=#894 id=894 data-nosnippet>894</a>        <span class="attr">#[arg(long)]
+<a href=#895 id=895 data-nosnippet>895</a>        </span>message: <span class="prelude-ty">Option</span>&lt;String&gt;,
+<a href=#896 id=896 data-nosnippet>896</a>    }
+<a href=#897 id=897 data-nosnippet>897</a>
+<a href=#898 id=898 data-nosnippet>898</a>    <span class="doccomment">/// Stdin holding `"read"`, a terminal or not.
+<a href=#899 id=899 data-nosnippet>899</a>    </span><span class="kw">struct </span>FakeStdin {
+<a href=#900 id=900 data-nosnippet>900</a>        terminal: bool,
+<a href=#901 id=901 data-nosnippet>901</a>    }
+<a href=#902 id=902 data-nosnippet>902</a>
+<a href=#903 id=903 data-nosnippet>903</a>    <span class="kw">impl </span>Backend <span class="kw">for </span>Answering {
+<a href=#904 id=904 data-nosnippet>904</a>        <span class="kw">fn </span>confirm(<span class="kw-2">&amp;</span><span class="self">self</span>, _prompt: <span class="kw-2">&amp;</span>ConfirmPrompt&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;bool, PromptError&gt; {
+<a href=#905 id=905 data-nosnippet>905</a>            <span class="prelude-val">Err</span>(PromptError::NotATerminal)
 <a href=#906 id=906 data-nosnippet>906</a>        }
 <a href=#907 id=907 data-nosnippet>907</a>
-<a href=#908 id=908 data-nosnippet>908</a>        <span class="kw">fn </span>multi_select(
-<a href=#909 id=909 data-nosnippet>909</a>            <span class="kw-2">&amp;</span><span class="self">self</span>,
-<a href=#910 id=910 data-nosnippet>910</a>            _prompt: <span class="kw-2">&amp;</span>MultiSelectPrompt&lt;<span class="lifetime">'_</span>&gt;,
-<a href=#911 id=911 data-nosnippet>911</a>        ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;String&gt;, PromptError&gt; {
-<a href=#912 id=912 data-nosnippet>912</a>            <span class="prelude-val">Err</span>(PromptError::NotATerminal)
-<a href=#913 id=913 data-nosnippet>913</a>        }
-<a href=#914 id=914 data-nosnippet>914</a>
-<a href=#915 id=915 data-nosnippet>915</a>        <span class="kw">fn </span>secret(<span class="kw-2">&amp;</span><span class="self">self</span>, _prompt: <span class="kw-2">&amp;</span>SecretPrompt&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;SecretString&gt;, PromptError&gt; {
+<a href=#908 id=908 data-nosnippet>908</a>        <span class="kw">fn </span>is_available(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+<a href=#909 id=909 data-nosnippet>909</a>            <span class="self">self</span>.available
+<a href=#910 id=910 data-nosnippet>910</a>        }
+<a href=#911 id=911 data-nosnippet>911</a>
+<a href=#912 id=912 data-nosnippet>912</a>        <span class="kw">fn </span>multi_select(
+<a href=#913 id=913 data-nosnippet>913</a>            <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#914 id=914 data-nosnippet>914</a>            _prompt: <span class="kw-2">&amp;</span>MultiSelectPrompt&lt;<span class="lifetime">'_</span>&gt;,
+<a href=#915 id=915 data-nosnippet>915</a>        ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;String&gt;, PromptError&gt; {
 <a href=#916 id=916 data-nosnippet>916</a>            <span class="prelude-val">Err</span>(PromptError::NotATerminal)
 <a href=#917 id=917 data-nosnippet>917</a>        }
 <a href=#918 id=918 data-nosnippet>918</a>
-<a href=#919 id=919 data-nosnippet>919</a>        <span class="kw">fn </span>select(<span class="kw-2">&amp;</span><span class="self">self</span>, _prompt: <span class="kw-2">&amp;</span>SelectPrompt&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;String&gt;, PromptError&gt; {
+<a href=#919 id=919 data-nosnippet>919</a>        <span class="kw">fn </span>secret(<span class="kw-2">&amp;</span><span class="self">self</span>, _prompt: <span class="kw-2">&amp;</span>SecretPrompt&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;SecretString&gt;, PromptError&gt; {
 <a href=#920 id=920 data-nosnippet>920</a>            <span class="prelude-val">Err</span>(PromptError::NotATerminal)
 <a href=#921 id=921 data-nosnippet>921</a>        }
 <a href=#922 id=922 data-nosnippet>922</a>
-<a href=#923 id=923 data-nosnippet>923</a>        <span class="kw">fn </span>text(<span class="kw-2">&amp;</span><span class="self">self</span>, _prompt: <span class="kw-2">&amp;</span>TextPrompt&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;String&gt;, PromptError&gt; {
-<a href=#924 id=924 data-nosnippet>924</a>            <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="string">"asked"</span>.to_owned()))
+<a href=#923 id=923 data-nosnippet>923</a>        <span class="kw">fn </span>select(<span class="kw-2">&amp;</span><span class="self">self</span>, _prompt: <span class="kw-2">&amp;</span>SelectPrompt&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;String&gt;, PromptError&gt; {
+<a href=#924 id=924 data-nosnippet>924</a>            <span class="prelude-val">Err</span>(PromptError::NotATerminal)
 <a href=#925 id=925 data-nosnippet>925</a>        }
-<a href=#926 id=926 data-nosnippet>926</a>    }
-<a href=#927 id=927 data-nosnippet>927</a>
-<a href=#928 id=928 data-nosnippet>928</a>    <span class="kw">impl </span>Stdin <span class="kw">for </span>FakeStdin {
-<a href=#929 id=929 data-nosnippet>929</a>        <span class="kw">fn </span>is_terminal(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-<a href=#930 id=930 data-nosnippet>930</a>            <span class="self">self</span>.terminal
-<a href=#931 id=931 data-nosnippet>931</a>        }
-<a href=#932 id=932 data-nosnippet>932</a>
-<a href=#933 id=933 data-nosnippet>933</a>        <span class="kw">fn </span>read(<span class="kw-2">&amp;</span><span class="self">self</span>, when: ReadWhen) -&gt; io::Result&lt;<span class="prelude-ty">Option</span>&lt;Vec&lt;u8&gt;&gt;&gt; {
-<a href=#934 id=934 data-nosnippet>934</a>            <span class="prelude-val">Ok</span>((when == ReadWhen::Always || !<span class="self">self</span>.terminal).then(|| <span class="string">b"read\n"</span>.to_vec()))
+<a href=#926 id=926 data-nosnippet>926</a>
+<a href=#927 id=927 data-nosnippet>927</a>        <span class="kw">fn </span>text(<span class="kw-2">&amp;</span><span class="self">self</span>, _prompt: <span class="kw-2">&amp;</span>TextPrompt&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;String&gt;, PromptError&gt; {
+<a href=#928 id=928 data-nosnippet>928</a>            <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="string">"asked"</span>.to_owned()))
+<a href=#929 id=929 data-nosnippet>929</a>        }
+<a href=#930 id=930 data-nosnippet>930</a>    }
+<a href=#931 id=931 data-nosnippet>931</a>
+<a href=#932 id=932 data-nosnippet>932</a>    <span class="kw">impl </span>Stdin <span class="kw">for </span>FakeStdin {
+<a href=#933 id=933 data-nosnippet>933</a>        <span class="kw">fn </span>is_terminal(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+<a href=#934 id=934 data-nosnippet>934</a>            <span class="self">self</span>.terminal
 <a href=#935 id=935 data-nosnippet>935</a>        }
-<a href=#936 id=936 data-nosnippet>936</a>    }
-<a href=#937 id=937 data-nosnippet>937</a>
-<a href=#938 id=938 data-nosnippet>938</a>    <span class="attr">#[rstest]
-<a href=#939 id=939 data-nosnippet>939</a>    #[case::asks_at_a_terminal(<span class="bool-val">true</span>, <span class="bool-val">true</span>, <span class="string">"asked"</span>)]
-<a href=#940 id=940 data-nosnippet>940</a>    #[case::reads_stdin_that_is_no_terminal(<span class="bool-val">false</span>, <span class="bool-val">true</span>, <span class="string">"read"</span>)]
-<a href=#941 id=941 data-nosnippet>941</a>    #[case::reads_a_terminal_it_cannot_ask_on(<span class="bool-val">true</span>, <span class="bool-val">false</span>, <span class="string">"read"</span>)]
-<a href=#942 id=942 data-nosnippet>942</a>    </span><span class="kw">fn </span>a_dash_that_may_ask_or_read(
-<a href=#943 id=943 data-nosnippet>943</a>        <span class="attr">#[case] </span>terminal: bool,
-<a href=#944 id=944 data-nosnippet>944</a>        <span class="attr">#[case] </span>available: bool,
-<a href=#945 id=945 data-nosnippet>945</a>        <span class="attr">#[case] </span>message: <span class="kw-2">&amp;</span>str,
-<a href=#946 id=946 data-nosnippet>946</a>    ) {
-<a href=#947 id=947 data-nosnippet>947</a>        <span class="kw">let </span>argv: Vec&lt;OsString&gt; = [<span class="string">"draft"</span>, <span class="string">"--message"</span>, <span class="string">"-"</span>].map(OsString::from).into();
-<a href=#948 id=948 data-nosnippet>948</a>        <span class="kw">let </span>draft: <span class="prelude-ty">Result</span>&lt;Draft, <span class="kw">_</span>&gt; = parse(
-<a href=#949 id=949 data-nosnippet>949</a>            Draft::command(),
-<a href=#950 id=950 data-nosnippet>950</a>            <span class="kw-2">&amp;</span>ASKED_OR_READ,
-<a href=#951 id=951 data-nosnippet>951</a>            <span class="kw-2">&amp;</span>Messages::DEFAULT,
-<a href=#952 id=952 data-nosnippet>952</a>            <span class="kw-2">&amp;</span>argv,
-<a href=#953 id=953 data-nosnippet>953</a>            <span class="kw-2">&amp;</span>Answering { available },
-<a href=#954 id=954 data-nosnippet>954</a>            <span class="kw-2">&amp;</span>FakeStdin { terminal },
-<a href=#955 id=955 data-nosnippet>955</a>        );
-<a href=#956 id=956 data-nosnippet>956</a>        <span class="macro">assert_eq!</span>(draft.ok().and_then(|draft| draft.message).as_deref(), <span class="prelude-val">Some</span>(message));
-<a href=#957 id=957 data-nosnippet>957</a>    }
-<a href=#958 id=958 data-nosnippet>958</a>}
+<a href=#936 id=936 data-nosnippet>936</a>
+<a href=#937 id=937 data-nosnippet>937</a>        <span class="kw">fn </span>read(<span class="kw-2">&amp;</span><span class="self">self</span>, when: ReadWhen) -&gt; io::Result&lt;<span class="prelude-ty">Option</span>&lt;Vec&lt;u8&gt;&gt;&gt; {
+<a href=#938 id=938 data-nosnippet>938</a>            <span class="prelude-val">Ok</span>((when == ReadWhen::Always || !<span class="self">self</span>.terminal).then(|| <span class="string">b"read\n"</span>.to_vec()))
+<a href=#939 id=939 data-nosnippet>939</a>        }
+<a href=#940 id=940 data-nosnippet>940</a>    }
+<a href=#941 id=941 data-nosnippet>941</a>
+<a href=#942 id=942 data-nosnippet>942</a>    <span class="attr">#[rstest]
+<a href=#943 id=943 data-nosnippet>943</a>    #[case::asks_at_a_terminal(<span class="bool-val">true</span>, <span class="bool-val">true</span>, <span class="string">"asked"</span>)]
+<a href=#944 id=944 data-nosnippet>944</a>    #[case::reads_stdin_that_is_no_terminal(<span class="bool-val">false</span>, <span class="bool-val">true</span>, <span class="string">"read"</span>)]
+<a href=#945 id=945 data-nosnippet>945</a>    #[case::reads_a_terminal_it_cannot_ask_on(<span class="bool-val">true</span>, <span class="bool-val">false</span>, <span class="string">"read"</span>)]
+<a href=#946 id=946 data-nosnippet>946</a>    </span><span class="kw">fn </span>a_dash_that_may_ask_or_read(
+<a href=#947 id=947 data-nosnippet>947</a>        <span class="attr">#[case] </span>terminal: bool,
+<a href=#948 id=948 data-nosnippet>948</a>        <span class="attr">#[case] </span>available: bool,
+<a href=#949 id=949 data-nosnippet>949</a>        <span class="attr">#[case] </span>message: <span class="kw-2">&amp;</span>str,
+<a href=#950 id=950 data-nosnippet>950</a>    ) {
+<a href=#951 id=951 data-nosnippet>951</a>        <span class="kw">let </span>argv: Vec&lt;OsString&gt; = [<span class="string">"draft"</span>, <span class="string">"--message"</span>, <span class="string">"-"</span>].map(OsString::from).into();
+<a href=#952 id=952 data-nosnippet>952</a>        <span class="kw">let </span>draft: <span class="prelude-ty">Result</span>&lt;Draft, <span class="kw">_</span>&gt; = parse(
+<a href=#953 id=953 data-nosnippet>953</a>            Draft::command(),
+<a href=#954 id=954 data-nosnippet>954</a>            <span class="kw-2">&amp;</span>ASKED_OR_READ,
+<a href=#955 id=955 data-nosnippet>955</a>            <span class="kw-2">&amp;</span>Messages::DEFAULT,
+<a href=#956 id=956 data-nosnippet>956</a>            <span class="kw-2">&amp;</span>argv,
+<a href=#957 id=957 data-nosnippet>957</a>            <span class="kw-2">&amp;</span>Answering { available },
+<a href=#958 id=958 data-nosnippet>958</a>            <span class="kw-2">&amp;</span>FakeStdin { terminal },
+<a href=#959 id=959 data-nosnippet>959</a>        );
+<a href=#960 id=960 data-nosnippet>960</a>        <span class="macro">assert_eq!</span>(draft.ok().and_then(|draft| draft.message).as_deref(), <span class="prelude-val">Some</span>(message));
+<a href=#961 id=961 data-nosnippet>961</a>    }
+<a href=#962 id=962 data-nosnippet>962</a>}
 </code></pre></div></section></main></body></html>

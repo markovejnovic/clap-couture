@@ -4,7 +4,8 @@
 //! validates it exactly like a typed value. Each answer is checked with a trial parse as soon as
 //! it is given: the previous trial passed, so a failure can only come from the new answer, which
 //! is then asked again with clap's message. For an arg asked one value at a time, each value is
-//! an answer of its own, checked on top of the values before it.
+//! an answer of its own, checked on top of the values before it. clap holds no default to
+//! `num_args`, so the answer is held to it here, as one time the arg is passed.
 //!
 //! Confirmations come last, so their questions can name the answers. A declined one fails the
 //! parse; without a terminal to ask on, one left unanswered fails it as a missing required arg.
@@ -24,8 +25,8 @@ use std::ffi::OsString;
 
 use clap::{
     Arg, ArgAction, ArgGroup, ArgMatches, Command, FromArgMatches, Id,
-    builder::{PossibleValue, Resettable},
-    error::ErrorKind,
+    builder::{PossibleValue, Resettable, ValueRange},
+    error::{ContextKind, ContextValue, ErrorKind},
     parser::ValueSource,
 };
 
@@ -91,6 +92,13 @@ struct Session<'run> {
     vault: &'run Vault,
 }
 
+/// How many values one answer to an arg may hold: its `num_args`, as for one time it is passed.
+#[derive(Clone, Copy)]
+struct ValueCount<'arg> {
+    arg: &'arg Arg,
+    range: ValueRange,
+}
+
 impl Session<'_> {
     /// Ask for `prompted_arg` until clap accepts the answer; `None` when an optional single-value
     /// one is left empty. `current` is the arg's default, split into its values. `later` are the
@@ -146,16 +154,19 @@ impl Session<'_> {
         }
         let options: Vec<PossibleValue> =
             arg.get_possible_values().into_iter().filter(|value| !value.is_hide_set()).collect();
+        let count = ValueCount::of(arg);
         if !takes_many(arg) {
-            return self.until_accepted(answers, prompted_arg, || {
+            return self.until_accepted(answers, prompted_arg, count, || {
                 let value = self.ask(arg, &question, &options, current.first(), optional)?;
                 Ok(value.map(|value| vec![value]))
             });
         }
         if options.is_empty() {
-            return self.each_value(&question, prompted_arg, current, answers, optional).map(Some);
+            return self
+                .each_value(&question, prompted_arg, current, answers, optional, count)
+                .map(Some);
         }
-        self.until_accepted(answers, prompted_arg, || {
+        self.until_accepted(answers, prompted_arg, count, || {
             self.backend
                 .multi_select(&MultiSelectPrompt {
                     defaults: current,
@@ -282,8 +293,9 @@ impl Session<'_> {
         })
     }
 
-    /// Ask for one value at a time until an empty answer, each starting out as the default's
-    /// value at its position. Only a required arg's first value may not be empty.
+    /// Ask for one value at a time until an empty answer or `count`'s most, each starting out as
+    /// the default's value at its position. Only a required arg's first value may not be empty,
+    /// and an empty answer short of `count`'s least is asked again with clap's message.
     ///
     /// The default goes in as initial text rather than as the answer Enter accepts, so clearing it
     /// still finishes the list.
@@ -294,21 +306,29 @@ impl Session<'_> {
         current: &[String],
         answers: &[Answer<'_>],
         optional: bool,
+        count: Option<ValueCount<'_>>,
     ) -> Result<Vec<String>, PromptError> {
         let finish_hint = self.messages.finish_hint.get();
         let mut values = Vec::new();
         loop {
+            if count.is_some_and(|count| !count.has_room(values.len())) {
+                return Ok(values);
+            }
+            let short = count.and_then(|count| count.check(&values).err());
             let optional = !values.is_empty() || optional;
             let Some(value) = self.backend.text(&TextPrompt {
                 default: None,
-                hint: optional.then_some(&*finish_hint),
+                hint: (optional && short.is_none()).then_some(&*finish_hint),
                 initial: current.get(values.len()).map(String::as_str),
                 optional,
                 question,
                 styles: CommandStyles(self.cmd.get_styles()),
             })?
             else {
-                return Ok(values);
+                let Some(err) = short else { return Ok(values) };
+                self.backend
+                    .report(&summary(&err, &values), CommandStyles(self.cmd.get_styles()))?;
+                continue;
             };
             values.push(value);
             if let Err(err) = self.trial(answers, prompted_arg, &values) {
@@ -386,16 +406,19 @@ impl Session<'_> {
         cmd.try_get_matches_from(self.argv).map(drop)
     }
 
-    /// Call `ask` until clap accepts its answer, showing clap's complaint before each retry.
+    /// Call `ask` until clap accepts its answer and it fits `count`, showing clap's complaint
+    /// before each retry.
     fn until_accepted(
         &self,
         answers: &[Answer<'_>],
         prompted_arg: &PromptedArg,
+        count: Option<ValueCount<'_>>,
         mut ask: impl FnMut() -> Result<Option<Vec<String>>, PromptError>,
     ) -> Result<Option<Vec<String>>, PromptError> {
         loop {
             let Some(values) = ask()? else { return Ok(None) };
-            match self.trial(answers, prompted_arg, &values) {
+            let fits = count.map_or(Ok(()), |count| count.check(&values));
+            match fits.and_then(|()| self.trial(answers, prompted_arg, &values)) {
                 Ok(()) => return Ok(Some(values)),
                 Err(err) => {
                     let error = summary(&err, &values);
@@ -403,6 +426,62 @@ impl Session<'_> {
                 }
             }
         }
+    }
+}
+
+impl<'arg> ValueCount<'arg> {
+    /// Check `values` as clap checks them typed after the arg once; no values leave it unset.
+    fn check(self, values: &[String]) -> Result<(), clap::Error> {
+        let (min, max) = (self.range.min_values(), self.range.max_values());
+        if let Some(surplus) = values.get(max) {
+            return Err(self.error(ErrorKind::TooManyValues, [(
+                ContextKind::InvalidValue,
+                ContextValue::String(surplus.clone()),
+            )]));
+        }
+        if values.is_empty() || values.len() >= min {
+            return Ok(());
+        }
+        let number =
+            |count: usize| ContextValue::Number(isize::try_from(count).unwrap_or(isize::MAX));
+        let actual = (ContextKind::ActualNumValues, number(values.len()));
+        // clap's own wording: an exact count when there is one, else the least it takes.
+        Err(if min == max {
+            self.error(ErrorKind::WrongNumberOfValues, [
+                actual,
+                (ContextKind::ExpectedNumValues, number(min)),
+            ])
+        } else {
+            self.error(ErrorKind::TooFewValues, [actual, (ContextKind::MinValues, number(min))])
+        })
+    }
+
+    /// clap's `kind` of error about the arg, with `context` filled in.
+    fn error(
+        self,
+        kind: ErrorKind,
+        context: impl IntoIterator<Item = (ContextKind, ContextValue)>,
+    ) -> clap::Error {
+        let mut err = clap::Error::new(kind);
+        err.insert(ContextKind::InvalidArg, ContextValue::String(self.arg.to_string()));
+        for (kind, value) in context {
+            err.insert(kind, value);
+        }
+        err
+    }
+
+    /// Check whether `count` values leave room for another.
+    fn has_room(self, count: usize) -> bool {
+        count < self.range.max_values()
+    }
+
+    /// `arg`'s `num_args`; `None` when it takes one value each time and may be passed again, as a
+    /// plain `Vec` does, so any number of values is one it could be typed with.
+    fn of(arg: &'arg Arg) -> Option<Self> {
+        let range = arg.get_num_args()?;
+        let repeats_single_values =
+            matches!(arg.get_action(), ArgAction::Append) && range.max_values() <= 1;
+        (!repeats_single_values).then_some(Self { arg, range })
     }
 }
 

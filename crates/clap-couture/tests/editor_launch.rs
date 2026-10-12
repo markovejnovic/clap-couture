@@ -117,36 +117,36 @@ fn the_default_backend_spawns_the_editor_itself() {
     let overwrite = script(dir, "overwrite", r#"printf 'from "%s"\n' "$1" > "$2""#);
     let backend = quiet();
     let notes = notes_with(&format!("{} 'the editor'", overwrite.display()), &backend);
-    assert_eq!(notes.as_deref(), Ok("from \"the editor\""));
+    assert_eq!(notes.as_deref(), Ok("from \"the editor\"\n"));
     assert_eq!(backend.asked.take(), no_questions);
 
     // Appends after the header; the header comes back out, the default stays.
     let append = script(dir, "append", r#"printf 'More.\n' >> "$1""#);
     let notes = notes_with(&append.display().to_string(), &quiet());
-    assert_eq!(notes.as_deref(), Ok("Bug fixes.\n\nMore."));
+    assert_eq!(notes.as_deref(), Ok("Bug fixes.\n\nMore.\n"));
 
     // Nothing in `$EDITOR` is expanded: `$HOME` reaches the editor as is.
     let echo_arg = script(dir, "echo-arg", r#"printf '%s\n' "$1" > "$2""#);
     let notes = notes_with(&format!("{} '$HOME'", echo_arg.display()), &quiet());
-    assert_eq!(notes.as_deref(), Ok("$HOME"));
+    assert_eq!(notes.as_deref(), Ok("$HOME\n"));
 
     // `:` is git's no-op editor: the pre-filled default is taken, and nobody is asked.
     let backend = quiet();
-    assert_eq!(notes_with(":", &backend).as_deref(), Ok("Bug fixes."));
+    assert_eq!(notes_with(":", &backend).as_deref(), Ok("Bug fixes.\n"));
     assert_eq!(backend.asked.take(), no_questions);
 
     // A known editor that hands the file off gets the flag that makes it wait.
     let code = script(dir, "code", r#"printf '%s\n' "$1" > "$2""#);
     let backend = quiet();
     let notes = notes_with(&code.display().to_string(), &backend);
-    assert_eq!(notes.as_deref(), Ok("--wait"));
+    assert_eq!(notes.as_deref(), Ok("--wait\n"));
     assert_eq!(backend.asked.take(), no_questions);
 
     // Returned at once, file untouched: asked, and a yes takes the file as it is then.
     let hand_off = script(dir, "hand-off", "exit 0");
     let backend = DefaultEditor::replying(&[true]);
     let notes = notes_with(&hand_off.display().to_string(), &backend);
-    assert_eq!(notes.as_deref(), Ok("Bug fixes."));
+    assert_eq!(notes.as_deref(), Ok("Bug fixes.\n"));
     assert_eq!(backend.asked.take(), ["Your editor returned right away. Done editing the file?"]);
 
     // A no reopens the editor; this one edits the file the second time.
@@ -161,7 +161,7 @@ fn the_default_backend_spawns_the_editor_itself() {
     );
     let backend = DefaultEditor::replying(&[false]);
     let notes = notes_with(&second_time.display().to_string(), &backend);
-    assert_eq!(notes.as_deref(), Ok("Second try."));
+    assert_eq!(notes.as_deref(), Ok("Second try.\n"));
     assert_eq!(backend.asked.take(), ["Your editor returned right away. Done editing the file?"]);
 
     unreadable_text_is_never_taken(dir);
@@ -212,7 +212,7 @@ fn unreadable_text_is_never_taken(dir: &Path) {
         r#"printf 'caf\303\251\n' > "$1""#,
     ]);
     let notes = notes_with(&latin1.display().to_string(), &quiet());
-    assert_eq!(notes.as_deref(), Ok("caf\u{e9}"), "the marked text was taken");
+    assert_eq!(notes.as_deref(), Ok("caf\u{e9}\n"), "the marked text was taken");
     let given = fs::read_to_string(&given).unwrap_or_default();
     assert!(
         given.starts_with("caf\u{FFFD}\n\nMore.\n")
@@ -227,7 +227,7 @@ fn unreadable_text_is_never_taken(dir: &Path) {
         r#"printf '\357\277\275 caf\303\251\n' > "$1""#,
     ]);
     let notes = notes_with(&own_mark.display().to_string(), &quiet());
-    assert_eq!(notes.as_deref(), Ok("\u{FFFD} caf\u{e9}"), "the user's own U+FFFD was refused");
+    assert_eq!(notes.as_deref(), Ok("\u{FFFD} caf\u{e9}\n"), "the user's own U+FFFD was refused");
 }
 
 /// Ctrl-C and a hang-up reach the CLI and the editor alike; the CLI leaves them to the editor,
@@ -239,7 +239,7 @@ fn signals_are_left_to_the_editor(dir: &Path) {
     let interrupt_parent =
         script(dir, "interrupt-parent", r#"kill -INT "$PPID"; printf 'Survived.\n' > "$1""#);
     let notes = notes_with(&interrupt_parent.display().to_string(), &quiet());
-    assert_eq!(notes.as_deref(), Ok("Survived."), "Ctrl-C reached the editor, not just us");
+    assert_eq!(notes.as_deref(), Ok("Survived.\n"), "Ctrl-C reached the editor, not just us");
 
     // The editor dying of Ctrl-C cancels the prompt, and the temp file goes with it, in a
     // directory of its own that goes too.
@@ -260,7 +260,11 @@ fn signals_are_left_to_the_editor(dir: &Path) {
     let hang_up_parent =
         script(dir, "hang-up-parent", r#"kill -HUP "$PPID"; printf 'Still here.\n' > "$1""#);
     let notes = notes_with(&hang_up_parent.display().to_string(), &quiet());
-    assert_eq!(notes.as_deref(), Ok("Still here."), "the hang-up reached the editor, not just us");
+    assert_eq!(
+        notes.as_deref(),
+        Ok("Still here.\n"),
+        "the hang-up reached the editor, not just us"
+    );
 
     // The editor dying of the hang-up cancels the prompt, and the temp directory goes.
     let hung_up = script(

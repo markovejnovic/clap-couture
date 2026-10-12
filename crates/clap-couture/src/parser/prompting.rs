@@ -240,7 +240,7 @@ impl Session<'_> {
     }
 
     /// Ask in the user's editor, starting from the rejected answer, else the arg's default, else
-    /// the editor's `initial` text. An empty
+    /// the editor's `initial` text. A text arg keeps the newline the answer ends in. An empty
     /// answer to a required arg aborts, as git aborts on an empty commit message, and so does one
     /// to an arg with a default, which an empty answer would quietly bring back.
     #[cfg(feature = "interactive-editor")]
@@ -250,6 +250,8 @@ impl Session<'_> {
         editor: &EditorAttr,
         rejected: Option<&Rejected>,
     ) -> Result<Option<String>, PromptError> {
+        use core::any::TypeId;
+
         let Asked { arg, current, optional: _, prompted_arg, question } = *asked;
         let styles = CommandStyles(self.cmd.get_styles());
         let optional = asked.optional && arg.get_default_values().is_empty();
@@ -284,7 +286,17 @@ impl Session<'_> {
             self.backend.report(&self.messages.editor_empty.get(), styles)?;
             return Err(PromptError::Cancelled);
         }
-        Ok(answer)
+        // The file's last newline is part of a text, not of a number, a flag or a path.
+        let value_type = arg.get_value_parser().type_id();
+        let takes_text = [TypeId::of::<String>(), TypeId::of::<OsString>()]
+            .iter()
+            .any(|text| value_type == *text);
+        Ok(answer.map(|mut answer| {
+            if !takes_text && answer.ends_with('\n') {
+                answer.pop();
+            }
+            answer
+        }))
     }
 
     /// Ask whether to go ahead, with each `{id}` in the question filled in from the args as

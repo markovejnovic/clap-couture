@@ -94,6 +94,6 @@ fn the_default_backend_runs_a_cmd_editor_from_path() {
     let quoted = notes_with(&format!("\"{}\" quoted", bin.join("fake-editor.cmd").display()));
 
     fs::remove_dir_all(&bin).ok();
-    assert_eq!(from_path.as_deref(), Ok("from the-editor"));
-    assert_eq!(quoted.as_deref(), Ok("from quoted"));
+    assert_eq!(from_path.as_deref(), Ok("from the-editor\n"));
+    assert_eq!(quoted.as_deref(), Ok("from quoted\n"));
 }

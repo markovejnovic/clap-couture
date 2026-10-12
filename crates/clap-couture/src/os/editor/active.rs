@@ -53,12 +53,12 @@ impl Opened {
     /// Wait for the open editor, if any. Once `SIGTERM` has come, remove the temporary directory
     /// and die of it.
     fn close(&mut self) -> Option<io::Result<Exit>> {
-        let exit = self.child.take().map(InteractiveChild::wait);
-        if ForwardedTermination::received() {
+        let waited = self.child.take()?.wait();
+        if waited.terminated {
             drop(self.dir.take());
             ForwardedTermination::die();
         }
-        exit
+        Some(waited.exit)
     }
 
     /// Show the hint and start the editor.
@@ -286,6 +286,25 @@ mod tests {
         let answer = saved.and_then(|saved| Locale::decode(&saved).ok());
         let answer = answer.map(|text| PromptMarker::new("//").strip(&text, Some(PROMPT)));
         assert_eq!(answer, Some(Some("Saved.".to_owned())));
+    }
+
+    /// An app handling `SIGTERM` itself gets it, and the editor carries on.
+    #[cfg(unix)]
+    #[test]
+    fn an_apps_termination_handler_keeps_the_editor_open() {
+        use core::sync::atomic::Ordering;
+
+        use crate::os::signal::tests::{APP_TERMINATION_RECEIVED, with_app_termination_handler};
+
+        let _handling = crate::os::signal::tests::lock_handling();
+        let saved = with_app_termination_handler(|| {
+            let opened = editor(r#"sh -c 'kill -TERM $PPID; sleep 1; printf "Saved." > "$0"'"#)
+                .spawn(EditorSpawnOptions::builder().build());
+            let mut opened = opened.ok()?;
+            opened.wait().ok()
+        });
+        let app_received = APP_TERMINATION_RECEIVED.load(Ordering::SeqCst);
+        assert_eq!((saved.as_deref(), app_received), (Some(b"Saved.".as_slice()), true));
     }
 
     #[cfg(unix)]

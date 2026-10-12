@@ -293,11 +293,14 @@ impl DashValueParser {
             (true, None, Some(short)) => vec![format!("-{short}").into(), value.to_owned()],
             (true, None, None) => vec!["--".into(), value.to_owned()],
         };
-        Command::new(cmd.get_name().to_owned())
-            .no_binary_name(true)
-            .arg(named)
-            .try_get_matches_from(words)
-            .map_err(|err| err.format(&mut cmd.clone()))
+        let alone = Command::new(cmd.get_name().to_owned()).no_binary_name(true).arg(named);
+        // Named as `cmd` is, so an error the arg's value parser formats against it shows the
+        // binary.
+        let alone = match cmd.get_bin_name() {
+            Some(bin_name) => alone.bin_name(bin_name.to_owned()),
+            None => alone,
+        };
+        alone.try_get_matches_from(words).map_err(|err| err.format(&mut cmd.clone()))
     }
 }
 

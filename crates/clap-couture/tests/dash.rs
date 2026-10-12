@@ -180,6 +180,29 @@ fn without_a_terminal_a_dash_is_an_error() {
 }
 
 #[test]
+fn without_a_terminal_a_dash_error_names_the_binary_from_argv() {
+    let backend = ScriptedBackend::unavailable();
+    let commit = Commit::couture_try_parse_from_with(&backend, ["/usr/bin/gitlike", "-m", "-"]);
+    let rendered = commit.err().map(|err| err.to_string());
+    assert!(
+        rendered.as_ref().is_some_and(|rendered| rendered.contains("Usage: gitlike ")),
+        "{rendered:?}"
+    );
+}
+
+#[test]
+fn a_secret_refusal_names_the_binary_from_argv() {
+    let backend = ScriptedBackend::new([]);
+    let login =
+        Login::couture_try_parse_from_with(&backend, ["/usr/bin/gitlike", "--token", "hunter2"]);
+    let rendered = login.err().map(|err| err.to_string());
+    assert!(
+        rendered.as_ref().is_some_and(|rendered| rendered.contains("Usage: gitlike ")),
+        "{rendered:?}"
+    );
+}
+
+#[test]
 fn without_a_terminal_and_without_a_dash_nothing_fails() {
     let backend = ScriptedBackend::unavailable();
     let commit = Commit::couture_try_parse_from_with(&backend, ["commit", "-m", "typed"]);

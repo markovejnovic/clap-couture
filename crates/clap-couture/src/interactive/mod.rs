@@ -1,9 +1,10 @@
 //! Ask on the terminal for prompted args the user left out.
 //!
 //! Mark a field with `#[couture(prompt)]` to ask its help text, or `#[couture(prompt = "...")]`
-//! to ask something else. When the user leaves the arg out and stdin and stderr are terminals,
-//! [`CoutureParser`](crate::CoutureParser)'s entry points ask for it, then parse the answer as if
-//! it had been typed. Without a terminal, parsing behaves exactly like clap.
+//! to ask something else; with `markdown`, either is rendered as help text is. When the user leaves
+//! the arg out and stdin and stderr are terminals, [`CoutureParser`](crate::CoutureParser)'s entry
+//! points ask for it, then parse the answer as if it had been typed. Without a terminal, parsing
+//! behaves exactly like clap.
 //!
 //! ```
 //! use clap::Parser;
@@ -447,7 +448,7 @@ impl From<io::Error> for PromptError {
 pub struct ConfirmPrompt<'prompt> {
     /// The answer Enter accepts.
     pub default: bool,
-    /// What to ask.
+    /// What to ask; with `markdown`, it may hold ANSI escapes.
     pub question: &'prompt str,
     /// The command's styles, for backends that theme themselves.
     pub styles: CommandStyles<'prompt>,
@@ -473,7 +474,7 @@ pub struct EditorPrompt<'prompt> {
     pub not_utf8: &'prompt str,
     /// An empty answer is allowed, and leaves the arg unset.
     pub optional: bool,
-    /// What to ask.
+    /// What to ask; with `markdown`, it may hold ANSI escapes.
     pub question: &'prompt str,
     /// Asked when the editor returned at once and left the file as it was: done editing?
     pub returned_early: &'prompt str,
@@ -495,7 +496,7 @@ pub struct MultiSelectPrompt<'prompt> {
     pub optional: bool,
     /// The visible possible values, in declared order.
     pub options: &'prompt [PossibleValue],
-    /// What to ask.
+    /// What to ask; with `markdown`, it may hold ANSI escapes.
     pub question: &'prompt str,
     /// What to tell the user when they select nothing, unless the prompt is optional.
     pub selection_required: &'prompt str,
@@ -509,7 +510,7 @@ pub struct MultiSelectPrompt<'prompt> {
 pub struct SecretPrompt<'prompt> {
     /// An empty answer is allowed, and leaves the arg unset.
     pub optional: bool,
-    /// What to ask.
+    /// What to ask; with `markdown`, it may hold ANSI escapes.
     pub question: &'prompt str,
     /// The command's styles, for backends that theme themselves.
     pub styles: CommandStyles<'prompt>,
@@ -527,7 +528,7 @@ pub struct SelectPrompt<'prompt> {
     pub optional: bool,
     /// The visible possible values, in declared order.
     pub options: &'prompt [PossibleValue],
-    /// What to ask.
+    /// What to ask; with `markdown`, it may hold ANSI escapes.
     pub question: &'prompt str,
     /// The command's styles, for backends that theme themselves.
     pub styles: CommandStyles<'prompt>,
@@ -547,7 +548,7 @@ pub struct TextPrompt<'prompt> {
     pub initial: Option<&'prompt str>,
     /// An empty answer is allowed, and leaves the arg unset.
     pub optional: bool,
-    /// What to ask.
+    /// What to ask; with `markdown`, it may hold ANSI escapes.
     pub question: &'prompt str,
     /// The command's styles, for backends that theme themselves.
     pub styles: CommandStyles<'prompt>,

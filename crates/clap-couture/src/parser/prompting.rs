@@ -43,6 +43,7 @@ use crate::{
         PromptedArg, PromptedArgTree, SecretPrompt, SelectPrompt, TextPrompt,
     },
     os::{signal::Signal, stdin::Stdin},
+    render::CommandRenderExt as _,
 };
 #[cfg(feature = "interactive-editor")]
 use crate::{
@@ -402,16 +403,17 @@ impl Session<'_> {
         })
     }
 
-    /// The `= ...` override, else the arg's help text, else its id.
+    /// The `= ...` override, else the arg's help text, else its id, rendered.
     fn question(&self, prompted_arg: &PromptedArg) -> String {
-        prompted_arg.attr.question.as_ref().map_or_else(
+        let question = prompted_arg.attr.question.as_ref().map_or_else(
             || {
                 arg_at(self.cmd, &prompted_arg.subcommand_path, prompted_arg.attr.arg_id)
                     .and_then(Arg::get_help)
                     .map_or_else(|| prompted_arg.attr.arg_id.to_owned(), ToString::to_string)
             },
             |question| question.get().into_owned(),
-        )
+        );
+        self.cmd.render_question(&question)
     }
 
     /// Check whether leaving the arg being asked unset fails the parse: it is `required`, or

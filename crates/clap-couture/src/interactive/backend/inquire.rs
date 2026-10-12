@@ -23,6 +23,9 @@ use crate::interactive::{
     ConfirmPrompt, MultiSelectPrompt, PromptError, SecretPrompt, SelectPrompt, TextPrompt,
 };
 
+/// The header effects a `StyleSheet` carries, so the ones inquire draws a question in.
+const DRAWN: Effects = Effects::BOLD.insert(Effects::ITALIC);
+
 struct InquireError(inquire::InquireError);
 
 /// Prompts drawn by inquire.
@@ -31,7 +34,8 @@ pub struct Inquire;
 
 impl Backend for Inquire {
     fn confirm(&self, prompt: &ConfirmPrompt<'_>) -> Result<bool, PromptError> {
-        Ok(Confirm::new(prompt.question)
+        let question = prompt.styles.question_in_header(prompt.question, DRAWN);
+        Ok(Confirm::new(&question)
             .with_default(prompt.default)
             .with_render_config(RenderConfig::from(prompt.styles))
             .prompt()
@@ -66,7 +70,8 @@ impl Backend for Inquire {
         drop(writeln!(
             io::stderr(),
             "{prefix}>{prefix:#} {header}{}{header:#} {closing_style}{closing}{closing_style:#}",
-            prompt.question
+            // Drawn in the whole header style here, not inquire's.
+            prompt.styles.question_in_header(prompt.question, header.get_effects())
         ));
         answer
     }
@@ -78,7 +83,8 @@ impl Backend for Inquire {
                 prompt.defaults.iter().any(|default| Some(&**default) == names.get(*index).copied())
             })
             .collect();
-        let select = MultiSelect::new(prompt.question, names)
+        let question = prompt.styles.question_in_header(prompt.question, DRAWN);
+        let select = MultiSelect::new(&question, names)
             .with_default(&defaults)
             .with_render_config(RenderConfig::from(prompt.styles));
         let select = if prompt.optional {
@@ -92,7 +98,8 @@ impl Backend for Inquire {
     }
 
     fn secret(&self, prompt: &SecretPrompt<'_>) -> Result<Option<SecretString>, PromptError> {
-        let input = Password::new(prompt.question)
+        let question = prompt.styles.question_in_header(prompt.question, DRAWN);
+        let input = Password::new(&question)
             .without_confirmation()
             .with_display_mode(PasswordDisplayMode::Masked)
             .with_render_config(RenderConfig::from(prompt.styles));
@@ -111,8 +118,9 @@ impl Backend for Inquire {
             prompt.default.and_then(|default| names.iter().position(|name| *name == default));
         let none = prompt.optional.then_some(prompt.none_option);
         let items: Vec<&str> = names.iter().copied().chain(none).collect();
-        let select = Select::new(prompt.question, items)
-            .with_render_config(RenderConfig::from(prompt.styles));
+        let question = prompt.styles.question_in_header(prompt.question, DRAWN);
+        let select =
+            Select::new(&question, items).with_render_config(RenderConfig::from(prompt.styles));
         let picked = match default {
             Some(index) => select.with_starting_cursor(index),
             None => select,
@@ -124,7 +132,8 @@ impl Backend for Inquire {
     }
 
     fn text(&self, prompt: &TextPrompt<'_>) -> Result<Option<String>, PromptError> {
-        let text = Text::new(prompt.question).with_render_config(RenderConfig::from(prompt.styles));
+        let question = prompt.styles.question_in_header(prompt.question, DRAWN);
+        let text = Text::new(&question).with_render_config(RenderConfig::from(prompt.styles));
         let text = match prompt.default {
             Some(default) => text.with_default(default),
             None => text,

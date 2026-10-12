@@ -1,6 +1,6 @@
 //! [`Backend`] drawn by [dialoguer](https://docs.rs/dialoguer).
 
-use clap::builder::PossibleValue;
+use clap::builder::{PossibleValue, styling::Effects};
 use dialoguer::{Confirm, Input, MultiSelect, Password, Select, theme::ColorfulTheme};
 use secrecy::SecretString;
 
@@ -12,6 +12,10 @@ use crate::interactive::EditorPrompt;
 use crate::interactive::{
     ConfirmPrompt, MultiSelectPrompt, PromptError, SecretPrompt, SelectPrompt, TextPrompt,
 };
+
+/// The header effects a `console` style carries, so the ones dialoguer draws a question in.
+const DRAWN: Effects =
+    Effects::BOLD.insert(Effects::DIMMED).insert(Effects::ITALIC).insert(Effects::UNDERLINE);
 
 /// A dialoguer failure.
 struct DialoguerError(dialoguer::Error);
@@ -28,7 +32,7 @@ impl Backend for Dialoguer {
     fn confirm(&self, prompt: &ConfirmPrompt<'_>) -> Result<bool, PromptError> {
         let theme = ColorfulTheme::from(prompt.styles);
         Confirm::with_theme(&theme)
-            .with_prompt(prompt.question)
+            .with_prompt(&*prompt.styles.question_in_header(prompt.question, DRAWN))
             .default(prompt.default)
             .interact_opt()
             .map_err(DialoguerError)?
@@ -46,7 +50,13 @@ impl Backend for Dialoguer {
         if let Edited::Answered(line) = Edited::of(&answer, prompt.optional) {
             let mut transcript = String::new();
             let theme = ColorfulTheme::from(prompt.styles);
-            if theme.format_input_prompt_selection(&mut transcript, prompt.question, &line).is_ok()
+            if theme
+                .format_input_prompt_selection(
+                    &mut transcript,
+                    &prompt.styles.question_in_header(prompt.question, DRAWN),
+                    &line,
+                )
+                .is_ok()
             {
                 // Best effort: after a hang-up there is no terminal left to draw on.
                 drop(console::Term::stderr().write_line(&transcript));
@@ -66,7 +76,7 @@ impl Backend for Dialoguer {
         // prompt comes back empty, it says so and is shown again.
         loop {
             let picked = MultiSelect::with_theme(&theme)
-                .with_prompt(prompt.question)
+                .with_prompt(&*prompt.styles.question_in_header(prompt.question, DRAWN))
                 .items(prompt.options.iter().map(PossibleValue::get_name))
                 .defaults(&picked_by_default)
                 .interact_opt()
@@ -97,7 +107,7 @@ impl Backend for Dialoguer {
         #[cfg(unix)]
         let _modes = crate::os::tty::TerminalModes::of_stdin();
         let answer = Password::with_theme(&theme)
-            .with_prompt(prompt.question)
+            .with_prompt(&*prompt.styles.question_in_header(prompt.question, DRAWN))
             .allow_empty_password(prompt.optional)
             .interact()
             .map_err(DialoguerError)?;
@@ -109,7 +119,9 @@ impl Backend for Dialoguer {
         let names: Vec<&str> = prompt.options.iter().map(PossibleValue::get_name).collect();
         let none = prompt.optional.then_some(prompt.none_option);
         let items: Vec<&str> = names.iter().copied().chain(none).collect();
-        let select = Select::with_theme(&theme).with_prompt(prompt.question).items(&items);
+        let select = Select::with_theme(&theme)
+            .with_prompt(&*prompt.styles.question_in_header(prompt.question, DRAWN))
+            .items(&items);
         let default =
             prompt.default.and_then(|default| names.iter().position(|name| *name == default));
         let picked = match default {
@@ -127,8 +139,10 @@ impl Backend for Dialoguer {
         let theme = ColorfulTheme::from(prompt.styles);
         let input = Input::<String>::with_theme(&theme)
             .with_prompt(prompt.hint.map_or_else(
-                || prompt.question.to_owned(),
-                |hint| format!("{} {hint}", prompt.question),
+                || prompt.styles.question_in_header(prompt.question, DRAWN).into_owned(),
+                |hint| {
+                    format!("{} {hint}", prompt.styles.question_in_header(prompt.question, DRAWN))
+                },
             ))
             .allow_empty(prompt.optional);
         let input = match prompt.initial {

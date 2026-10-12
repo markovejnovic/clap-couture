@@ -10,6 +10,8 @@ use core::{
     iter,
 };
 
+#[cfg(feature = "interactive")]
+use clap::ColorChoice;
 use clap::{
     Command,
     builder::{Resettable, StyledStr, Styles},
@@ -44,6 +46,11 @@ pub(crate) trait CommandRenderExt {
     /// clap's build hands a command's `term_width` and `max_term_width` to each subcommand, so
     /// the built root's width is every built command's.
     fn help_width(&self) -> Option<usize>;
+
+    /// `text` rendered on one line as a prompt's question: styled when this command's color is on
+    /// for stderr, else plain.
+    #[cfg(feature = "interactive")]
+    fn render_question(&self, text: &str) -> String;
 
     /// This command with its about and long about rendered.
     #[must_use]
@@ -84,6 +91,21 @@ impl CommandRenderExt for Command {
             |letter: char| help.lines().find(|line| line.starts_with(letter)).map_or(0, str::len);
         let width = first_line('a').max(first_line('b'));
         (width < unwrapped).then_some(width)
+    }
+
+    #[cfg(feature = "interactive")]
+    fn render_question(&self, text: &str) -> String {
+        let colored = match self.get_color() {
+            ColorChoice::Always => true,
+            ColorChoice::Never => false,
+            ColorChoice::Auto => {
+                anstream::AutoStream::choice(&std::io::stderr()) != anstream::ColorChoice::Never
+            }
+        };
+        let mut question = StyledStr::new();
+        // `StyledStr`'s `fmt::Write` is infallible.
+        Renderer::new(self.get_styles()).render_str(&mut question, text).ok();
+        if colored { question.ansi().to_string() } else { question.to_string() }
     }
 
     fn with_rendered_about(self) -> Self {

@@ -25,8 +25,6 @@
 
 </div>
 
-`clap-couture` helps you beautify your `clap`.
-
 <div align="center">
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="assets/99-full-example-light.gif">
@@ -158,18 +156,12 @@ There are three backends, controlled through feature flags:
 `interactive-cliclack` (default), `interactive-inquire` and
 `interactive-dialoguer`, using those libraries.
 
-### Scripts & CI
-
-Couture prompts only when stdin and stderr are terminals. Otherwise a missing
-arg gets clap's usual error, and a confirmation needs its flag passed. Set
-`NO_PROMPT=1` or `CI=true` to turn prompts off even at a terminal.
-
 ## Markdown
 
-Markdown is opt-in: with the `markdown` feature (or `full`), doc comments and
-category descriptions are CommonMark, rendered in the terminal. That gives `*`,
-`_` and `<...>` their markdown meaning, so plain help text keeps them only
-without it. Turn it on with `cargo add clap-couture --features markdown`:
+With the `markdown` feature (or `full`), doc comments and category descriptions
+are CommonMark, rendered in the terminal. That gives `*`, `_` and `<...>` their
+markdown meaning, so plain help text keeps them only without it. Turn it on
+with `cargo add clap-couture --features markdown`:
 
 ```rust
 enum Cmd {
@@ -179,11 +171,6 @@ enum Cmd {
     Login,
 }
 ```
-
-<picture>
-  <source media="(prefers-color-scheme: light)" srcset="assets/02-markdown-simple-light.png">
-  <img src="assets/02-markdown-simple-dark.png" alt="--help output where 'current' is bold and 'your' is italic" width="521">
-</picture>
 
 # Learn more
 

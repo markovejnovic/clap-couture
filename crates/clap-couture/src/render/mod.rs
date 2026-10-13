@@ -1,3 +1,5 @@
+#[cfg(test)]
+mod clap_parity;
 mod help;
 #[cfg(feature = "markdown")]
 mod md;

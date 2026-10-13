@@ -12,7 +12,7 @@ const DESCRIPTION: &str = "Ship code to production and back";
 /// The texts each help must show whole, each line of one starting at the column its first does.
 const TEXTS: [&str; 3] = [
     "Does a thing with many words in it",
-    "Short one with several words [alias: s]",
+    "Short one with several words [aliases: s, sh]",
     "Set the very long option to something useful",
 ];
 
@@ -39,7 +39,7 @@ enum Cmd {
     #[couture(category = "deploy")]
     ASubcommandWithAVeryLongNameXy,
     /// Short one with several words.
-    #[command(visible_alias = "s")]
+    #[command(visible_aliases = ["s", "sh"])]
     Short,
 }
 
@@ -60,7 +60,7 @@ enum UncategorizedCmd {
     /// Does a thing with many words in it.
     ASubcommandWithAVeryLongNameXy,
     /// Short one with several words.
-    #[command(visible_alias = "s")]
+    #[command(visible_aliases = ["s", "sh"])]
     Short,
 }
 

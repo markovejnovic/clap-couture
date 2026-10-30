@@ -50,7 +50,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       # The scripts run through `uv run`, in the environment `uv.lock` pins.
-      - uses: astral-sh/setup-uv@v10.3.0
+      - uses: astral-sh/setup-uv@v10.3.2
       - name: Find clap's latest release
         id: latest
         run: |

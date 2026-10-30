@@ -47,7 +47,7 @@ jobs:
           echo '<meta http-equiv="refresh" content="0; url=clap_couture/index.html">' \
             > target/doc/index.html
 
-      - uses: rossjrw/pr-preview-action@v1.8.1
+      - uses: rossjrw/pr-preview-action@v1.8.2
         with:
           source-dir: target/doc
           qr-code: "false"
